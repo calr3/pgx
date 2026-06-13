@@ -372,6 +372,22 @@ class Visualizer:
                     "silver",
                     "gray",
                 )
+        elif _state.env_id == "g_hex":
+            from pgx._src.dwg.g_hex import _make_g_hex_dwg
+
+            self.config["GRID_SIZE"] = 35
+            self.config["BOARD_WIDTH"] = 8
+            self.config["BOARD_HEIGHT"] = 8
+            self._make_dwg_group = _make_g_hex_dwg
+            self.config["COLOR_SET"] =  ColorSet(
+                    "black",
+                    "darkgray",
+                    "white",
+                    "white",
+                    "#1e1e1e",
+                    "silver",
+                    "gray",
+                )
         elif _state.env_id in ("go_9x9", "go_19x19"):
             from pgx._src.dwg.go import _make_go_dwg
 

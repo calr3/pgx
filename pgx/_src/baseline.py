@@ -10,6 +10,8 @@ from pgx._src.utils import _download
 BaselineModelId = Literal[
     "animal_shogi_v0",
     "domineering_v0",
+    "g_hex_v0",
+    "g_hex2_v0",
     "gardner_chess_v0",
     "go_9x9_v0",
     "hex_v0",
@@ -40,6 +42,24 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
             "resnet_v2": True,
           },
           shape = (2, 8, 8, 2))
+    elif model_id == "g_hex_v0":
+        return _make_untrained_baseline_model(
+           model_args = {
+            "num_actions": 21 * 10,
+            "num_channels": 256,
+            "num_layers": 6,
+            "resnet_v2": True,
+          },
+          shape = (1, 4, 7, 4 + 2*10))
+    elif model_id == "g_hex2_v0":
+        return _make_untrained_baseline_model(
+           model_args = {
+            "num_actions": 23 * 11,
+            "num_channels": 256,
+            "num_layers": 6,
+            "resnet_v2": True,
+          },
+          shape = (1, 4, 7, 4 + 2*11))
     elif model_id in (
         "minatar-asterix_v0",
         "minatar-breakout_v0",

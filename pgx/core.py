@@ -47,6 +47,8 @@ EnvId = Literal[
     "connect_four",
     "domineering",
     "gardner_chess",
+    "g_hex",
+    "g_hex2",
     "go_9x9",
     "go_19x19",
     "hex",
@@ -366,6 +368,14 @@ def make(env_id: EnvId):  # noqa: C901
         from pgx.gardner_chess import GardnerChess
 
         return GardnerChess()
+    elif env_id == "g_hex":
+        from pgx.g_hex import GHex
+
+        return GHex()
+    elif env_id == "g_hex2":
+        from pgx.g_hex2 import GHex2
+
+        return GHex2()
     elif env_id == "go_9x9":
         from pgx.go import Go
 
