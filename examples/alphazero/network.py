@@ -51,9 +51,14 @@ class SelfAttentionBlock(hk.Module):
         self.num_heads = num_heads
 
     def __call__(self, x, is_training, test_local_stats):
+        del is_training, test_local_stats  # LayerNorm is batch- and mode-independent.
         i = x
         b, h, w, c = x.shape
-        x = hk.BatchNorm(True, True, 0.9)(x, is_training, test_local_stats)
+        # LayerNorm (per-token over channels) rather than BatchNorm: attention is
+        # highly sensitive to input scale, and BatchNorm's running variance can be
+        # ~0 when seeded from a near-constant init batch (e.g. an empty board),
+        # which blows up the attention logits to NaN in eval mode.
+        x = hk.LayerNorm(axis=-1, create_scale=True, create_offset=True)(x)
         x = jax.nn.relu(x)
         # Flatten the spatial grid into a sequence of length H*W.
         seq = x.reshape(b, h * w, c)
