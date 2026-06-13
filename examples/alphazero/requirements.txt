@@ -1,5 +1,5 @@
 pgx>=2.0.0
-dm-haiku
+dm-haiku>=0.0.16
 mctx
 optax
 wandb
