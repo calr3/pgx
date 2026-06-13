@@ -9,6 +9,7 @@ from pgx._src.utils import _download
 
 BaselineModelId = Literal[
     "animal_shogi_v0",
+    "domineering_v0",
     "gardner_chess_v0",
     "go_9x9_v0",
     "hex_v0",
@@ -30,6 +31,15 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
         "othello_v0",
     ):
         return _make_az_baseline_model(model_id, download_dir)
+    elif model_id == "domineering_v0":
+        return _make_untrained_baseline_model(
+           model_args = {
+            "num_actions": 8 * 7,
+            "num_channels": 128,
+            "num_layers": 6,
+            "resnet_v2": True,
+          },
+          shape = (2, 8, 8, 2))
     elif model_id in (
         "minatar-asterix_v0",
         "minatar-breakout_v0",
@@ -56,6 +66,27 @@ def _make_az_baseline_model(model_id: BaselineModelId, download_dir: str = "base
 
     def apply(obs):
         (logits, value), _ = forward.apply(model_params, model_state, obs, is_eval=True)
+        return logits, value
+
+    return apply
+
+
+def _make_untrained_baseline_model(model_args, shape):
+    import haiku as hk
+
+    def forward_fn(x, is_eval=False):
+        net = _create_az_model_v0(**model_args)
+        policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
+        return policy_out, value_out
+
+    forward = hk.without_apply_rng(hk.transform_with_state(forward_fn))
+
+    key = jax.random.PRNGKey(0)
+    dummy_obs = jnp.zeros(shape, dtype=jnp.float32)
+    params, state = forward.init(key, dummy_obs, is_eval=False)
+
+    def apply(obs):
+        (logits, value), _ = forward.apply(params, state, obs, is_eval=True)
         return logits, value
 
     return apply
