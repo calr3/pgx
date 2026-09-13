@@ -449,6 +449,10 @@ if __name__ == "__main__":
         # Fraction of game slots that reached a terminal state within
         # max_num_steps (i.e. finished at least one game this iteration).
         terminate_rate = data.terminated.any(axis=1).mean().item()
+        # Games that ended this iteration: draw share, and steps generated per
+        # finished game (approximates game length in env steps once stationary).
+        games_finished = data.terminated.sum().item()
+        games_drawn = (data.terminated & (data.reward == 0)).sum().item()
 
         # Compute value targets and fill the replay buffer on the host, so only
         # one minibatch at a time occupies device memory during training.
@@ -457,7 +461,8 @@ if __name__ == "__main__":
             lambda x: np.moveaxis(x, 0, 1).reshape((x.shape[1], -1, *x.shape[3:])),
             jax.device_get(data),
         )
-        frames += data.terminated.size
+        data_steps = data.terminated.size
+        frames += data_steps
         samples: Sample = trajectories.process(data, carry=config.continue_games)
         del data
         new_samples = samples.mask.size
@@ -503,6 +508,9 @@ if __name__ == "__main__":
                 "train/value_target_fraction": value_target_fraction,
                 "train/pending_steps": trajectories.num_pending,
                 "selfplay/num_simulations": num_simulations,
+                "selfplay/games_finished": games_finished,
+                "selfplay/draw_rate": games_drawn / max(games_finished, 1),
+                "selfplay/steps_per_game": data_steps / max(games_finished, 1),
                 "hours": hours,
                 "frames": frames,
             }
