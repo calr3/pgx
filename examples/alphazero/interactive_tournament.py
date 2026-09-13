@@ -32,7 +32,7 @@ from pgx.g_hex import black
 from pgx.g_hex2 import black2
 from pydantic import BaseModel
 from config import Config
-from network import AZNet
+from network import make_forward
 from abc import ABC, abstractmethod
 
 # A Haiku model is a (params, state) pair, as returned by forward.init.
@@ -459,19 +459,7 @@ class ModelAgent(Agent):
         model: Model,
         cli: Cli,
     ) -> None:
-        def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
-            net = AZNet(
-                num_actions=env.num_actions,
-                num_channels=config.num_channels,
-                num_blocks=config.num_layers,
-                resnet_v2=config.resnet_v2,
-                num_heads=config.num_heads,
-                num_attention_layers=config.num_attention_layers,
-            )
-            policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
-            return policy_out, value_out
-
-        forward = hk.without_apply_rng(hk.transform_with_state(forward_fn))
+        forward = make_forward(env.num_actions, config)
 
         def recurrent_fn(
             model: Model, rng_key: jnp.ndarray, action: jnp.ndarray, state: pgx.State

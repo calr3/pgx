@@ -25,6 +25,7 @@ import haiku as hk
 import jax
 import jax.numpy as jnp
 import mctx
+import numpy as np
 import optax
 import pgx
 import wandb
@@ -32,7 +33,7 @@ from omegaconf import OmegaConf
 from pgx.experimental import auto_reset
 
 from config import Config
-from network import AZNet
+from network import make_forward, make_optimizer
 
 # A Haiku model is a (params, state) pair, as returned by forward.init.
 Model = tuple[hk.Params, hk.State]
@@ -77,21 +78,8 @@ env = pgx.make(config.env_id)
 baseline = pgx.make_baseline_model(config.env_id + "_v0")
 
 
-def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
-    net = AZNet(
-        num_actions=env.num_actions,
-        num_channels=config.num_channels,
-        num_blocks=config.num_layers,
-        resnet_v2=config.resnet_v2,
-        num_heads=config.num_heads,
-        num_attention_layers=config.num_attention_layers,
-    )
-    policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
-    return policy_out, value_out
-
-
-forward = hk.without_apply_rng(hk.transform_with_state(forward_fn))
-optimizer = optax.adam(learning_rate=config.learning_rate)
+forward = make_forward(env.num_actions, config)
+optimizer = make_optimizer(config)
 
 
 def recurrent_fn(
@@ -247,7 +235,7 @@ def train(
         model_params, model_state, data
     )
     grads = jax.lax.pmean(grads, axis_name="i")
-    updates, opt_state = optimizer.update(grads, opt_state)
+    updates, opt_state = optimizer.update(grads, opt_state, model_params)
     model_params = optax.apply_updates(model_params, updates)
     model = (model_params, model_state)
     return model, opt_state, policy_loss, value_loss
@@ -471,8 +459,10 @@ if __name__ == "__main__":
         # max_num_steps; the rest hit the step limit and were truncated.
         terminate_rate = data.terminated.any(axis=1).mean().item()
         samples: Sample = compute_loss_input(data)
+        del data  # free the device copy before training
 
-        # Shuffle samples and make minibatches
+        # Shuffle samples and make minibatches on the host, so only one
+        # minibatch at a time occupies device memory during training.
         samples = jax.device_get(samples)  # (#devices, max_num_steps, batch, ...)
 
         # ── Value-target diagnostics ───────────────────────────────────────
@@ -482,7 +472,7 @@ if __name__ == "__main__":
         frames += samples.obs.shape[0] * samples.obs.shape[1] * samples.obs.shape[2]
         samples = jax.tree_util.tree_map(lambda x: x.reshape((-1, *x.shape[3:])), samples)
         rng_key, subkey = jax.random.split(rng_key)
-        ixs = jax.random.permutation(subkey, jnp.arange(samples.obs.shape[0]))
+        ixs = np.asarray(jax.random.permutation(subkey, samples.obs.shape[0]))
         samples = jax.tree_util.tree_map(lambda x: x[ixs], samples)  # shuffle
         num_updates = samples.obs.shape[0] // config.training_batch_size
         minibatches = jax.tree_util.tree_map(

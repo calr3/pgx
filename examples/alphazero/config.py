@@ -4,6 +4,8 @@
 # same Config class can be imported by both the trainer and run_tournament.py,
 # and so checkpoints pickle/unpickle against a stable module path (config.Config).
 
+from typing import Literal
+
 import pgx
 from pydantic import BaseModel, PrivateAttr, model_validator
 
@@ -32,6 +34,20 @@ class Config(BaseModel):
     # Number of self-attention blocks applied at the end (after the conv blocks),
     # used only when num_heads > 0. Must not exceed num_layers.
     num_attention_layers: int = 1
+    # "resnet" is AZNet (above fields). "gessformer" is the hybrid conv-stem +
+    # Chessformer-style transformer for Gess (network.GessFormer), configured by
+    # the gf_* fields below, which the resnet ignores.
+    architecture: Literal["resnet", "gessformer"] = "resnet"
+    gf_stem_channels: int = 64
+    gf_stem_blocks: int = 2
+    gf_embed_dim: int = 192
+    gf_num_layers: int = 6
+    gf_num_heads: int = 8
+    gf_ffn_mult: float = 2.0
+    # Geometric Attention Bias (board-conditioned); False = static bias only.
+    gf_gab: bool = True
+    # Rematerialize transformer blocks in the backward pass to save memory.
+    gf_remat: bool = True
     # selfplay params
     selfplay_batch_size: int = 1024
     num_simulations: int = 32
@@ -49,6 +65,12 @@ class Config(BaseModel):
     # training params
     training_batch_size: int = 4096
     learning_rate: float = 0.001
+    # With all three at their defaults the optimizer is plain Adam (compatible
+    # with older checkpoints' opt_state); otherwise AdamW with a linear warmup
+    # and optional global-norm gradient clipping. See network.make_optimizer.
+    weight_decay: float = 0.0
+    warmup_steps: int = 0
+    grad_clip_norm: float = 0.0
     # eval params
     eval_interval: int = 5
 
@@ -63,6 +85,18 @@ class Config(BaseModel):
                 f"num_attention_layers ({self.num_attention_layers}) cannot exceed "
                 f"num_layers ({self.num_layers})."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _check_gessformer(self):
+        if self.architecture == "gessformer":
+            if self.env_id != "gess":
+                raise ValueError(f"architecture=gessformer requires env_id=gess, got {self.env_id!r}.")
+            if self.gf_embed_dim % self.gf_num_heads != 0:
+                raise ValueError(
+                    f"gf_embed_dim ({self.gf_embed_dim}) must be divisible by "
+                    f"gf_num_heads ({self.gf_num_heads})."
+                )
         return self
 
     @model_validator(mode="after")

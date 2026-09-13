@@ -63,7 +63,7 @@ from omegaconf import OmegaConf
 from pydantic import BaseModel
 
 from config import Config
-from network import AZNet
+from network import make_forward
 
 # A Haiku model is a (params, state) pair, as returned by forward.init.
 Model = tuple[hk.Params, hk.State]
@@ -128,22 +128,6 @@ def load_from_checkpoint(path: str) -> tuple[Config, Model]:
     # come back with those fields populated to their defaults.
     config = Config(**ckpt["config"].__dict__)
     return config, ckpt["model"]
-
-
-def make_forward(num_actions: int, config: Config) -> hk.TransformedWithState:
-    def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
-        net = AZNet(
-            num_actions=num_actions,
-            num_channels=config.num_channels,
-            num_blocks=config.num_layers,
-            resnet_v2=config.resnet_v2,
-            num_heads=config.num_heads,
-            num_attention_layers=config.num_attention_layers,
-        )
-        policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
-        return policy_out, value_out
-
-    return hk.without_apply_rng(hk.transform_with_state(forward_fn))
 
 
 def make_recurrent_fn(env: pgx.Env, forward: hk.TransformedWithState) -> mctx.RecurrentFn:

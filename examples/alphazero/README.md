@@ -16,6 +16,25 @@ $ pip install -U pip && pip install -r requirements.txt
 $ python3 train.py env_id=go_9x9 seed=0
 ```
 
+### GessFormer (Gess only)
+
+`architecture=gessformer` swaps the ResNet for `network.GessFormer`, a hybrid
+network adapted from Chessformer ([arXiv 2605.19091](https://arxiv.org/html/2605.19091v1)):
+
+- a full-resolution 3x3 conv stem, for Gess's 3x3 piece footprints;
+- a 2x2 patch merge to 10x10 tokens and a pre-LN transformer with Geometric
+  Attention Bias, for long-range sliding moves;
+- an upsample with a stem skip connection, feeding a source->destination
+  attention policy head over the 20x20 action grid and a mean-pool value head.
+
+It uses LayerNorm only (no BatchNorm). Configure it with the `gf_*` fields in
+`config.py`. It trains best with AdamW, warmup and clipping:
+
+```sh
+$ python3 train.py env_id=gess architecture=gessformer learning_rate=5e-4 \
+    weight_decay=1e-4 warmup_steps=500 grad_clip_norm=1.0
+```
+
 ## Reference
 
 - [[Silver+18](https://www.science.org/doi/10.1126/science.aar6404)] "A general reinforcement learning algorithm that masters
