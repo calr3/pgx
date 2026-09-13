@@ -62,8 +62,29 @@ class Config(BaseModel):
     # (cheap, only a handful of times over a run).
     sim_schedule: str = ""
     max_num_steps: int = 256
+    # Continue self-play games across iterations instead of restarting every
+    # game slot from the initial position each iteration. Steps from games still
+    # in progress at the end of an iteration are held back (in host memory) and
+    # added to the replay buffer once the game ends and its value target is
+    # known; steps held back longer than max_pending_steps are added without a
+    # value target. Neither the games nor the held-back steps are checkpointed:
+    # a resumed run starts fresh games.
+    continue_games: bool = False
+    max_pending_steps: int = 1024
     # training params
     training_batch_size: int = 4096
+    # Replay buffer size, in self-play iterations' worth of samples
+    # (replay_buffer_iters * selfplay_batch_size * max_num_steps): minibatches are
+    # sampled uniformly from the most recent samples, held in host memory (not
+    # checkpointed; it refills after a resume). 1 = train only on the current
+    # iteration's samples.
+    replay_buffer_iters: int = 1
+    # Gradient updates per iteration. 0 = one pass over a fresh iteration's
+    # samples, i.e. (selfplay_batch_size * max_num_steps) // training_batch_size.
+    # Sample reuse (replay ratio) = updates * training_batch_size / samples added
+    # per iteration; draws are without replacement while the buffer holds enough
+    # samples for the iteration, with replacement otherwise.
+    num_updates_per_iter: int = 0
     learning_rate: float = 0.001
     # With all three at their defaults the optimizer is plain Adam (compatible
     # with older checkpoints' opt_state); otherwise AdamW with a linear warmup
@@ -71,6 +92,11 @@ class Config(BaseModel):
     weight_decay: float = 0.0
     warmup_steps: int = 0
     grad_clip_norm: float = 0.0
+    # Learning rate after warmup: "constant", or "cosine" decay from
+    # learning_rate to learning_rate * lr_final_ratio over the whole run
+    # (max_num_iters * updates_per_iter() gradient steps, warmup included).
+    lr_schedule: Literal["constant", "cosine"] = "constant"
+    lr_final_ratio: float = 0.1
     # eval params
     eval_interval: int = 5
 
@@ -85,6 +111,18 @@ class Config(BaseModel):
                 f"num_attention_layers ({self.num_attention_layers}) cannot exceed "
                 f"num_layers ({self.num_layers})."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _check_replay(self):
+        if self.replay_buffer_iters < 1:
+            raise ValueError(f"replay_buffer_iters must be >= 1, got {self.replay_buffer_iters}.")
+        if self.max_pending_steps < 0:
+            raise ValueError(f"max_pending_steps must be >= 0, got {self.max_pending_steps}.")
+        if not 0.0 <= self.lr_final_ratio <= 1.0:
+            raise ValueError(f"lr_final_ratio must be in [0, 1], got {self.lr_final_ratio}.")
+        if self.num_updates_per_iter < 0:
+            raise ValueError(f"num_updates_per_iter must be >= 0, got {self.num_updates_per_iter}.")
         return self
 
     @model_validator(mode="after")
@@ -128,6 +166,12 @@ class Config(BaseModel):
         entries.sort()
         self._sim_schedule = entries
         return self
+
+    def updates_per_iter(self) -> int:
+        """Gradient updates per iteration once the replay buffer has filled."""
+        return self.num_updates_per_iter or (
+            self.selfplay_batch_size * self.max_num_steps // self.training_batch_size
+        )
 
     def num_simulations_at(self, iteration: int) -> int:
         """Active MCTS simulation count for `iteration` under `sim_schedule`.

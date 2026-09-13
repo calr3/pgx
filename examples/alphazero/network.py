@@ -377,21 +377,37 @@ def make_forward(num_actions: int, config) -> hk.TransformedWithState:
 
 
 def make_optimizer(config) -> optax.GradientTransformation:
-    """Adam by default; AdamW + warmup + clipping when those fields are set.
+    """Adam by default; AdamW with an LR schedule and clipping when configured.
 
-    With the default weight_decay/warmup_steps/grad_clip_norm this is exactly
-    optax.adam(learning_rate), so older runs resume with a compatible opt_state.
+    With the default weight_decay/warmup_steps/grad_clip_norm/lr_schedule this
+    is exactly optax.adam(learning_rate), so older runs resume with a
+    compatible opt_state.
     """
-    if config.weight_decay == 0.0 and config.warmup_steps == 0 and config.grad_clip_norm == 0.0:
+    if (
+        config.weight_decay == 0.0
+        and config.warmup_steps == 0
+        and config.grad_clip_norm == 0.0
+        and config.lr_schedule == "constant"
+    ):
         return optax.adam(learning_rate=config.learning_rate)
 
-    lr = config.learning_rate
-    if config.warmup_steps > 0:
+    peak = config.learning_rate
+    if config.lr_schedule == "cosine":
+        # Iterations that make fewer updates while the replay buffer fills up
+        # leave the decay slightly unfinished at max_num_iters.
+        total_steps = max(config.max_num_iters * config.updates_per_iter(), config.warmup_steps + 1)
+        end = peak * config.lr_final_ratio
+        if config.warmup_steps > 0:
+            lr = optax.warmup_cosine_decay_schedule(0.0, peak, config.warmup_steps, total_steps, end)
+        else:
+            lr = optax.cosine_decay_schedule(peak, total_steps, alpha=config.lr_final_ratio)
+    elif config.warmup_steps > 0:
         lr = optax.join_schedules(
-            [optax.linear_schedule(0.0, config.learning_rate, config.warmup_steps),
-             optax.constant_schedule(config.learning_rate)],
+            [optax.linear_schedule(0.0, peak, config.warmup_steps), optax.constant_schedule(peak)],
             boundaries=[config.warmup_steps],
         )
+    else:
+        lr = peak
 
     def decay_mask(params):
         # Decay only weight matrices/kernels; not norms, biases or embeddings.

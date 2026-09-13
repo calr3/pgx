@@ -34,6 +34,8 @@ from pgx.experimental import auto_reset
 
 from config import Config
 from network import make_forward, make_optimizer
+from replay_buffer import ReplayBuffer
+from trajectories import PendingTrajectories, Sample
 
 # A Haiku model is a (params, state) pair, as returned by forward.init.
 Model = tuple[hk.Params, hk.State]
@@ -48,12 +50,12 @@ print(config)
 
 
 def _validate_config(config: Config, num_devices: int) -> None:
-    # Each iteration produces selfplay_batch_size * max_num_steps samples, which
-    # are then reshaped into num_updates minibatches of training_batch_size. That
-    # reshape (and the per-device split) requires the divisibilities below;
-    # otherwise training crashes mid-run with an opaque reshape error.
+    # Each iteration produces selfplay_batch_size * max_num_steps samples. With
+    # the default num_updates_per_iter=0 they are split into whole minibatches of
+    # training_batch_size, which should not silently drop a remainder. Each
+    # minibatch is split across devices, which requires the second check.
     total_samples = config.selfplay_batch_size * config.max_num_steps
-    if total_samples % config.training_batch_size != 0:
+    if config.num_updates_per_iter == 0 and total_samples % config.training_batch_size != 0:
         num_updates = total_samples // config.training_batch_size
         remainder = total_samples - num_updates * config.training_batch_size
         raise ValueError(
@@ -126,8 +128,15 @@ class SelfplayOutput(NamedTuple):
 # varied across iterations via config.sim_schedule. Each distinct value triggers
 # one XLA recompile of this self-play step; the schedule changes it only a
 # handful of times over a run.
-@partial(jax.pmap, static_broadcasted_argnums=(2,))
-def selfplay(model: Model, rng_key: jnp.ndarray, num_simulations: int) -> SelfplayOutput:
+@partial(jax.pmap, static_broadcasted_argnums=(3,))
+def selfplay(
+    model: Model, state: pgx.State, rng_key: jnp.ndarray, num_simulations: int
+) -> tuple[pgx.State, SelfplayOutput]:
+    """Play max_num_steps from `state`, returning the final state and the steps.
+
+    Unless config.continue_games, `state` is ignored and every game slot
+    restarts from the initial position.
+    """
     model_params, model_state = model
     batch_size = config.selfplay_batch_size // num_devices
 
@@ -167,47 +176,18 @@ def selfplay(model: Model, rng_key: jnp.ndarray, num_simulations: int) -> Selfpl
 
     # Run selfplay for max_num_steps by batch
     rng_key, sub_key = jax.random.split(rng_key)
-    keys = jax.random.split(sub_key, batch_size)
-    state = jax.vmap(env.init)(keys)
+    if not config.continue_games:
+        keys = jax.random.split(sub_key, batch_size)
+        state = jax.vmap(env.init)(keys)
     key_seq = jax.random.split(rng_key, config.max_num_steps)
-    _, data = jax.lax.scan(step_fn, state, key_seq)
+    state, data = jax.lax.scan(step_fn, state, key_seq)
 
-    return data
-
-
-class Sample(NamedTuple):
-    obs: jnp.ndarray
-    policy_tgt: jnp.ndarray
-    value_tgt: jnp.ndarray
-    mask: jnp.ndarray
+    return state, data
 
 
 @jax.pmap
-def compute_loss_input(data: SelfplayOutput) -> Sample:
-    batch_size = config.selfplay_batch_size // num_devices
-    # If episode is truncated, there is no value target
-    # So when we compute value loss, we need to mask it
-    value_mask = jnp.cumsum(data.terminated[::-1, :], axis=0)[::-1, :] >= 1
-
-    # Compute value target
-    def body_fn(carry: jnp.ndarray, i: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
-        ix = config.max_num_steps - i - 1
-        v = data.reward[ix] + data.discount[ix] * carry
-        return v, v
-
-    _, value_tgt = jax.lax.scan(
-        body_fn,
-        jnp.zeros(batch_size),
-        jnp.arange(config.max_num_steps),
-    )
-    value_tgt = value_tgt[::-1, :]
-
-    return Sample(
-        obs=data.obs,
-        policy_tgt=data.action_weights,
-        value_tgt=value_tgt,
-        mask=value_mask,
-    )
+def init_selfplay_state(rng_key: jnp.ndarray) -> pgx.State:
+    return jax.vmap(env.init)(jax.random.split(rng_key, config.selfplay_batch_size // num_devices))
 
 
 def loss_fn(
@@ -415,6 +395,17 @@ if __name__ == "__main__":
             }
             pickle.dump(dic, f)
 
+    samples_per_iter = config.selfplay_batch_size * config.max_num_steps
+    replay_buffer = ReplayBuffer(config.replay_buffer_iters * samples_per_iter)
+    max_num_updates = config.updates_per_iter()
+    replay_buffer_announced = False
+    trajectories = PendingTrajectories(config.max_pending_steps)
+    # Self-play games in progress; fresh games on start and on resume. Keyed off
+    # the seed without consuming rng_key, so its stream is unchanged.
+    selfplay_state = init_selfplay_state(
+        jax.random.split(jax.random.fold_in(jax.random.PRNGKey(config.seed), 1), num_devices)
+    )
+
     # Initialize logging dict
     log = {"iteration": iteration, "hours": hours, "frames": frames}
 
@@ -454,30 +445,40 @@ if __name__ == "__main__":
         num_simulations = config.num_simulations_at(iteration)
         rng_key, subkey = jax.random.split(rng_key)
         keys = jax.random.split(subkey, num_devices)
-        data: SelfplayOutput = selfplay(model, keys, num_simulations)
+        selfplay_state, data = selfplay(model, selfplay_state, keys, num_simulations)
         # Fraction of game slots that reached a terminal state within
-        # max_num_steps; the rest hit the step limit and were truncated.
+        # max_num_steps (i.e. finished at least one game this iteration).
         terminate_rate = data.terminated.any(axis=1).mean().item()
-        samples: Sample = compute_loss_input(data)
-        del data  # free the device copy before training
 
-        # Shuffle samples and make minibatches on the host, so only one
-        # minibatch at a time occupies device memory during training.
-        samples = jax.device_get(samples)  # (#devices, max_num_steps, batch, ...)
-
-        # ── Value-target diagnostics ───────────────────────────────────────
-        # samples.value_tgt : (num_devices, max_num_steps, batch_per_device)
-        # samples.mask       : same shape; True for steps inside a terminated episode
-        # samples.obs        : (..., H, W, C)
-        frames += samples.obs.shape[0] * samples.obs.shape[1] * samples.obs.shape[2]
-        samples = jax.tree_util.tree_map(lambda x: x.reshape((-1, *x.shape[3:])), samples)
-        rng_key, subkey = jax.random.split(rng_key)
-        ixs = np.asarray(jax.random.permutation(subkey, samples.obs.shape[0]))
-        samples = jax.tree_util.tree_map(lambda x: x[ixs], samples)  # shuffle
-        num_updates = samples.obs.shape[0] // config.training_batch_size
-        minibatches = jax.tree_util.tree_map(
-            lambda x: x.reshape((num_updates, num_devices, -1) + x.shape[1:]), samples
+        # Compute value targets and fill the replay buffer on the host, so only
+        # one minibatch at a time occupies device memory during training.
+        # (#devices, max_num_steps, batch, ...) -> (max_num_steps, #devices * batch, ...)
+        data = jax.tree_util.tree_map(
+            lambda x: np.moveaxis(x, 0, 1).reshape((x.shape[1], -1, *x.shape[3:])),
+            jax.device_get(data),
         )
+        frames += data.terminated.size
+        samples: Sample = trajectories.process(data, carry=config.continue_games)
+        del data
+        new_samples = samples.mask.size
+        value_target_fraction = samples.mask.mean().item() if new_samples else 0.0
+        if new_samples > 0:
+            replay_buffer.add(samples)
+        del samples
+        if not replay_buffer_announced and replay_buffer.nbytes > 0:
+            replay_buffer_announced = True
+            print(f"Replay buffer: {replay_buffer.nbytes / 2**30:.2f} GiB allocated for "
+                  f"{config.replay_buffer_iters} iterations")
+
+        # Never make more passes than the buffer holds while it is filling up
+        # (e.g. early on with continue_games, when few games have finished).
+        num_updates = min(max_num_updates, replay_buffer.num_samples // config.training_batch_size)
+        rng_key, subkey = jax.random.split(rng_key)
+        if num_updates > 0:
+            minibatches = replay_buffer.sample(subkey, num_updates * config.training_batch_size)
+            minibatches = jax.tree_util.tree_map(
+                lambda x: x.reshape((num_updates, num_devices, -1) + x.shape[1:]), minibatches
+            )
 
         # Training
         policy_losses, value_losses = [], []
@@ -486,16 +487,21 @@ if __name__ == "__main__":
             model, opt_state, policy_loss, value_loss = train(model, opt_state, minibatch)
             policy_losses.append(policy_loss.mean().item())
             value_losses.append(value_loss.mean().item())
-        policy_loss = sum(policy_losses) / len(policy_losses)
-        value_loss = sum(value_losses) / len(value_losses)
+        if num_updates > 0:
+            log["train/policy_loss"] = sum(policy_losses) / num_updates
+            log["train/value_loss"] = sum(value_losses) / num_updates
 
         et = time.time()
         hours += (et - st) / 3600
         log.update(
             {
-                "train/policy_loss": policy_loss,
-                "train/value_loss": value_loss,
                 "train/terminate_rate": terminate_rate,
+                "train/replay_buffer_samples": replay_buffer.num_samples,
+                "train/num_updates": num_updates,
+                "train/sample_reuse": num_updates * config.training_batch_size / samples_per_iter,
+                "train/new_samples": new_samples,
+                "train/value_target_fraction": value_target_fraction,
+                "train/pending_steps": trajectories.num_pending,
                 "selfplay/num_simulations": num_simulations,
                 "hours": hours,
                 "frames": frames,

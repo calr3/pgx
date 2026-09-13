@@ -35,6 +35,18 @@ $ python3 train.py env_id=gess architecture=gessformer learning_rate=5e-4 \
     weight_decay=1e-4 warmup_steps=500 grad_clip_norm=1.0
 ```
 
+### Training data options
+
+All default to the original behaviour; see `config.py` for details.
+
+- `continue_games=true`: self-play games carry over between iterations instead
+  of restarting. Steps from unfinished games are held back until the game ends,
+  so they get real value targets.
+- `replay_buffer_iters=N`, `num_updates_per_iter=U`: train on minibatches
+  sampled from the last N iterations' worth of samples, U updates per iteration.
+- `lr_schedule=cosine`, `lr_final_ratio=0.1`: cosine learning-rate decay over
+  `max_num_iters`.
+
 ## Reference
 
 - [[Silver+18](https://www.science.org/doi/10.1126/science.aar6404)] "A general reinforcement learning algorithm that masters
