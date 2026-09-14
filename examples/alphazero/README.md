@@ -55,6 +55,17 @@ All default to the original behaviour; see `config.py` for details.
   at each checkpoint; can be several GB). `resume_from=` the latest checkpoint
   then continues exactly as if uninterrupted, including after Ctrl+C.
 
+### Comparing checkpoints
+
+`model_tournament.py` plays two checkpoints against each other with MCTS.
+`elo_ladder.py` plays every pair from a list and fits Elo ratings, caching pair
+results in a JSON file so that adding a checkpoint only plays its new pairs:
+
+```sh
+$ python3 elo_ladder.py env_id=gess games_per_pair=256 num_simulations=32 \
+    models=a=checkpoints/run_a/000060.ckpt,b=checkpoints/run_b/000060.ckpt,c=checkpoints/run_c/000040.ckpt
+```
+
 ## Reference
 
 - [[Silver+18](https://www.science.org/doi/10.1126/science.aar6404)] "A general reinforcement learning algorithm that masters
