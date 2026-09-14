@@ -4,6 +4,8 @@ Goal: have the strongest possible Gess model at the end of a ~3-day rented
 Google Cloud TPU run. Local pilots (RTX 5070 Ti, 16 GB) choose the recipe;
 the TPU run executes it.
 
+Experiment details, results and conclusions: [`GESS_EXPERIMENTS.md`](GESS_EXPERIMENTS.md).
+
 ## Where we are
 
 ### Recipe so far
