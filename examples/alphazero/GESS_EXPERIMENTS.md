@@ -181,16 +181,30 @@ E5 checkpoint, bf16 search picks the same move as float32 96-97% of the time
 **Conclusion.** Adopted. More games per hour outweigh the small numerical
 difference.
 
-## E8. 16 simulations per move (running)
+## E8. 16 simulations per move
 
 **Question.** Does halving search to 16 simulations (roughly halving self-play
 cost again) beat 32 at equal time?
 
 **Setup.** E7 settings + `num_simulations=16`, 140 iterations,
 `eval_interval=10`. Run `q8z0tred`, `checkpoints/gess_20260915055020`.
-Compare the checkpoint nearest 1.21 h with E7 iteration 90.
 
-**Result.** Pending.
+**Result.** 140 iterations in 1.21 h (~31 s/iteration vs. ~48 s for E7), so
+iteration 140 is exactly equal-time with E7 iteration 90. Raw-policy win rate
+vs. baseline 21-32% late in the run (similar to E7). Policy loss fell much
+lower (0.40 vs. 0.94 for E7), as expected with sharper 16-simulation targets;
+value loss ~0.43 (E7: 0.29-0.31). **Ladder comparison pending** (paused for a
+WSL memory restart): add iterations 130 and 140 and compare with E7 iteration 90:
+
+```
+python -u examples/alphazero/elo_ladder.py env_id=gess games_per_pair=128 batch_size=128 \
+  num_simulations=32 max_num_steps=256 results_file=elo_gess_pilots.json \
+  models=base=checkpoints/gess_20260604081951/000125.ckpt,resnet=checkpoints/gess_20260914051848/000060.ckpt,gf=checkpoints/gess_20260914031715/000060.ckpt,gf_sym=checkpoints/gess_20260914190157/000060.ckpt,rf40=checkpoints/gess_20260914161042/000040.ckpt,rf60=checkpoints/gess_20260914071958/000060.ckpt,rf_sym60=checkpoints/gess_20260914210805/000060.ckpt,rf_symtied60=checkpoints/gess_20260914235054/000060.ckpt,gf_bf16_90=checkpoints/gess_20260915035816/000090.ckpt,gf_bf16_96=checkpoints/gess_20260915035816/000096.ckpt,gf_s16_130=checkpoints/gess_20260915055020/000130.ckpt,gf_s16_140=checkpoints/gess_20260915055020/000140.ckpt
+```
+
+(Existing pairs come from the cache; only the 21 new pairs are played.)
+
+**Conclusion.** Pending the ladder.
 
 ---
 

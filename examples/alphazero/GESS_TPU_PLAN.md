@@ -72,9 +72,10 @@ Self-play throughput is the bottleneck, so steps 1 and 2 target it.
 3. **Fewer simulations / playout cap randomization** (KataGo): most moves use a
    cheap search and are excluded from the policy loss; a fraction use the full
    search and provide policy targets. Try plain `num_simulations=16` first as
-   the simplest variant (pilot running: bfloat16, 140 iterations). Playout cap
-   randomization is implemented (`playout_cap_prob`, `fast_num_simulations`)
-   for the follow-up pilot.
+   the simplest variant (E8: pilot finished, ladder comparison pending; the
+   command is in `GESS_EXPERIMENTS.md`). Playout cap randomization is
+   implemented (`playout_cap_prob`, `fast_num_simulations`) for the follow-up
+   pilot.
 
 Acceptance: pilot-scale runs at equal wall-clock time, compared on the Elo
 ladder against the current best recipe (now: bf16 pilot, iteration 90 at
@@ -117,6 +118,14 @@ Ideas not on the current path; revisit if there is time or a need.
   (roughly +600 to +1,000 Elo at equal pilot time).
 - **RayFormer**: close its ~50% iteration-time gap, or try a larger variant; it
   learns more per game than GessFormer (E4) but loses at equal time.
+
+## Status
+
+Paused 2026-09-15 ~23:15 for a WSL restart (memory limit 31 GB -> 48 GB). Next:
+1. Run the E8 ladder command from `GESS_EXPERIMENTS.md`; record the result.
+2. Pilot playout cap randomization on the better of E7/E8 (equal time, ~1.2 h),
+   e.g. `num_simulations=32 playout_cap_prob=0.25 fast_num_simulations=8`.
+3. Step 2 (more sample reuse), then Step 3.
 
 ## Log
 
