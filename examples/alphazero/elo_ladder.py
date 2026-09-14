@@ -26,6 +26,8 @@ import pgx
 from omegaconf import OmegaConf
 from pydantic import BaseModel
 
+# Older checkpoints pickled Config from __main__; importing it here lets them load.
+from config import Config  # noqa: F401
 from model_tournament import TourneyConfig, build_round_runner, load_from_checkpoint
 from network import make_forward
 
