@@ -20,18 +20,21 @@ GessFormer (hybrid conv stem + transformer with Geometric Attention Bias) with:
 
 ### Pilot ladder (`elo_ladder.py`, 128 games/pair, 32 sims, anchor = old ResNet baseline)
 
-Pilots: 256 games x 128 steps per iteration, training batch 2048.
+Pilots: 256 games x 128 steps per iteration, training batch 2048. Ratings are
+relative to the pool and shift as models are added; compare gaps.
 
 | Model | Train time | Elo |
 |---|---|---|
 | old ResNet baseline (`gess_v0`) | 14.6 h | 0 |
-| **GessFormer + symmetry augmentation** | 1.23 h | **-167** |
-| RayFormer (60 it) | 1.88 h | -244 |
-| GessFormer | 1.25 h | -340 |
-| RayFormer (40 it) | 1.22 h | -444 |
-| RayFormer + augmentation, symmetry-tied | 1.93 h | -507 |
-| RayFormer + augmentation | 1.82 h | -555 |
-| ResNet pilot | 0.99 h | -726 |
+| **GessFormer + augmentation + bf16 self-play (it 96)** | 1.29 h | **-100** |
+| GessFormer + augmentation + bf16 self-play (it 90) | 1.21 h | -127 |
+| GessFormer + augmentation | 1.23 h | -248 |
+| RayFormer (60 it) | 1.88 h | -313 |
+| GessFormer | 1.25 h | -394 |
+| RayFormer (40 it) | 1.22 h | -481 |
+| RayFormer + augmentation, symmetry-tied | 1.93 h | -538 |
+| RayFormer + augmentation | 1.82 h | -584 |
+| ResNet pilot | 0.99 h | -737 |
 
 Cached results: `elo_gess_pilots.json` (repo root). RayFormer is more
 sample-efficient but ~50% slower per iteration and does not benefit from
@@ -72,8 +75,8 @@ Self-play throughput is the bottleneck, so steps 1 and 2 target it.
    for the follow-up pilot.
 
 Acceptance: pilot-scale runs at equal wall-clock time, compared on the Elo
-ladder against GessFormer + augmentation (-167). Adopt whatever is stronger at
-equal time.
+ladder against the current best recipe (now: bf16 pilot, iteration 90 at
+1.21 h). Adopt whatever is stronger at equal time.
 
 ## Step 2: more sample reuse
 
