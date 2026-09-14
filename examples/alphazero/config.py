@@ -73,6 +73,12 @@ class Config(BaseModel):
     # Run the self-play network in bfloat16 (weights cast per call; training and
     # evaluation stay float32). ~2x faster inference for gessformer.
     selfplay_bf16: bool = False
+    # Playout cap randomization (KataGo): each self-play step uses the full
+    # num_simulations search with this probability, otherwise a cheap
+    # fast_num_simulations search whose policy targets are excluded from the
+    # policy loss (value targets are kept). 1.0 = always full search.
+    playout_cap_prob: float = 1.0
+    fast_num_simulations: int = 8
     # Optional curriculum for MCTS search depth: a comma-separated list of
     # "<num_simulations>@<from_iteration>" entries, e.g. "8@0,16@50,32@150,64@250".
     # At each iteration the trainer uses the num_simulations of the latest entry
@@ -152,6 +158,10 @@ class Config(BaseModel):
     def _check_replay(self):
         if self.replay_buffer_iters < 1:
             raise ValueError(f"replay_buffer_iters must be >= 1, got {self.replay_buffer_iters}.")
+        if not 0.0 < self.playout_cap_prob <= 1.0:
+            raise ValueError(f"playout_cap_prob must be in (0, 1], got {self.playout_cap_prob}.")
+        if self.fast_num_simulations < 1:
+            raise ValueError(f"fast_num_simulations must be >= 1, got {self.fast_num_simulations}.")
         if self.train_micro_batches < 1:
             raise ValueError(f"train_micro_batches must be >= 1, got {self.train_micro_batches}.")
         if self.max_pending_steps < 0:

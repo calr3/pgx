@@ -133,6 +133,8 @@ class SelfplayOutput(NamedTuple):
     terminated: jnp.ndarray
     action_weights: jnp.ndarray
     discount: jnp.ndarray
+    # False for fast-search steps under playout cap randomization.
+    policy_mask: jnp.ndarray
 
 
 # num_simulations is a static (broadcast, not mapped) argument so it can be
@@ -161,29 +163,47 @@ def selfplay(
         )
         root = mctx.RootFnOutput(prior_logits=logits, value=value, embedding=state)
 
-        policy_output = mctx.gumbel_muzero_policy(
-            params=model,
-            rng_key=key1,
-            root=root,
-            recurrent_fn=recurrent_fn,
-            num_simulations=num_simulations,
-            invalid_actions=~state.legal_action_mask,
-            qtransform=mctx.qtransform_completed_by_mix_value,
-            gumbel_scale=1.0,  # 0.0 for perfect information games
-        )
+        def search(sims: int, key: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
+            policy_output = mctx.gumbel_muzero_policy(
+                params=model,
+                rng_key=key,
+                root=root,
+                recurrent_fn=recurrent_fn,
+                num_simulations=sims,
+                invalid_actions=~state.legal_action_mask,
+                qtransform=mctx.qtransform_completed_by_mix_value,
+                gumbel_scale=1.0,  # 0.0 for perfect information games
+            )
+            return policy_output.action, policy_output.action_weights
+
+        if config.playout_cap_prob < 1.0:
+            # Playout cap randomization: this step's whole batch uses the full
+            # search with probability playout_cap_prob, otherwise a cheap one
+            # whose policy targets are not trained on.
+            key1, key_cap = jax.random.split(key1)
+            full_search = jax.random.uniform(key_cap) < config.playout_cap_prob
+            action, action_weights = jax.lax.cond(
+                full_search,
+                lambda: search(num_simulations, key1),
+                lambda: search(config.fast_num_simulations, key1),
+            )
+        else:
+            full_search = jnp.bool_(True)
+            action, action_weights = search(num_simulations, key1)
         actor = state.current_player
         keys = jax.random.split(key2, batch_size)
-        state = jax.vmap(auto_reset(env.step, env.init))(state, policy_output.action, keys)
+        state = jax.vmap(auto_reset(env.step, env.init))(state, action, keys)
         # +1 when the same player is still to move (multi-stage turn), -1 when
         # the opponent is now to move (normal alternating case), 0 at terminal.
         discount = jnp.where(state.current_player == actor, 1.0, -1.0)
         discount = jnp.where(state.terminated, 0.0, discount)
         return state, SelfplayOutput(
             obs=observation,
-            action_weights=policy_output.action_weights,
+            action_weights=action_weights,
             reward=state.rewards[jnp.arange(state.rewards.shape[0]), actor],
             terminated=state.terminated,
             discount=discount,
+            policy_mask=jnp.full(batch_size, full_search),
         )
 
     # Run selfplay for max_num_steps by batch
@@ -210,7 +230,13 @@ def loss_fn(
     )
 
     policy_loss = optax.softmax_cross_entropy(logits, samples.policy_tgt)
-    policy_loss = jnp.mean(policy_loss)
+    if config.playout_cap_prob < 1.0:
+        # Only full-search steps have policy targets worth training on.
+        policy_loss = jnp.sum(policy_loss * samples.policy_mask) / jnp.maximum(
+            jnp.sum(samples.policy_mask), 1
+        )
+    else:
+        policy_loss = jnp.mean(policy_loss)
 
     value_loss = optax.l2_loss(value, samples.value_tgt)
     value_loss = jnp.mean(value_loss * samples.mask)  # mask if the episode is truncated
@@ -546,6 +572,7 @@ if __name__ == "__main__":
         # finished game (approximates game length in env steps once stationary).
         games_finished = data.terminated.sum().item()
         games_drawn = (data.terminated & (data.reward == 0)).sum().item()
+        full_search_fraction = data.policy_mask.mean().item()
 
         # Compute value targets and fill the replay buffer on the host, so only
         # one minibatch at a time occupies device memory during training.
@@ -611,6 +638,7 @@ if __name__ == "__main__":
                 "train/pending_steps": trajectories.num_pending,
                 "selfplay/num_simulations": num_simulations,
                 "selfplay/games_finished": games_finished,
+                "selfplay/full_search_fraction": full_search_fraction,
                 "selfplay/draw_rate": games_drawn / max(games_finished, 1),
                 "selfplay/steps_per_game": data_steps / max(games_finished, 1),
                 "hours": hours,

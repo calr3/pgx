@@ -13,9 +13,11 @@ class Sample(NamedTuple):
     policy_tgt: np.ndarray
     value_tgt: np.ndarray
     mask: np.ndarray
+    # Whether policy_tgt came from a full search (playout cap randomization).
+    policy_mask: np.ndarray
 
 
-_FIELDS = ("obs", "action_weights", "reward", "discount", "terminated")
+_FIELDS = ("obs", "action_weights", "reward", "discount", "terminated", "policy_mask")
 
 
 class PendingTrajectories:
@@ -23,7 +25,7 @@ class PendingTrajectories:
 
     Each call to `process` receives the next max_num_steps of self-play as
     host arrays shaped (T, B, ...) with fields obs, action_weights, reward,
-    discount and terminated. A step's value target is the discounted return to
+    discount, terminated and (optionally) policy_mask. A step's value target is the discounted return to
     the end of its game, so it is only known ("resolved") once a terminal step
     for that game slot has been seen.
 
@@ -58,7 +60,8 @@ class PendingTrajectories:
         self._tail_pending = state["tail_pending"]
 
     def process(self, data: Any, carry: bool) -> Sample:
-        steps = {f: np.asarray(getattr(data, f)) for f in _FIELDS}
+        steps = {f: np.asarray(getattr(data, f)) for f in _FIELDS if hasattr(data, f)}
+        steps.setdefault("policy_mask", np.ones(steps["terminated"].shape, dtype=bool))
         pending = np.ones(steps["terminated"].shape, dtype=bool)
         if self._tail is not None:
             steps = {f: np.concatenate([self._tail[f], steps[f]]) for f in _FIELDS}
@@ -99,4 +102,5 @@ class PendingTrajectories:
             policy_tgt=steps["action_weights"][emit],
             value_tgt=value_tgt[emit],
             mask=resolved[emit],
+            policy_mask=steps["policy_mask"][emit],
         )
