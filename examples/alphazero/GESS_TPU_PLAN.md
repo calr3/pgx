@@ -99,6 +99,25 @@ Acceptance: equal-time pilot, ladder comparison as above.
   memory, no recompiles, resume from a checkpoint.
 - Periodic `elo_ladder.py` against earlier checkpoints to track progress.
 
+## Maybe later
+
+Ideas not on the current path; revisit if there is time or a need.
+
+- **Bootstrapping a larger model once the current one plateaus.** Options, most
+  practical first: (1) grow GessFormer in place by adding transformer blocks
+  whose output projections start at zero (identity at first), keeping weights,
+  optimizer state and `data_state.pkl`; (2) train a larger model on the smaller
+  model's self-play games/replay buffer and switch self-play to it once it wins
+  on the ladder (KataGo-style); (3) distill the small model's policy/value (or
+  search results) into the larger one, then continue RL; (4) generate targets
+  with much deeper search. Check first that a plateau is really a capacity
+  limit (not search budget, replay window or LR).
+- **Measure the original ResNet with the original training loop** as a pilot,
+  to replace the estimated part of the total gain over the original setup
+  (roughly +600 to +1,000 Elo at equal pilot time).
+- **RayFormer**: close its ~50% iteration-time gap, or try a larger variant; it
+  learns more per game than GessFormer (E4) but loses at equal time.
+
 ## Log
 
 - 2026-09-14: pilots and ladder above; full-size measurement run.
