@@ -80,10 +80,17 @@ class Config(BaseModel):
     # in progress at the end of an iteration are held back (in host memory) and
     # added to the replay buffer once the game ends and its value target is
     # known; steps held back longer than max_pending_steps are added without a
-    # value target. Neither the games nor the held-back steps are checkpointed:
-    # a resumed run starts fresh games.
+    # value target. The games and held-back steps are only checkpointed with
+    # save_data_state; otherwise a resumed run starts fresh games.
     continue_games: bool = False
     max_pending_steps: int = 1024
+    # Also save the replay buffer, held-back steps and in-progress self-play
+    # games (to <checkpoint dir>/data_state.pkl, overwritten at every
+    # checkpoint), so resume_from continues training data exactly instead of
+    # starting empty with fresh games. Useful on preemptible machines; the file
+    # can be several GB. On resume it is used whenever its iteration matches
+    # the checkpoint's, whatever this flag's value.
+    save_data_state: bool = False
     # training params
     training_batch_size: int = 4096
     # Split each device's minibatch into this many microbatches and accumulate
@@ -94,9 +101,9 @@ class Config(BaseModel):
     symmetry_augmentation: bool = False
     # Replay buffer size, in self-play iterations' worth of samples
     # (replay_buffer_iters * selfplay_batch_size * max_num_steps): minibatches are
-    # sampled uniformly from the most recent samples, held in host memory (not
-    # checkpointed; it refills after a resume). 1 = train only on the current
-    # iteration's samples.
+    # sampled uniformly from the most recent samples, held in host memory
+    # (checkpointed only with save_data_state; otherwise it refills after a
+    # resume). 1 = train only on the current iteration's samples.
     replay_buffer_iters: int = 1
     # Gradient updates per iteration. 0 = one pass over a fresh iteration's
     # samples, i.e. (selfplay_batch_size * max_num_steps) // training_batch_size.

@@ -50,6 +50,10 @@ All default to the original behaviour; see `config.py` for details.
   one of the 8 board rotations/reflections.
 - `train_micro_batches=K`: accumulate gradients over K microbatches, for large
   `training_batch_size` on limited GPU memory.
+- `save_data_state=true`: also save the replay buffer, held-back steps and
+  in-progress games (`data_state.pkl` in the checkpoint directory, overwritten
+  at each checkpoint; can be several GB). `resume_from=` the latest checkpoint
+  then continues exactly as if uninterrupted, including after Ctrl+C.
 
 ## Reference
 

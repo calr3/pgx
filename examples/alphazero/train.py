@@ -405,6 +405,7 @@ if __name__ == "__main__":
         opt_state: optax.OptState,
         frames: int,
         hours: float,
+        evaluated: bool,
     ) -> None:
         model_0, opt_state_0 = jax.tree_util.tree_map(lambda x: x[0], (model, opt_state))
         ckpt_path = os.path.join(ckpt_dir, f"{iteration:06d}.ckpt")
@@ -418,12 +419,37 @@ if __name__ == "__main__":
                 "iteration": iteration,
                 "frames": frames,
                 "hours": hours,
+                # Whether this iteration's evaluation already ran (False for the
+                # checkpoint written when stopping on Ctrl+C).
+                "evaluated": evaluated,
                 "wandb_run_id": wandb.run.id,
                 "pgx.__version__": pgx.__version__,
                 "env_id": env.id,
                 "env_version": env.version,
             }
             pickle.dump(dic, f)
+        if config.save_data_state:
+            save_data_state(iteration)
+
+    data_state_path = os.path.join(ckpt_dir, "data_state.pkl")
+
+    def save_data_state(iteration: int) -> None:
+        # Overwrite atomically, so a crash mid-write leaves the previous file.
+        print(f"Saving data state: {os.path.relpath(data_state_path)}")
+        tmp_path = data_state_path + ".tmp"
+        with open(tmp_path, "wb") as f:
+            pickle.dump(
+                {
+                    "iteration": iteration,
+                    "selfplay_batch_size": config.selfplay_batch_size,
+                    "replay_buffer": replay_buffer.state_dict(),
+                    "trajectories": trajectories.state_dict(),
+                    "selfplay_state": jax.device_get(selfplay_state),
+                },
+                f,
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
+        os.replace(tmp_path, data_state_path)
 
     samples_per_iter = config.selfplay_batch_size * config.max_num_steps
     replay_buffer = ReplayBuffer(config.replay_buffer_iters * samples_per_iter)
@@ -431,17 +457,48 @@ if __name__ == "__main__":
     replay_buffer_announced = False
     no_aug_keys = jax.random.split(jax.random.PRNGKey(0), num_devices)
     trajectories = PendingTrajectories(config.max_pending_steps)
-    # Self-play games in progress; fresh games on start and on resume. Keyed off
-    # the seed without consuming rng_key, so its stream is unchanged.
+    # Self-play games in progress: fresh games on start (and on resume without a
+    # saved data state). Keyed off the seed without consuming rng_key, so its
+    # stream is unchanged.
     selfplay_state = init_selfplay_state(
         jax.random.split(jax.random.fold_in(jax.random.PRNGKey(config.seed), 1), num_devices)
     )
 
+    # When resuming, restore the training data state saved with the checkpoint.
+    if ckpt is not None and os.path.exists(data_state_path):
+        with open(data_state_path, "rb") as f:
+            data_state = pickle.load(f)
+        if data_state["iteration"] != iteration:
+            print(
+                f"Ignoring {os.path.relpath(data_state_path)}: saved at iteration "
+                f"{data_state['iteration']}, resuming from iteration {iteration}."
+            )
+        else:
+            replay_buffer.load_state_dict(data_state["replay_buffer"])
+            restored = f"replay buffer ({replay_buffer.num_samples} samples)"
+            if data_state["selfplay_batch_size"] == config.selfplay_batch_size:
+                trajectories.load_state_dict(data_state["trajectories"])
+                # Re-split game slots across this machine's devices.
+                selfplay_state = jax.tree_util.tree_map(
+                    lambda x: x.reshape((num_devices, -1, *x.shape[2:])), data_state["selfplay_state"]
+                )
+                restored += f", {trajectories.num_pending} held-back steps and in-progress games"
+            else:
+                restored += " (selfplay_batch_size changed: starting fresh games)"
+            print(f"Restored {restored} from {os.path.relpath(data_state_path)}")
+        del data_state
+
     # Initialize logging dict
     log = {"iteration": iteration, "hours": hours, "frames": frames}
 
+    # If the checkpoint being resumed from already ran this iteration's
+    # evaluation, skip it: redoing it would consume rng_key and diverge from the
+    # original run. (Checkpoints predating the "evaluated" key came from the
+    # evaluation path, except Ctrl+C ones.)
+    resumed_iteration = iteration if ckpt is not None and ckpt.get("evaluated", True) else None
+
     while True:
-        if iteration % config.eval_interval == 0:
+        if iteration % config.eval_interval == 0 and iteration != resumed_iteration:
             # Evaluation
             rng_key, subkey = jax.random.split(rng_key)
             keys = jax.random.split(subkey, num_devices)
@@ -460,7 +517,7 @@ if __name__ == "__main__":
             )
 
             # Store checkpoints
-            save_checkpoint(iteration, rng_key, model, opt_state, frames, hours)
+            save_checkpoint(iteration, rng_key, model, opt_state, frames, hours, evaluated=True)
 
         print(log)
         wandb.log(log)
@@ -556,5 +613,5 @@ if __name__ == "__main__":
             print(log)
             wandb.log(log)
             print(f"Saving checkpoint at iteration {iteration} before exiting...")
-            save_checkpoint(iteration, rng_key, model, opt_state, frames, hours)
+            save_checkpoint(iteration, rng_key, model, opt_state, frames, hours, evaluated=False)
             break

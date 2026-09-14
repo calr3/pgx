@@ -56,6 +56,22 @@ class ReplayBuffer:
         self._next = (self._next + n) % self.capacity
         self._size = min(self._size + n, self.capacity)
 
+    def state_dict(self) -> dict:
+        """Contents for checkpointing (references, not copies)."""
+        return {"capacity": self.capacity, "data": self._data, "next": self._next, "size": self._size}
+
+    def load_state_dict(self, state: dict) -> None:
+        """Restore from state_dict(). If the capacity differs, the stored
+        samples are re-added oldest first, keeping the most recent ones."""
+        if state["data"] is None:
+            return
+        if state["capacity"] == self.capacity:
+            self._data, self._next, self._size = state["data"], state["next"], state["size"]
+            return
+        oldest = (state["next"] - state["size"]) % state["capacity"]
+        order = (oldest + np.arange(state["size"])) % state["capacity"]
+        self.add(jax.tree_util.tree_map(lambda x: x[order], state["data"]))
+
     def sample(self, rng_key: jax.Array, n: int) -> Any:
         """Draw n samples uniformly: without replacement when the buffer holds
         at least n, otherwise with replacement.

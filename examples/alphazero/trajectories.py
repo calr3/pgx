@@ -49,6 +49,14 @@ class PendingTrajectories:
         """Steps currently held back waiting for their game to end."""
         return 0 if self._tail_pending is None else int(self._tail_pending.sum())
 
+    def state_dict(self) -> dict:
+        """Held-back steps, for checkpointing."""
+        return {"tail": self._tail, "tail_pending": self._tail_pending}
+
+    def load_state_dict(self, state: dict) -> None:
+        self._tail = state["tail"]
+        self._tail_pending = state["tail_pending"]
+
     def process(self, data: Any, carry: bool) -> Sample:
         steps = {f: np.asarray(getattr(data, f)) for f in _FIELDS}
         pending = np.ones(steps["terminated"].shape, dtype=bool)
