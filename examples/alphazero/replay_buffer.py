@@ -72,9 +72,9 @@ class ReplayBuffer:
         order = (oldest + np.arange(state["size"])) % state["capacity"]
         self.add(jax.tree_util.tree_map(lambda x: x[order], state["data"]))
 
-    def sample(self, rng_key: jax.Array, n: int) -> Any:
-        """Draw n samples uniformly: without replacement when the buffer holds
-        at least n, otherwise with replacement.
+    def sample_indices(self, rng_key: jax.Array, n: int) -> np.ndarray:
+        """Draw n sample indices uniformly: without replacement when the buffer
+        holds at least n, otherwise with replacement. Pass them to gather().
 
         Filled slots are always 0..num_samples-1, so with a buffer that has held
         exactly one add of n == capacity samples this is exactly a shuffle of
@@ -84,7 +84,12 @@ class ReplayBuffer:
         if total == 0:
             raise ValueError("Cannot sample from an empty replay buffer.")
         if n <= total:
-            idxs = np.asarray(jax.random.permutation(rng_key, total))[:n]
-        else:
-            idxs = np.asarray(jax.random.randint(rng_key, (n,), 0, total))
+            return np.asarray(jax.random.permutation(rng_key, total))[:n]
+        return np.asarray(jax.random.randint(rng_key, (n,), 0, total))
+
+    def gather(self, idxs: np.ndarray) -> Any:
         return jax.tree_util.tree_map(lambda buf: buf[idxs], self._data)
+
+    def sample(self, rng_key: jax.Array, n: int) -> Any:
+        """gather(sample_indices(rng_key, n))."""
+        return self.gather(self.sample_indices(rng_key, n))

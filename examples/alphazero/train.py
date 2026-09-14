@@ -568,15 +568,19 @@ if __name__ == "__main__":
         num_updates = min(max_num_updates, replay_buffer.num_samples // config.training_batch_size)
         rng_key, subkey = jax.random.split(rng_key)
         if num_updates > 0:
-            minibatches = replay_buffer.sample(subkey, num_updates * config.training_batch_size)
-            minibatches = jax.tree_util.tree_map(
-                lambda x: x.reshape((num_updates, num_devices, -1) + x.shape[1:]), minibatches
-            )
+            # Gather each minibatch just before its update, so host memory holds
+            # one minibatch at a time rather than the whole iteration's worth.
+            minibatch_idxs = replay_buffer.sample_indices(
+                subkey, num_updates * config.training_batch_size
+            ).reshape(num_updates, -1)
 
         # Training
         policy_losses, value_losses = [], []
         for i in range(num_updates):
-            minibatch: Sample = jax.tree_util.tree_map(lambda x: x[i], minibatches)
+            minibatch: Sample = jax.tree_util.tree_map(
+                lambda x: x.reshape((num_devices, -1) + x.shape[1:]),
+                replay_buffer.gather(minibatch_idxs[i]),
+            )
             if config.symmetry_augmentation:
                 rng_key, subkey = jax.random.split(rng_key)
                 aug_keys = jax.random.split(subkey, num_devices)
