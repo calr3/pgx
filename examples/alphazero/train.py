@@ -35,6 +35,7 @@ from pgx.experimental import auto_reset
 from config import Config
 from network import make_forward, make_optimizer
 from replay_buffer import ReplayBuffer
+from symmetry import augment_gess
 from trajectories import PendingTrajectories, Sample
 
 # A Haiku model is a (params, state) pair, as returned by forward.init.
@@ -214,9 +215,12 @@ def loss_fn(
 
 @partial(jax.pmap, axis_name="i")
 def train(
-    model: Model, opt_state: optax.OptState, data: Sample
+    model: Model, opt_state: optax.OptState, data: Sample, rng_key: jnp.ndarray
 ) -> tuple[Model, optax.OptState, jnp.ndarray, jnp.ndarray]:
     model_params, model_state = model
+    if config.symmetry_augmentation:
+        obs, policy_tgt = augment_gess(rng_key, data.obs, data.policy_tgt)
+        data = data._replace(obs=obs, policy_tgt=policy_tgt)
     if config.train_micro_batches == 1:
         grads, (model_state, policy_loss, value_loss) = jax.grad(loss_fn, has_aux=True)(
             model_params, model_state, data
@@ -425,6 +429,7 @@ if __name__ == "__main__":
     replay_buffer = ReplayBuffer(config.replay_buffer_iters * samples_per_iter)
     max_num_updates = config.updates_per_iter()
     replay_buffer_announced = False
+    no_aug_keys = jax.random.split(jax.random.PRNGKey(0), num_devices)
     trajectories = PendingTrajectories(config.max_pending_steps)
     # Self-play games in progress; fresh games on start and on resume. Keyed off
     # the seed without consuming rng_key, so its stream is unchanged.
@@ -515,7 +520,12 @@ if __name__ == "__main__":
         policy_losses, value_losses = [], []
         for i in range(num_updates):
             minibatch: Sample = jax.tree_util.tree_map(lambda x: x[i], minibatches)
-            model, opt_state, policy_loss, value_loss = train(model, opt_state, minibatch)
+            if config.symmetry_augmentation:
+                rng_key, subkey = jax.random.split(rng_key)
+                aug_keys = jax.random.split(subkey, num_devices)
+            else:
+                aug_keys = no_aug_keys  # unused; keeps rng_key's stream unchanged
+            model, opt_state, policy_loss, value_loss = train(model, opt_state, minibatch, aug_keys)
             policy_losses.append(policy_loss.mean().item())
             value_losses.append(value_loss.mean().item())
         if num_updates > 0:

@@ -89,6 +89,9 @@ class Config(BaseModel):
     # Split each device's minibatch into this many microbatches and accumulate
     # their gradients: same effective batch, less activation memory.
     train_micro_batches: int = 1
+    # Train on each sample under a random one of the 8 board symmetries
+    # (rotations/reflections). Gess only; see symmetry.py.
+    symmetry_augmentation: bool = False
     # Replay buffer size, in self-play iterations' worth of samples
     # (replay_buffer_iters * selfplay_batch_size * max_num_steps): minibatches are
     # sampled uniformly from the most recent samples, held in host memory (not
@@ -145,6 +148,8 @@ class Config(BaseModel):
 
     @model_validator(mode="after")
     def _check_gess_architectures(self):
+        if self.symmetry_augmentation and self.env_id != "gess":
+            raise ValueError(f"symmetry_augmentation requires env_id=gess, got {self.env_id!r}.")
         if self.architecture in ("gessformer", "rayformer") and self.env_id != "gess":
             raise ValueError(
                 f"architecture={self.architecture} requires env_id=gess, got {self.env_id!r}."

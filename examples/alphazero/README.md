@@ -46,6 +46,10 @@ All default to the original behaviour; see `config.py` for details.
   sampled from the last N iterations' worth of samples, U updates per iteration.
 - `lr_schedule=cosine`, `lr_final_ratio=0.1`: cosine learning-rate decay over
   `max_num_iters`.
+- `symmetry_augmentation=true` (Gess only): train on each sample under a random
+  one of the 8 board rotations/reflections.
+- `train_micro_batches=K`: accumulate gradients over K microbatches, for large
+  `training_batch_size` on limited GPU memory.
 
 ## Reference
 
