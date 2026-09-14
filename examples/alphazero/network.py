@@ -6,6 +6,7 @@ import math
 import haiku as hk
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 
 
@@ -248,6 +249,49 @@ class TransformerBlock(hk.Module):
         return x
 
 
+def _gess_input(x):
+    """Pad the 18x18 observation to the 20x20 action grid, add an is_border plane.
+
+    Returns (x (b, 20, 20, 5), is_stage1 (b,), src_footprint (b, 20, 20)).
+    """
+    x = x.astype(jnp.float32)
+    b, g = x.shape[0], _GESS_GRID
+    x = jnp.pad(x, ((0, 0), (1, 1), (1, 1), (0, 0)))
+    border = jnp.pad(jnp.zeros((g - 2, g - 2)), 1, constant_values=1.0)
+    x = jnp.concatenate([x, jnp.broadcast_to(border[None, :, :, None], (b, g, g, 1))], axis=-1)
+    is_stage1 = x[:, :, :, 3].max(axis=(1, 2)) > 0.5
+    return x, is_stage1, x[:, :, :, 2]
+
+
+def _gess_policy_head(f, is_stage1, src_footprint):
+    """400 logits from per-cell features f (b, 20, 20, c).
+
+    Stage 0 (pick source): per-cell logit. Stage 1 (pick destination):
+    Chessformer-style source->destination attention, with the source query
+    pooled over the source footprint.
+    """
+    b, g, _, c = f.shape
+    stage0 = hk.Linear(c, name="policy0_hidden")(f)
+    stage0 = hk.Linear(1, name="policy0_out")(jax.nn.gelu(stage0)).reshape(b, g * g)
+
+    key_size = c
+    mask = src_footprint[..., None]
+    pooled = (f * mask).sum(axis=(1, 2)) / jnp.maximum(mask.sum(axis=(1, 2)), 1.0)
+    query = hk.Linear(key_size, name="policy1_query")(pooled)  # (b, k)
+    keys = hk.Linear(key_size, name="policy1_key")(f).reshape(b, g * g, key_size)
+    stage1 = jnp.einsum("bk,bnk->bn", query, keys) / math.sqrt(key_size)
+    stage1 = stage1 + hk.Linear(1, name="policy1_bias")(f).reshape(b, g * g)
+
+    return jnp.where(is_stage1[:, None], stage1, stage0)
+
+
+def _gess_value_head(tok):
+    """Scalar value from tokens (b, n, d): mean-pool -> LN -> MLP -> tanh."""
+    v = _layer_norm("value_ln")(tok.mean(axis=1))
+    v = jax.nn.gelu(hk.Linear(128, name="value_hidden")(v))
+    return jnp.tanh(hk.Linear(1, w_init=_TF_INIT, name="value_out")(v)).reshape((-1,))
+
+
 class GessFormer(hk.Module):
     """Hybrid conv-stem + GAB transformer network for Gess (see comment above)."""
 
@@ -279,18 +323,10 @@ class GessFormer(hk.Module):
 
     def __call__(self, x, is_training=False, test_local_stats=False):
         del is_training, test_local_stats  # no BatchNorm
-        x = x.astype(jnp.float32)
+        x, is_stage1, src_footprint = _gess_input(x)
         b = x.shape[0]
         c, d = self.stem_channels, self.embed_dim
-        g, t = _GESS_GRID, _GESS_TOKENS_SIDE
-
-        # Input: pad the 18x18 playing area to the 20x20 action grid and add an
-        # is_border plane so each cell lines up with its action index.
-        x = jnp.pad(x, ((0, 0), (1, 1), (1, 1), (0, 0)))
-        border = jnp.pad(jnp.zeros((g - 2, g - 2)), 1, constant_values=1.0)
-        x = jnp.concatenate([x, jnp.broadcast_to(border[None, :, :, None], (b, g, g, 1))], axis=-1)
-        is_stage1 = x[:, :, :, 3].max(axis=(1, 2)) > 0.5
-        src_footprint = x[:, :, :, 2]
+        t = _GESS_TOKENS_SIDE
 
         # Conv stem at full resolution (3x3 piece locality).
         s = hk.Conv2D(c, kernel_shape=3, name="stem_conv")(x)
@@ -321,35 +357,193 @@ class GessFormer(hk.Module):
         f = ConvBlock(c, name="decoder_block")(f)
         f = jax.nn.gelu(_layer_norm("decoder_ln")(f))  # (b, 20, 20, c)
 
-        # Policy head. Stage 0 (pick source): per-cell logit. Stage 1 (pick
-        # destination): Chessformer-style source->destination attention, with
-        # the source query pooled over the source footprint.
-        stage0 = hk.Linear(c, name="policy0_hidden")(f)
-        stage0 = hk.Linear(1, name="policy0_out")(jax.nn.gelu(stage0)).reshape(b, g * g)
+        return _gess_policy_head(f, is_stage1, src_footprint), _gess_value_head(tok)
 
-        key_size = c
-        mask = src_footprint[..., None]
-        pooled = (f * mask).sum(axis=(1, 2)) / jnp.maximum(mask.sum(axis=(1, 2)), 1.0)
-        query = hk.Linear(key_size, name="policy1_query")(pooled)  # (b, k)
-        keys = hk.Linear(key_size, name="policy1_key")(f).reshape(b, g * g, key_size)
-        stage1 = jnp.einsum("bk,bnk->bn", query, keys) / math.sqrt(key_size)
-        stage1 = stage1 + hk.Linear(1, name="policy1_bias")(f).reshape(b, g * g)
+# ─── RayFormer ───────────────────────────────────────────────────────────────
+#
+# A full-resolution transformer for Gess whose attention follows piece moves:
+# every cell of the 20x20 grid is a token, and it attends along its row,
+# column, diagonal and anti-diagonal (the 8 compass rays). Each of the four
+# line families is a separate softmax over lines of at most 20 cells, with a
+# learned per-head bias for the offset along the line. A 3x3 conv stem gives
+# each token its piece footprint first.
 
-        logits = jnp.where(is_stage1[:, None], stage1, stage0)
 
-        # Value head: mean-pool tokens -> LN -> MLP -> tanh.
-        v = _layer_norm("value_ln")(tok.mean(axis=1))
-        v = jax.nn.gelu(hk.Linear(128, name="value_hidden")(v))
-        v = jnp.tanh(hk.Linear(1, w_init=_TF_INIT, name="value_out")(v)).reshape((-1,))
+def _diagonal_lines(n, anti):
+    """Gather tables for the diagonals (or anti-diagonals) of an n x n grid.
 
-        return logits, v
+    Returns (idx, valid, inv): idx (2n-1, n) cell indices ordered along each
+    line, padded with 0 where valid is False; inv (n*n,) the flat position of
+    each cell in idx (every cell lies on exactly one line).
+    """
+    grid = np.arange(n * n).reshape(n, n)
+    if anti:
+        grid = grid[:, ::-1]
+    idx = np.zeros((2 * n - 1, n), dtype=np.int32)
+    valid = np.zeros((2 * n - 1, n), dtype=bool)
+    for i, k in enumerate(range(-(n - 1), n)):
+        line = np.diagonal(grid, k)
+        idx[i, : len(line)] = line
+        valid[i, : len(line)] = True
+    inv = np.empty(n * n, dtype=np.int32)
+    inv[idx[valid]] = np.flatnonzero(valid)
+    return idx, valid, inv
+
+
+# Ray families: rows and columns are reshapes of the grid; diagonals gather.
+_RAY_FAMILIES = ("rows", "cols", "diag", "anti")
+_DIAGONALS = {
+    "diag": _diagonal_lines(_GESS_GRID, anti=False),
+    "anti": _diagonal_lines(_GESS_GRID, anti=True),
+}
+
+
+def _attend_lines(q, k, v, rel_bias, valid=None, dtype=jnp.float32):
+    """Attention within lines: q/k/v (b, lines, n, h, kd) -> (b, lines, n, h, kd).
+
+    rel_bias (h, 2n-1) is indexed by the offset j - i along the line; valid
+    (lines, n) masks padded key positions. The attention itself is computed in
+    `dtype` and the result cast back.
+    """
+    out_dtype = q.dtype
+    n, kd = q.shape[2], q.shape[-1]
+    q, k, v = (t.transpose(0, 1, 3, 2, 4).astype(dtype) for t in (q, k, v))  # (b, lines, h, n, kd)
+    logits = (q @ k.transpose(0, 1, 2, 4, 3)) / math.sqrt(kd)
+    offsets = np.arange(n)[None, :] - np.arange(n)[:, None] + n - 1
+    logits = logits + rel_bias[:, offsets].astype(dtype)
+    if valid is not None:
+        logits = jnp.where(valid[None, :, None, None, :], logits, jnp.finfo(dtype).min / 2)
+    out = jax.nn.softmax(logits, axis=-1) @ v
+    return out.transpose(0, 1, 3, 2, 4).astype(out_dtype)
+
+
+class LineAttention(hk.Module):
+    """Multi-head attention within each line of one ray family.
+
+    Takes per-cell projected q/k/v (b, cells, 3, h, kd) on the row-major grid and
+    returns the attended values per cell (b, cells, h, kd).
+    """
+
+    def __init__(self, family, dtype=jnp.float32, name="LineAttention"):
+        super().__init__(name=name)
+        self.family = family
+        self.dtype = dtype
+
+    def __call__(self, qkv):
+        b, cells, _, h, kd = qkv.shape
+        g = _GESS_GRID
+        rel_bias = hk.get_parameter("rel_bias", (h, 2 * g - 1), init=jnp.zeros)
+        if self.family in ("rows", "cols"):
+            grid = qkv.reshape(b, g, g, 3, h, kd)
+            if self.family == "cols":
+                grid = grid.transpose(0, 2, 1, 3, 4, 5)
+            out = _attend_lines(grid[:, :, :, 0], grid[:, :, :, 1], grid[:, :, :, 2], rel_bias, None, self.dtype)
+            if self.family == "cols":
+                out = out.transpose(0, 2, 1, 3, 4)
+            return out.reshape(b, cells, h, kd)
+        idx, valid, inv = _DIAGONALS[self.family]
+        lines = qkv[:, idx]  # (b, 2g-1, g, 3, h, kd)
+        out = _attend_lines(lines[:, :, :, 0], lines[:, :, :, 1], lines[:, :, :, 2], rel_bias, valid, self.dtype)
+        return out.reshape(b, -1, h, kd)[:, inv]
+
+
+class RayBlock(hk.Module):
+    """Pre-LN encoder block with ray attention (see RayFormer comment above)."""
+
+    def __init__(self, num_heads, ffn_mult, out_init, remat, attn_dtype, name="RayBlock"):
+        super().__init__(name=name)
+        self.num_heads = num_heads
+        self.ffn_mult = ffn_mult
+        self.out_init = out_init
+        self.remat = remat
+        self.attn_dtype = attn_dtype
+
+    def __call__(self, x):
+        b, n, d = x.shape
+        h = self.num_heads
+
+        y = _layer_norm("attn_ln")(x)
+        qkv = hk.Linear(3 * d, w_init=_TF_INIT, name="qkv")(y).reshape(b, n, 3, h, d // h)
+        attn = 0.0
+        for f, family in enumerate(_RAY_FAMILIES):
+            line_attn = LineAttention(family, self.attn_dtype, name=f"line_attn_{f}")
+            # Recompute each family separately in the backward pass, so only one
+            # family's attention matrices are held at a time.
+            attn = attn + (hk.remat(line_attn) if self.remat else line_attn)(qkv)
+        x = x + hk.Linear(d, w_init=self.out_init, name="attn_out")(attn.reshape(b, n, d))
+
+        y = _layer_norm("ffn_ln")(x)
+        y = hk.Linear(int(d * self.ffn_mult), w_init=_TF_INIT, name="ffn_in")(y)
+        x = x + hk.Linear(d, w_init=self.out_init, name="ffn_out")(jax.nn.gelu(y))
+        return x
+
+
+class RayFormer(hk.Module):
+    """Full-resolution ray-attention transformer for Gess (see comment above)."""
+
+    def __init__(
+        self,
+        num_actions: int,
+        embed_dim: int = 96,
+        num_layers: int = 4,
+        num_heads: int = 4,
+        ffn_mult: float = 2.0,
+        stem_blocks: int = 1,
+        remat: bool = True,
+        attn_bf16: bool = True,
+        name="ray_former",
+    ):
+        super().__init__(name=name)
+        assert num_actions == _GESS_GRID**2, "RayFormer expects the 20x20 Gess action grid"
+        assert embed_dim % num_heads == 0
+        self.embed_dim = embed_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.ffn_mult = ffn_mult
+        self.stem_blocks = stem_blocks
+        self.remat = remat
+        self.attn_dtype = jnp.bfloat16 if attn_bf16 else jnp.float32
+
+    def __call__(self, x, is_training=False, test_local_stats=False):
+        del is_training, test_local_stats  # no BatchNorm
+        x, is_stage1, src_footprint = _gess_input(x)
+        b, g, d = x.shape[0], _GESS_GRID, self.embed_dim
+
+        # Conv stem at full resolution (3x3 piece locality), one token per cell.
+        s = hk.Conv2D(d, kernel_shape=3, name="stem_conv")(x)
+        for i in range(self.stem_blocks):
+            s = ConvBlock(d, name=f"stem_block_{i}")(s)
+        tok = s.reshape(b, g * g, d)
+        tok = tok + hk.get_parameter("pos_emb", (g * g, d), init=_TF_INIT)
+
+        out_init = hk.initializers.TruncatedNormal(stddev=0.02 / math.sqrt(2.0 * self.num_layers))
+        for i in range(self.num_layers):
+            block = RayBlock(
+                self.num_heads, self.ffn_mult, out_init, self.remat, self.attn_dtype, name=f"block_{i}"
+            )
+            tok = (hk.remat(block) if self.remat else block)(tok)
+        tok = _layer_norm("final_ln")(tok)
+
+        f = tok.reshape(b, g, g, d)
+        return _gess_policy_head(f, is_stage1, src_footprint), _gess_value_head(tok)
 
 
 def make_forward(num_actions: int, config) -> hk.TransformedWithState:
     """Build the (params, state) Haiku transform for `config.architecture`."""
 
     def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
-        if config.architecture == "gessformer":
+        if config.architecture == "rayformer":
+            net = RayFormer(
+                num_actions=num_actions,
+                embed_dim=config.rf_embed_dim,
+                num_layers=config.rf_num_layers,
+                num_heads=config.rf_num_heads,
+                ffn_mult=config.rf_ffn_mult,
+                stem_blocks=config.rf_stem_blocks,
+                remat=config.rf_remat,
+                attn_bf16=config.rf_attn_bf16,
+            )
+        elif config.architecture == "gessformer":
             net = GessFormer(
                 num_actions=num_actions,
                 stem_channels=config.gf_stem_channels,

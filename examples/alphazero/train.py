@@ -72,6 +72,12 @@ def _validate_config(config: Config, num_devices: int) -> None:
             "training_batch_size must be divisible by the number of devices. "
             f"Got training_batch_size={config.training_batch_size}, num_devices={num_devices}."
         )
+    if config.training_batch_size % (num_devices * config.train_micro_batches) != 0:
+        raise ValueError(
+            "training_batch_size must be divisible by num_devices * train_micro_batches. "
+            f"Got training_batch_size={config.training_batch_size}, num_devices={num_devices}, "
+            f"train_micro_batches={config.train_micro_batches}."
+        )
 
 
 _validate_config(config, num_devices)
@@ -211,9 +217,29 @@ def train(
     model: Model, opt_state: optax.OptState, data: Sample
 ) -> tuple[Model, optax.OptState, jnp.ndarray, jnp.ndarray]:
     model_params, model_state = model
-    grads, (model_state, policy_loss, value_loss) = jax.grad(loss_fn, has_aux=True)(
-        model_params, model_state, data
-    )
+    if config.train_micro_batches == 1:
+        grads, (model_state, policy_loss, value_loss) = jax.grad(loss_fn, has_aux=True)(
+            model_params, model_state, data
+        )
+    else:
+        # Gradient accumulation: average the gradients (and losses) of equal
+        # microbatches, so the effective batch stays training_batch_size while
+        # activation memory shrinks. BatchNorm state threads through them.
+        k = config.train_micro_batches
+        micro = jax.tree_util.tree_map(lambda x: x.reshape((k, -1) + x.shape[1:]), data)
+
+        def accumulate(carry, mb):
+            grads, model_state, policy_loss, value_loss = carry
+            g, (model_state, p, v) = jax.grad(loss_fn, has_aux=True)(model_params, model_state, mb)
+            grads = jax.tree_util.tree_map(jnp.add, grads, g)
+            return (grads, model_state, policy_loss + p, value_loss + v), None
+
+        zeros = jax.tree_util.tree_map(jnp.zeros_like, model_params)
+        (grads, model_state, policy_loss, value_loss), _ = jax.lax.scan(
+            accumulate, (zeros, model_state, 0.0, 0.0), micro
+        )
+        grads = jax.tree_util.tree_map(lambda g: g / k, grads)
+        policy_loss, value_loss = policy_loss / k, value_loss / k
     grads = jax.lax.pmean(grads, axis_name="i")
     updates, opt_state = optimizer.update(grads, opt_state, model_params)
     model_params = optax.apply_updates(model_params, updates)

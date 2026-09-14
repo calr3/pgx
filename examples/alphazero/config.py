@@ -37,7 +37,7 @@ class Config(BaseModel):
     # "resnet" is AZNet (above fields). "gessformer" is the hybrid conv-stem +
     # Chessformer-style transformer for Gess (network.GessFormer), configured by
     # the gf_* fields below, which the resnet ignores.
-    architecture: Literal["resnet", "gessformer"] = "resnet"
+    architecture: Literal["resnet", "gessformer", "rayformer"] = "resnet"
     gf_stem_channels: int = 64
     gf_stem_blocks: int = 2
     gf_embed_dim: int = 192
@@ -48,6 +48,19 @@ class Config(BaseModel):
     gf_gab: bool = True
     # Rematerialize transformer blocks in the backward pass to save memory.
     gf_remat: bool = True
+    # "rayformer" (network.RayFormer): full-resolution transformer for Gess
+    # with attention along rows, columns and diagonals; configured by rf_*.
+    # Defaults roughly match gessformer's inference cost (self-play dominates);
+    # training steps are ~1.7x slower, and at training_batch_size=2048 on a
+    # 16 GB GPU need train_micro_batches=2.
+    rf_embed_dim: int = 96
+    rf_num_layers: int = 4
+    rf_num_heads: int = 4
+    rf_ffn_mult: float = 2.0
+    rf_stem_blocks: int = 1
+    rf_remat: bool = True
+    # Compute the line attention in bfloat16 (weights stay float32).
+    rf_attn_bf16: bool = True
     # selfplay params
     selfplay_batch_size: int = 1024
     num_simulations: int = 32
@@ -73,6 +86,9 @@ class Config(BaseModel):
     max_pending_steps: int = 1024
     # training params
     training_batch_size: int = 4096
+    # Split each device's minibatch into this many microbatches and accumulate
+    # their gradients: same effective batch, less activation memory.
+    train_micro_batches: int = 1
     # Replay buffer size, in self-play iterations' worth of samples
     # (replay_buffer_iters * selfplay_batch_size * max_num_steps): minibatches are
     # sampled uniformly from the most recent samples, held in host memory (not
@@ -117,6 +133,8 @@ class Config(BaseModel):
     def _check_replay(self):
         if self.replay_buffer_iters < 1:
             raise ValueError(f"replay_buffer_iters must be >= 1, got {self.replay_buffer_iters}.")
+        if self.train_micro_batches < 1:
+            raise ValueError(f"train_micro_batches must be >= 1, got {self.train_micro_batches}.")
         if self.max_pending_steps < 0:
             raise ValueError(f"max_pending_steps must be >= 0, got {self.max_pending_steps}.")
         if not 0.0 <= self.lr_final_ratio <= 1.0:
@@ -126,10 +144,17 @@ class Config(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _check_gessformer(self):
+    def _check_gess_architectures(self):
+        if self.architecture in ("gessformer", "rayformer") and self.env_id != "gess":
+            raise ValueError(
+                f"architecture={self.architecture} requires env_id=gess, got {self.env_id!r}."
+            )
+        if self.architecture == "rayformer" and self.rf_embed_dim % self.rf_num_heads != 0:
+            raise ValueError(
+                f"rf_embed_dim ({self.rf_embed_dim}) must be divisible by "
+                f"rf_num_heads ({self.rf_num_heads})."
+            )
         if self.architecture == "gessformer":
-            if self.env_id != "gess":
-                raise ValueError(f"architecture=gessformer requires env_id=gess, got {self.env_id!r}.")
             if self.gf_embed_dim % self.gf_num_heads != 0:
                 raise ValueError(
                     f"gf_embed_dim ({self.gf_embed_dim}) must be divisible by "
