@@ -33,7 +33,7 @@ from omegaconf import OmegaConf
 from pgx.experimental import auto_reset
 
 from config import Config
-from network import make_forward, make_optimizer
+from network import cast_floating, make_forward, make_optimizer
 from replay_buffer import ReplayBuffer
 from symmetry import augment_gess
 from trajectories import PendingTrajectories, Sample
@@ -88,6 +88,10 @@ baseline = pgx.make_baseline_model(config.env_id + "_v0")
 
 
 forward = make_forward(env.num_actions, config)
+# Self-play (search) network: optionally computes in bfloat16 with weights cast
+# per self-play call; training and evaluation stay float32.
+selfplay_dtype = jnp.bfloat16 if config.selfplay_bf16 else jnp.float32
+selfplay_forward = make_forward(env.num_actions, config, dtype=selfplay_dtype)
 optimizer = make_optimizer(config)
 
 
@@ -102,7 +106,7 @@ def recurrent_fn(
     current_player = state.current_player
     state = jax.vmap(env.step)(state, action)
 
-    (logits, value), _ = forward.apply(model_params, model_state, state.observation, is_eval=True)
+    (logits, value), _ = selfplay_forward.apply(model_params, model_state, state.observation, is_eval=True)
     # mask invalid actions
     logits = logits - jnp.max(logits, axis=-1, keepdims=True)
     logits = jnp.where(state.legal_action_mask, logits, jnp.finfo(logits.dtype).min)
@@ -144,6 +148,7 @@ def selfplay(
     Unless config.continue_games, `state` is ignored and every game slot
     restarts from the initial position.
     """
+    model = cast_floating(model, selfplay_dtype)
     model_params, model_state = model
     batch_size = config.selfplay_batch_size // num_devices
 
@@ -151,7 +156,7 @@ def selfplay(
         key1, key2 = jax.random.split(key)
         observation = state.observation
 
-        (logits, value), _ = forward.apply(
+        (logits, value), _ = selfplay_forward.apply(
             model_params, model_state, state.observation, is_eval=True
         )
         root = mctx.RootFnOutput(prior_logits=logits, value=value, embedding=state)

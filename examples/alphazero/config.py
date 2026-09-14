@@ -70,6 +70,9 @@ class Config(BaseModel):
     # selfplay params
     selfplay_batch_size: int = 1024
     num_simulations: int = 32
+    # Run the self-play network in bfloat16 (weights cast per call; training and
+    # evaluation stay float32). ~2x faster inference for gessformer.
+    selfplay_bf16: bool = False
     # Optional curriculum for MCTS search depth: a comma-separated list of
     # "<num_simulations>@<from_iteration>" entries, e.g. "8@0,16@50,32@150,64@250".
     # At each iteration the trainer uses the num_simulations of the latest entry

@@ -10,6 +10,18 @@ import numpy as np
 import optax
 
 
+def _to_floating(x):
+    """Cast non-floating observations to float32; keep a floating compute dtype."""
+    return x if jnp.issubdtype(x.dtype, jnp.floating) else x.astype(jnp.float32)
+
+
+def cast_floating(tree, dtype):
+    """Cast the floating-point leaves of a pytree (e.g. a (params, state) model)."""
+    return jax.tree_util.tree_map(
+        lambda x: x.astype(dtype) if jnp.issubdtype(x.dtype, jnp.floating) else x, tree
+    )
+
+
 class BlockV1(hk.Module):
     def __init__(self, num_channels, name="BlockV1"):
         super(BlockV1, self).__init__(name=name)
@@ -105,7 +117,7 @@ class AZNet(hk.Module):
         self.resnet_cls = BlockV2 if resnet_v2 else BlockV1
 
     def __call__(self, x, is_training, test_local_stats):
-        x = x.astype(jnp.float32)
+        x = _to_floating(x)
         x = hk.Conv2D(self.num_channels, kernel_shape=3)(x)
 
         if not self.resnet_v2:
@@ -254,10 +266,10 @@ def _gess_input(x):
 
     Returns (x (b, 20, 20, 5), is_stage1 (b,), src_footprint (b, 20, 20)).
     """
-    x = x.astype(jnp.float32)
+    x = _to_floating(x)
     b, g = x.shape[0], _GESS_GRID
     x = jnp.pad(x, ((0, 0), (1, 1), (1, 1), (0, 0)))
-    border = jnp.pad(jnp.zeros((g - 2, g - 2)), 1, constant_values=1.0)
+    border = jnp.pad(jnp.zeros((g - 2, g - 2), x.dtype), 1, constant_values=1.0)
     x = jnp.concatenate([x, jnp.broadcast_to(border[None, :, :, None], (b, g, g, 1))], axis=-1)
     is_stage1 = x[:, :, :, 3].max(axis=(1, 2)) > 0.5
     return x, is_stage1, x[:, :, :, 2]
@@ -569,10 +581,15 @@ class RayFormer(hk.Module):
         return _gess_policy_head(f, is_stage1, src_footprint), _gess_value_head(tok)
 
 
-def make_forward(num_actions: int, config) -> hk.TransformedWithState:
-    """Build the (params, state) Haiku transform for `config.architecture`."""
+def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedWithState:
+    """Build the (params, state) Haiku transform for `config.architecture`.
+
+    `dtype` is the compute dtype: inputs are cast to it and outputs back to
+    float32. For bfloat16 inference, apply with cast_floating(model, dtype).
+    """
 
     def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
+        x = x.astype(dtype)
         if config.architecture == "rayformer":
             net = RayFormer(
                 num_actions=num_actions,
@@ -607,7 +624,7 @@ def make_forward(num_actions: int, config) -> hk.TransformedWithState:
                 num_attention_layers=config.num_attention_layers,
             )
         policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
-        return policy_out, value_out
+        return policy_out.astype(jnp.float32), value_out.astype(jnp.float32)
 
     return hk.without_apply_rng(hk.transform_with_state(forward_fn))
 
