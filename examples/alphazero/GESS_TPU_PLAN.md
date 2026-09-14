@@ -15,6 +15,7 @@ GessFormer (hybrid conv stem + transformer with Geometric Attention Bias) with:
 - `replay_buffer_iters=4`, ~2x sample reuse
 - `lr_schedule=cosine`, AdamW (`weight_decay=1e-4`), warmup, `grad_clip_norm=1.0`
 - `symmetry_augmentation=true` – random one of the 8 board symmetries per sample
+- `selfplay_bf16=true` – bfloat16 self-play inference (~2x faster network)
 - `save_data_state=true` on preemptible machines – exact resume
 
 ### Pilot ladder (`elo_ladder.py`, 128 games/pair, 32 sims, anchor = old ResNet baseline)
@@ -59,12 +60,16 @@ Self-play throughput is the bottleneck, so steps 1 and 2 target it.
    training and evaluation). Implemented: forward pass 1.95x faster (61 -> 31 ms),
    pilot-size iterations 1.6x faster (72 -> 45 s). On the trained GessFormer +
    augmentation checkpoint, 32-sim search picks the same move 96-97% of the
-   time as float32 (policy-target TV distance 0.04). Pilot: 96 iterations to
-   match the 1.23 h of the float32 run.
+   time as float32 (policy-target TV distance 0.04). **Adopted**: the pilot
+   (96 iterations, 1.29 h) at equal time (iteration 90, 1.21 h) is +121 Elo
+   over the float32 GessFormer + augmentation pilot and won 101.5-26.5
+   head-to-head; at iteration 96 it is the best pilot so far.
 3. **Fewer simulations / playout cap randomization** (KataGo): most moves use a
    cheap search and are excluded from the policy loss; a fraction use the full
    search and provide policy targets. Try plain `num_simulations=16` first as
-   the simplest variant.
+   the simplest variant (pilot running: bfloat16, 140 iterations). Playout cap
+   randomization is implemented (`playout_cap_prob`, `fast_num_simulations`)
+   for the follow-up pilot.
 
 Acceptance: pilot-scale runs at equal wall-clock time, compared on the Elo
 ladder against GessFormer + augmentation (-167). Adopt whatever is stronger at
@@ -92,3 +97,7 @@ Acceptance: equal-time pilot, ladder comparison as above.
 ## Log
 
 - 2026-09-14: pilots and ladder above; full-size measurement run.
+- 2026-09-15: profiled self-play (inference dominates); bfloat16 self-play
+  adopted (ladder, 10 models, anchor = old baseline): bf16 pilot iteration 96
+  -100, iteration 90 -127, float32 GessFormer + augmentation -248, RayFormer
+  -313, GessFormer -394 (ratings shift as models are added; compare gaps).
