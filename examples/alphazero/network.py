@@ -417,6 +417,17 @@ def _attend_lines(q, k, v, rel_bias, valid=None, dtype=jnp.float32):
     return out.transpose(0, 1, 3, 2, 4).astype(out_dtype)
 
 
+def _symmetry_orbits(n):
+    """Orbit id (0..k-1) of each cell of an n x n grid under the 8 square symmetries."""
+    grid = np.arange(n * n).reshape(n, n)
+    images = []
+    for t in (grid, grid.T):
+        for r in (t, t[::-1]):
+            images += [r, r[:, ::-1]]
+    canonical = np.min(np.stack(images), axis=0).reshape(-1)
+    return np.unique(canonical, return_inverse=True)[1].astype(np.int32)
+
+
 class LineAttention(hk.Module):
     """Multi-head attention within each line of one ray family.
 
@@ -429,10 +440,12 @@ class LineAttention(hk.Module):
         self.family = family
         self.dtype = dtype
 
-    def __call__(self, qkv):
+    def __call__(self, qkv, rel_bias=None):
+        """rel_bias (h, 2g-1): a shared offset bias; None creates this family's own."""
         b, cells, _, h, kd = qkv.shape
         g = _GESS_GRID
-        rel_bias = hk.get_parameter("rel_bias", (h, 2 * g - 1), init=jnp.zeros)
+        if rel_bias is None:
+            rel_bias = hk.get_parameter("rel_bias", (h, 2 * g - 1), init=jnp.zeros)
         if self.family in ("rows", "cols"):
             grid = qkv.reshape(b, g, g, 3, h, kd)
             if self.family == "cols":
@@ -450,13 +463,14 @@ class LineAttention(hk.Module):
 class RayBlock(hk.Module):
     """Pre-LN encoder block with ray attention (see RayFormer comment above)."""
 
-    def __init__(self, num_heads, ffn_mult, out_init, remat, attn_dtype, name="RayBlock"):
+    def __init__(self, num_heads, ffn_mult, out_init, remat, attn_dtype, symmetric, name="RayBlock"):
         super().__init__(name=name)
         self.num_heads = num_heads
         self.ffn_mult = ffn_mult
         self.out_init = out_init
         self.remat = remat
         self.attn_dtype = attn_dtype
+        self.symmetric = symmetric
 
     def __call__(self, x):
         b, n, d = x.shape
@@ -464,12 +478,24 @@ class RayBlock(hk.Module):
 
         y = _layer_norm("attn_ln")(x)
         qkv = hk.Linear(3 * d, w_init=_TF_INIT, name="qkv")(y).reshape(b, n, 3, h, d // h)
+        shared_bias = {}
+        if self.symmetric:
+            # Board symmetries map rows <-> columns and diagonals <-> anti-diagonals,
+            # and reflections reverse direction along a line. So share one bias
+            # between each such pair of families, depending only on |offset|.
+            g = _GESS_GRID
+            abs_offset = np.abs(np.arange(2 * g - 1) - (g - 1))
+            orth = hk.get_parameter("rel_bias_orth", (h, g), init=jnp.zeros)[:, abs_offset]
+            diag = hk.get_parameter("rel_bias_diag", (h, g), init=jnp.zeros)[:, abs_offset]
+            shared_bias = {"rows": orth, "cols": orth, "diag": diag, "anti": diag}
         attn = 0.0
         for f, family in enumerate(_RAY_FAMILIES):
             line_attn = LineAttention(family, self.attn_dtype, name=f"line_attn_{f}")
             # Recompute each family separately in the backward pass, so only one
             # family's attention matrices are held at a time.
-            attn = attn + (hk.remat(line_attn) if self.remat else line_attn)(qkv)
+            attn = attn + (hk.remat(line_attn) if self.remat else line_attn)(
+                qkv, shared_bias.get(family)
+            )
         x = x + hk.Linear(d, w_init=self.out_init, name="attn_out")(attn.reshape(b, n, d))
 
         y = _layer_norm("ffn_ln")(x)
@@ -491,6 +517,7 @@ class RayFormer(hk.Module):
         stem_blocks: int = 1,
         remat: bool = True,
         attn_bf16: bool = True,
+        symmetric: bool = False,
         name="ray_former",
     ):
         super().__init__(name=name)
@@ -503,6 +530,9 @@ class RayFormer(hk.Module):
         self.stem_blocks = stem_blocks
         self.remat = remat
         self.attn_dtype = jnp.bfloat16 if attn_bf16 else jnp.float32
+        # Tie position parameters across the 8 board symmetries (see RayBlock and
+        # _symmetry_orbits), so the encoder is equivariant to them.
+        self.symmetric = symmetric
 
     def __call__(self, x, is_training=False, test_local_stats=False):
         del is_training, test_local_stats  # no BatchNorm
@@ -514,12 +544,23 @@ class RayFormer(hk.Module):
         for i in range(self.stem_blocks):
             s = ConvBlock(d, name=f"stem_block_{i}")(s)
         tok = s.reshape(b, g * g, d)
-        tok = tok + hk.get_parameter("pos_emb", (g * g, d), init=_TF_INIT)
+        if self.symmetric:
+            orbits = _symmetry_orbits(g)
+            pos_emb = hk.get_parameter("pos_emb_orbit", (orbits.max() + 1, d), init=_TF_INIT)
+            tok = tok + pos_emb[orbits]
+        else:
+            tok = tok + hk.get_parameter("pos_emb", (g * g, d), init=_TF_INIT)
 
         out_init = hk.initializers.TruncatedNormal(stddev=0.02 / math.sqrt(2.0 * self.num_layers))
         for i in range(self.num_layers):
             block = RayBlock(
-                self.num_heads, self.ffn_mult, out_init, self.remat, self.attn_dtype, name=f"block_{i}"
+                self.num_heads,
+                self.ffn_mult,
+                out_init,
+                self.remat,
+                self.attn_dtype,
+                self.symmetric,
+                name=f"block_{i}",
             )
             tok = (hk.remat(block) if self.remat else block)(tok)
         tok = _layer_norm("final_ln")(tok)
@@ -542,6 +583,7 @@ def make_forward(num_actions: int, config) -> hk.TransformedWithState:
                 stem_blocks=config.rf_stem_blocks,
                 remat=config.rf_remat,
                 attn_bf16=config.rf_attn_bf16,
+                symmetric=config.rf_symmetric,
             )
         elif config.architecture == "gessformer":
             net = GessFormer(

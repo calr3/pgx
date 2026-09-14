@@ -61,6 +61,12 @@ class Config(BaseModel):
     rf_remat: bool = True
     # Compute the line attention in bfloat16 (weights stay float32).
     rf_attn_bf16: bool = True
+    # Tie RayFormer's position parameters across the 8 board symmetries: rows
+    # and columns share an attention bias, as do diagonals and anti-diagonals,
+    # each depending only on |offset|; the position embedding is shared by
+    # symmetric cells. The encoder is then equivariant to rotations/reflections
+    # (the conv stem is not constrained).
+    rf_symmetric: bool = False
     # selfplay params
     selfplay_batch_size: int = 1024
     num_simulations: int = 32
