@@ -264,7 +264,7 @@ are expensive (~50% longer iterations); at full size they are cheap (training
 updates there costs only ~4% more time. **Adopt ~4x reuse for the full-size
 run**, where it is nearly free; no evidence of overfitting at this scale.
 
-## E11. Full-size run of the final recipe, ~8 h (running)
+## E11. Full-size run of the final recipe, ~8 h
 
 **Question.** Does the adopted recipe behave well at full size over a long run
 (memory, held-back steps, game length and draws, late-schedule stability),
@@ -299,7 +299,28 @@ score vs. E10: 0.086. That score stayed at exactly 11/128 at iterations 5 and 15
 debugging showed all 11 "wins" were opening-bug games (E11 lost every real game
 to the fully annealed E10 so far), which led to the opening fix. The running
 process still uses the old openings, so its `eval/mcts/score` has a floor of
-11/128 but stays comparable within the run. Rest pending.
+11/128 but stays comparable within the run.
+
+Run completed: 72 iterations, 7.21 h of training time (18.9M positions), no
+errors after the resume. Training curve:
+
+| Iteration | Hours | MCTS score vs. E10 | Raw policy vs. old baseline | Policy loss | Value loss | Self-play draws | Steps/game |
+|---|---|---|---|---|---|---|---|
+| 16 | 1.6 | 0.086 (it 15; floor) | 3.7% | 2.63 | 0.45 | 1% | 97 |
+| 24 | 2.4 | 0.44 (it 25) | 5.1% | 2.48 | 0.40 | 2% | 100 |
+| 32 | 3.2 | 0.39 (it 35) | 8.0% | 1.88 | 0.37 | 4% | 120 |
+| 40 | 4.0 | 0.69 (it 45) | 18.8% | 1.62 | 0.31 | 8% | 154 |
+| 56 | 5.6 | 0.81 (it 55) | 43.8% | 1.12 | 0.27 | 20% | 187 |
+| 64 | 6.4 | 0.88 (it 65) | 49.3% | 0.95 | 0.26 | 21% | 195 |
+| 72 | 7.2 | 0.88 | 48.6% | 0.82 | 0.26 | 24% | 186 |
+
+(MCTS scores include ~11/128 free opening-bug wins; excluding them E11 won
+~87% of real games vs. E10 at the end. Raw policy vs. the old baseline without
+search reached ~49%, where pilots never exceeded ~13%.) Most of the gain came
+in the second half as the cosine schedule decayed; strength vs. E10 flattened
+between iterations 65 and 72. Self-play draws rose steadily to 24% and games
+lengthened to ~190 steps as play strengthened — watch in longer runs. Memory
+stayed healthy (host RAM ~14 GB). Ladder with fixed openings: pending.
 
 ---
 
