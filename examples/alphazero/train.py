@@ -33,6 +33,7 @@ from omegaconf import OmegaConf
 from pgx.experimental import auto_reset
 
 from config import Config
+from model_tournament import TourneyConfig, build_round_runner, load_from_checkpoint
 from network import cast_floating, make_forward, make_optimizer
 from replay_buffer import ReplayBuffer
 from symmetry import augment_gess
@@ -72,6 +73,14 @@ def _validate_config(config: Config, num_devices: int) -> None:
         raise ValueError(
             "training_batch_size must be divisible by the number of devices. "
             f"Got training_batch_size={config.training_batch_size}, num_devices={num_devices}."
+        )
+    if config.mcts_eval_opponent and (
+        config.mcts_eval_batch_size % num_devices != 0
+        or (config.mcts_eval_batch_size // num_devices) % 2 != 0
+    ):
+        raise ValueError(
+            f"mcts_eval_batch_size ({config.mcts_eval_batch_size}) must be divisible by "
+            f"num_devices ({num_devices}) with an even per-device share (seat-swapped pairs)."
         )
     if config.training_batch_size % (num_devices * config.train_micro_batches) != 0:
         raise ValueError(
@@ -522,6 +531,46 @@ if __name__ == "__main__":
     # Initialize logging dict
     log = {"iteration": iteration, "hours": hours, "frames": frames}
 
+    # Periodic MCTS match against a fixed opponent (see Config.mcts_eval_*).
+    mcts_eval_round = None
+    if config.mcts_eval_opponent:
+        opponent_config, opponent_model = load_from_checkpoint(config.mcts_eval_opponent)
+        mcts_eval_tcfg = TourneyConfig(
+            env_id=config.env_id,
+            models=f"<training model>,{config.mcts_eval_opponent}",
+            games=config.mcts_eval_games,
+            batch_size=config.mcts_eval_batch_size,
+            num_simulations=config.mcts_eval_simulations,
+        )
+        mcts_eval_round = build_round_runner(
+            env, forward, make_forward(env.num_actions, opponent_config), mcts_eval_tcfg, num_devices
+        )
+        opponent_model = jax.tree_util.tree_map(
+            lambda x: jnp.broadcast_to(x, (num_devices, *x.shape)), opponent_model
+        )
+        # Fixed key: every match replays the same openings.
+        mcts_eval_key = jax.random.fold_in(jax.random.PRNGKey(config.seed), 2)
+    last_mcts_eval_time = None
+
+    def run_mcts_eval() -> dict:
+        st = time.time()
+        key = mcts_eval_key
+        scores, draws = [], []
+        for _ in range(config.mcts_eval_games // config.mcts_eval_batch_size):
+            key, subkey = jax.random.split(key)
+            result = mcts_eval_round(model, opponent_model, jax.random.split(subkey, num_devices))
+            r = np.asarray(result.r).ravel()
+            scores.append((r + 1.0) / 2.0)
+            draws.append(r == 0)
+        score = float(np.concatenate(scores).mean())
+        clipped = min(max(score, 1e-3), 1.0 - 1e-3)
+        return {
+            "eval/mcts/score": score,
+            "eval/mcts/elo": float(400.0 * np.log10(clipped / (1.0 - clipped))),
+            "eval/mcts/draw_rate": float(np.concatenate(draws).mean()),
+            "eval/mcts/seconds": time.time() - st,
+        }
+
     # If the checkpoint being resumed from already ran this iteration's
     # evaluation, skip it: redoing it would consume rng_key and diverge from the
     # original run. (Checkpoints predating the "evaluated" key came from the
@@ -549,6 +598,14 @@ if __name__ == "__main__":
 
             # Store checkpoints
             save_checkpoint(iteration, rng_key, model, opt_state, frames, hours, evaluated=True)
+
+        if mcts_eval_round is not None and (
+            last_mcts_eval_time is None
+            or time.time() - last_mcts_eval_time >= config.mcts_eval_interval_hours * 3600
+            or iteration >= config.max_num_iters
+        ):
+            last_mcts_eval_time = time.time()
+            log.update(run_mcts_eval())
 
         print(log)
         wandb.log(log)

@@ -140,6 +140,16 @@ class Config(BaseModel):
     lr_final_ratio: float = 0.1
     # eval params
     eval_interval: int = 5
+    # Periodic MCTS match against a fixed opponent checkpoint (empty = off), on a
+    # wall-clock cadence: at the start, then whenever mcts_eval_interval_hours
+    # have passed since the previous match, and at the end of the run. Every match
+    # uses the same seat-swapped random openings, so scores are comparable over
+    # time. Logged as eval/mcts/*. Does not affect training or its RNG.
+    mcts_eval_opponent: str = ""
+    mcts_eval_interval_hours: float = 1.0
+    mcts_eval_games: int = 128
+    mcts_eval_batch_size: int = 128
+    mcts_eval_simulations: int = 32
 
     # Parsed `sim_schedule`, as a list of (from_iteration, num_simulations) sorted
     # ascending by from_iteration. Populated by the validator below.
@@ -162,6 +172,14 @@ class Config(BaseModel):
             raise ValueError(f"playout_cap_prob must be in (0, 1], got {self.playout_cap_prob}.")
         if self.fast_num_simulations < 1:
             raise ValueError(f"fast_num_simulations must be >= 1, got {self.fast_num_simulations}.")
+        if self.mcts_eval_opponent:
+            if self.mcts_eval_interval_hours < 0:
+                raise ValueError("mcts_eval_interval_hours must be >= 0.")
+            if self.mcts_eval_games % self.mcts_eval_batch_size != 0:
+                raise ValueError(
+                    f"mcts_eval_games ({self.mcts_eval_games}) must be a multiple of "
+                    f"mcts_eval_batch_size ({self.mcts_eval_batch_size})."
+                )
         if self.train_micro_batches < 1:
             raise ValueError(f"train_micro_batches must be >= 1, got {self.train_micro_batches}.")
         if self.max_pending_steps < 0:

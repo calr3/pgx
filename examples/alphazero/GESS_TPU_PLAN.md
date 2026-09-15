@@ -97,7 +97,11 @@ batch 4096).
 - Copy the baseline checkpoint that `pgx/_src/baseline.py` loads for evaluation.
 - Short multi-device smoke test on the TPU before the long run: throughput,
   memory, no recompiles, resume from a checkpoint.
-- Periodic `elo_ladder.py` against earlier checkpoints to track progress.
+- Track progress during the run with `mcts_eval_opponent=<fixed checkpoint>`
+  (hourly MCTS match, `eval/mcts/score` and `elo` in wandb; ~1 min per 128
+  games locally). Good opponents: the best pilot (E10 it 100), later a copy of
+  an early TPU checkpoint once the model outgrows it.
+- Periodic `elo_ladder.py` against earlier checkpoints for a fuller picture.
 
 ## Maybe later
 

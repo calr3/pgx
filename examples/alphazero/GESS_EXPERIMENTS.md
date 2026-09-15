@@ -272,6 +272,9 @@ run**, where it is nearly free; no evidence of overfitting at this scale.
 - **Exact resume** (`save_data_state=true`): Ctrl+C mid-run and resume reproduces
   the uninterrupted run bit-for-bit (params, optimizer state, RNG), both at and
   between evaluation iterations.
+- **Wall-clock MCTS evaluation during training** (`mcts_eval_opponent`):
+  training verified bit-identical with and without it; ~40-65 s per 128-game
+  match against a pilot checkpoint on the local GPU.
 - **Refactors verified bit-identical** on the default path: replay buffer,
   trajectory value targets (vs. the original `compute_loss_input`), GessFormer
   head refactor, lazy minibatch gathering, bfloat16 plumbing, playout cap

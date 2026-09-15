@@ -55,6 +55,12 @@ All default to the original behaviour; see `config.py` for details.
   at each checkpoint; can be several GB). `resume_from=` the latest checkpoint
   then continues exactly as if uninterrupted, including after Ctrl+C.
 
+- `mcts_eval_opponent=<checkpoint>`: during training, play an MCTS match
+  against a fixed checkpoint every `mcts_eval_interval_hours` of wall-clock time
+  (default 1.0; also at the start and end), logged as `eval/mcts/*`. Uses the
+  same openings each time, so scores are comparable over the run. Tune with
+  `mcts_eval_games`, `mcts_eval_batch_size` and `mcts_eval_simulations`.
+
 ### Comparing checkpoints
 
 `model_tournament.py` plays two checkpoints against each other with MCTS.
