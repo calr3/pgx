@@ -232,6 +232,18 @@ probably modestly stronger (+45 in the fit, 52-56% head-to-head), with a much
 stronger raw policy. The gain is small relative to the noise of single pilots;
 unlike E8, keeping full-search policy targets avoids the loss from cheap search.
 
+## E10. 4x sample reuse (running)
+
+**Question.** Training is cheap relative to self-play; does doubling gradient
+updates per iteration (~4x reuse of each position instead of ~2x) help at equal
+time?
+
+**Setup.** E9 settings + `num_updates_per_iter=64`. Iterations ~43 s (vs. ~29 s
+for E9: each extra update costs ~0.44 s at pilot size), so 100 iterations to
+fill ~1.22 h. Run `hws697pp`. Compare with E9 iteration 147.
+
+**Result.** Pending.
+
 ---
 
 ## Infrastructure checks

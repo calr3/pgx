@@ -123,7 +123,7 @@ Ideas not on the current path; revisit if there is time or a need.
 
 2026-09-15: E9 done (playout cap randomization adopted, tentatively). Next:
 1. Step 2: 4x sample reuse (`num_updates_per_iter=64`) on the E9 recipe, equal
-   time (~1.22 h), compared with E9 iteration 147.
+   time (~1.22 h), compared with E9 iteration 147 (E10, running since 12:08).
 2. Step 3: record the TPU command and checklist.
 
 ## Log
