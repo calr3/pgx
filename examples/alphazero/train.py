@@ -74,6 +74,11 @@ def _validate_config(config: Config, num_devices: int) -> None:
             "training_batch_size must be divisible by the number of devices. "
             f"Got training_batch_size={config.training_batch_size}, num_devices={num_devices}."
         )
+    if config.selfplay_batch_size % num_devices != 0:
+        raise ValueError(
+            "selfplay_batch_size must be divisible by the number of devices. "
+            f"Got selfplay_batch_size={config.selfplay_batch_size}, num_devices={num_devices}."
+        )
     if config.mcts_eval_opponent and (
         config.mcts_eval_batch_size % num_devices != 0
         or (config.mcts_eval_batch_size // num_devices) % 2 != 0
