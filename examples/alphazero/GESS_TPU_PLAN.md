@@ -106,6 +106,15 @@ Ideas not on the current path; revisit if there is time or a need.
   (roughly +600 to +1,000 Elo at equal pilot time).
 - **RayFormer**: close its ~50% iteration-time gap, or try a larger variant; it
   learns more per game than GessFormer (E4) but loses at equal time.
+- **Optimizer tuning and alternatives** (training is ~5% of iteration time, so
+  expect modest gains; each is an equal-time pilot + ladder). Most valuable
+  first: (1) tune the current AdamW (LR 2.5e-4 / 1e-3 vs. 5e-4, warmup, weight
+  decay, beta2) – never tuned for this setup; (2) EMA/SWA weights for the
+  self-play/evaluation network (KataGo-style); (3) Muon (`optax.contrib.muon`,
+  AdamW for norms/biases/embeddings) – promising for transformers, unproven
+  for AlphaZero RL; (4) schedule-free AdamW (`optax.contrib.schedule_free_adamw`)
+  – no fixed run length, handy for a rental that may stop or extend. Less
+  promising: Lion, Shampoo/SOAP/Sophia, SGD+momentum.
 
 ## Status
 
