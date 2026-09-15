@@ -18,14 +18,16 @@ GessFormer (hybrid conv stem + transformer with Geometric Attention Bias) with:
 - `lr_schedule=cosine`, AdamW (`weight_decay=1e-4`), warmup, `grad_clip_norm=1.0`
 - `symmetry_augmentation=true` – random one of the 8 board symmetries per sample
 - `selfplay_bf16=true` – bfloat16 self-play inference (~2x faster network)
+- `playout_cap_prob=0.25 fast_num_simulations=8` (with `num_simulations=32`) –
+  playout cap randomization; policy trained on full-search moves only
 - `save_data_state=true` on preemptible machines – exact resume
 
 ### Pilot ladder
 
 See the current ladder in [`GESS_EXPERIMENTS.md`](GESS_EXPERIMENTS.md). Best at
-equal time (~1.21 h): GessFormer + augmentation + bf16 self-play (E7), -129;
-16 simulations (E8) -232; float32 (E5) -272; RayFormer -340 (at 1.88 h);
-ResNet pilot -737 (anchor: old ResNet baseline, 14.6 h, 0).
+equal time (~1.21 h): + playout cap randomization (E9) -90; bf16 self-play (E7)
+-135; 16 simulations (E8) -255; float32 (E5) -297; RayFormer -358 (at 1.88 h);
+ResNet pilot -720 (anchor: old ResNet baseline, 14.6 h, 0).
 
 Cached results: `elo_gess_pilots.json` (repo root). RayFormer is more
 sample-efficient but ~50% slower per iteration and does not benefit from
@@ -62,12 +64,13 @@ Self-play throughput is the bottleneck, so steps 1 and 2 target it.
    cheap search and are excluded from the policy loss; a fraction use the full
    search and provide policy targets. Try plain `num_simulations=16` first as
    the simplest variant. **E8: rejected**, -103 Elo vs. 32 simulations at equal
-   time. Next: playout cap randomization (`playout_cap_prob`,
-   `fast_num_simulations`, implemented), which keeps full-search policy targets.
+   time. **E9, playout cap randomization** (`playout_cap_prob=0.25`,
+   `fast_num_simulations=8`): **adopted, tentatively**, +45 Elo vs. E7 at equal
+   time in the ladder, 52-56% head-to-head.
 
 Acceptance: pilot-scale runs at equal wall-clock time, compared on the Elo
-ladder against the current best recipe (now: bf16 pilot, iteration 90 at
-1.21 h). Adopt whatever is stronger at equal time.
+ladder against the current best recipe (now: E9, iteration 147 at 1.22 h).
+Adopt whatever is stronger at equal time.
 
 ## Step 2: more sample reuse
 
@@ -118,11 +121,10 @@ Ideas not on the current path; revisit if there is time or a need.
 
 ## Status
 
-2026-09-15: E8 done (16 simulations rejected). Next:
-1. Pilot playout cap randomization on the E7 recipe at equal time (~1.21 h):
-   `num_simulations=32 playout_cap_prob=0.25 fast_num_simulations=8` (E9,
-   running since 09:36).
-2. Step 2 (more sample reuse), then Step 3.
+2026-09-15: E9 done (playout cap randomization adopted, tentatively). Next:
+1. Step 2: 4x sample reuse (`num_updates_per_iter=64`) on the E9 recipe, equal
+   time (~1.22 h), compared with E9 iteration 147.
+2. Step 3: record the TPU command and checklist.
 
 ## Log
 
@@ -133,3 +135,5 @@ Ideas not on the current path; revisit if there is time or a need.
   -313, GessFormer -394 (ratings shift as models are added; compare gaps).
 - 2026-09-15: E8 (16 simulations, bf16) at equal time -232 vs. E7 -129 (12-model
   ladder); rejected.
+- 2026-09-15: E9 (playout cap randomization) -90 vs. E7 -135 at equal time
+  (14-model ladder), 52-56% head-to-head; adopted tentatively.

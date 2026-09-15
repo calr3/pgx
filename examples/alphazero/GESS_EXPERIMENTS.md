@@ -36,23 +36,25 @@ fixed-length rental.
 
 ## Current ladder
 
-12 models, anchor = old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`,
+14 models, anchor = old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`,
 32.8M positions, 14.6 h).
 
 | Model | Exp. | Train time | Elo |
 |---|---|---|---|
 | old ResNet baseline | – | 14.6 h | 0 |
-| GessFormer + aug + bf16 (it 96) | E7 | 1.29 h | -111 ± 17 |
-| GessFormer + aug + bf16 (it 90) | E7 | 1.21 h | -129 ± 17 |
-| GessFormer + aug + bf16, 16 sims (it 130) | E8 | 1.13 h | -226 ± 17 |
-| GessFormer + aug + bf16, 16 sims (it 140) | E8 | 1.21 h | -232 ± 17 |
-| GessFormer + aug | E5 | 1.23 h | -272 ± 17 |
-| RayFormer (it 60) | E4 | 1.88 h | -340 ± 17 |
-| GessFormer | E2 | 1.25 h | -414 ± 17 |
-| RayFormer (40-iteration run) | E4 | 1.22 h | -500 ± 18 |
-| RayFormer + aug, symmetry-tied | E6 | 1.93 h | -555 ± 19 |
-| RayFormer + aug | E6 | 1.82 h | -599 ± 19 |
-| ResNet pilot | E3 | 0.99 h | -737 ± 21 |
+| GessFormer + aug + bf16, playout cap (it 147) | E9 | 1.22 h | -90 ± 15 |
+| GessFormer + aug + bf16, playout cap (it 140) | E9 | 1.16 h | -92 ± 15 |
+| GessFormer + aug + bf16 (it 96) | E7 | 1.29 h | -110 ± 15 |
+| GessFormer + aug + bf16 (it 90) | E7 | 1.21 h | -135 ± 15 |
+| GessFormer + aug + bf16, 16 sims (it 130) | E8 | 1.13 h | -252 ± 15 |
+| GessFormer + aug + bf16, 16 sims (it 140) | E8 | 1.21 h | -255 ± 15 |
+| GessFormer + aug | E5 | 1.23 h | -297 ± 15 |
+| RayFormer (it 60) | E4 | 1.88 h | -358 ± 15 |
+| GessFormer | E2 | 1.25 h | -426 ± 16 |
+| RayFormer (40-iteration run) | E4 | 1.22 h | -504 ± 16 |
+| RayFormer + aug, symmetry-tied | E6 | 1.93 h | -556 ± 17 |
+| RayFormer + aug | E6 | 1.82 h | -594 ± 17 |
+| ResNet pilot | E3 | 0.99 h | -720 ± 19 |
 
 ---
 
@@ -205,7 +207,7 @@ more here than game count. Playout cap randomization (full search for policy
 targets on a fraction of moves) remains worth testing, since it keeps
 full-quality policy targets.
 
-## E9. Playout cap randomization (running)
+## E9. Playout cap randomization
 
 **Question.** Can cheap searches on most moves buy more games without E8's
 loss of policy-target quality, by training the policy only on full-search
@@ -213,10 +215,22 @@ moves (KataGo's playout cap randomization)?
 
 **Setup.** E7 settings + `playout_cap_prob=0.25 fast_num_simulations=8`
 (`num_simulations=32`; ~14 simulations per move on average), 147 iterations
-(~29 s each) to fill ~1.21 h, `eval_interval=7`. Run `6ymiv09q`. Compare with
-E7 iteration 90.
+(~29 s each, 1.22 h), `eval_interval=7`. Run `6ymiv09q`,
+`checkpoints/gess_20260915173622`.
 
-**Result.** Pending.
+**Result.** Full searches on ~25% of steps as intended. Raw-policy win rate vs.
+baseline reached 41-48% at the end (E7: 23-34%); value loss ~0.38. Ladder at
+equal time: iteration 147 **-90 vs. -135 for E7 iteration 90, +45 Elo**
+(iteration 140, 1.16 h: -92). Head-to-head is closer: vs. E7 iteration 90,
+iteration 147 scored 66.5/128 (52%) and iteration 140 71.5/128 (56%); vs. E7
+iteration 96 (1.29 h), 60.5 and 57/128 (47%, 45%). E9 beats the weaker models
+more decisively than E7 does (e.g. 105-108/128 vs. E8, against E7's 85-92),
+which drives the fitted gap. Iterations 140 and 147 are level (65-63).
+
+**Conclusion.** Adopted, tentatively: at least as strong as E7 at equal time and
+probably modestly stronger (+45 in the fit, 52-56% head-to-head), with a much
+stronger raw policy. The gain is small relative to the noise of single pilots;
+unlike E8, keeping full-search policy targets avoids the loss from cheap search.
 
 ---
 
