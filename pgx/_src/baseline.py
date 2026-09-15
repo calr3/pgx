@@ -29,6 +29,7 @@ BaselineModelId = Literal[
 def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baselines"):
     if model_id in (
         "animal_shogi_v0",
+        "domineering_v0",
         "gardner_chess_v0",
         "g_hex_v0",
         "gess_v0",
@@ -208,6 +209,18 @@ def _load_baseline_model(baseline_model: BaselineModelId, basedir: str = "baseli
         config = ckpt["config"]
         args = {
             "num_actions": 20 * 20,
+            "num_channels": config.num_channels,
+            "num_layers": config.num_layers,
+            "resnet_v2": config.resnet_v2,
+        }
+        params, state = ckpt["model"]
+        return args, params, state
+    if baseline_model == "domineering_v0":
+        with open("checkpoints/domineering_20260614014807/000184.ckpt", "rb") as f:
+            ckpt = pickle.load(f)
+        config = ckpt["config"]
+        args = {
+            "num_actions": 8 * 7,
             "num_channels": config.num_channels,
             "num_layers": config.num_layers,
             "resnet_v2": config.resnet_v2,
