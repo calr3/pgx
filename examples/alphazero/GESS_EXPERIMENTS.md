@@ -43,26 +43,29 @@ fixed-length rental.
 
 ## Current ladder
 
-15 models, anchor = old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`,
-32.8M positions, 14.6 h).
+10 models, 128 games/pair, 32 sims, fixed openings (`game_version=2`), anchor =
+old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`, 32.8M
+positions, 14.6 h). Trimmed to one model per conclusion; earlier ladders (with
+the opening bug) had compressed gaps.
 
 | Model | Exp. | Train time | Elo |
 |---|---|---|---|
+| **full-size recipe (it 72)** | E11 | 7.2 h | **+99 ± 22** |
 | old ResNet baseline | – | 14.6 h | 0 |
-| GessFormer + aug + bf16 + playout cap, 4x reuse (it 100) | E10 | 1.22 h | -90 ± 14 |
-| GessFormer + aug + bf16 + playout cap (it 147) | E9 | 1.22 h | -98 ± 14 |
-| GessFormer + aug + bf16 + playout cap (it 140) | E9 | 1.16 h | -104 ± 14 |
-| GessFormer + aug + bf16 (it 96) | E7 | 1.29 h | -119 ± 14 |
-| GessFormer + aug + bf16 (it 90) | E7 | 1.21 h | -142 ± 14 |
-| GessFormer + aug + bf16, 16 sims (it 130) | E8 | 1.13 h | -262 ± 14 |
-| GessFormer + aug + bf16, 16 sims (it 140) | E8 | 1.21 h | -266 ± 14 |
-| GessFormer + aug | E5 | 1.23 h | -310 ± 15 |
-| RayFormer (it 60) | E4 | 1.88 h | -370 ± 15 |
-| GessFormer | E2 | 1.25 h | -433 ± 15 |
-| RayFormer (40-iteration run) | E4 | 1.22 h | -509 ± 16 |
-| RayFormer + aug, symmetry-tied | E6 | 1.93 h | -559 ± 16 |
-| RayFormer + aug | E6 | 1.82 h | -595 ± 16 |
-| ResNet pilot | E3 | 0.99 h | -717 ± 18 |
+| + 4x sample reuse (it 100) | E10 | 1.22 h | -231 ± 20 |
+| + playout cap randomization (it 147) | E9 | 1.22 h | -252 ± 20 |
+| + bf16 self-play (it 90) | E7 | 1.21 h | -281 ± 20 |
+| full-size recipe (it 36) | E11 | 3.6 h | -289 ± 21 |
+| + symmetry augmentation | E5 | 1.23 h | -559 ± 24 |
+| RayFormer (it 60) | E4 | 1.88 h | -731 ± 27 |
+| GessFormer | E2 | 1.25 h | -866 ± 30 |
+| ResNet pilot | E3 | 0.99 h | -1422 ± 63 |
+
+Note the fit is not fully transitive: head-to-head the baseline beat E11 it 72
+**75-53 (59%)**, but E11 beats the weak pilots far more decisively than the
+baseline does (128-0 vs. the ResNet pilot and RayFormer, where the baseline
+scores 117/128), which lifts its fitted rating. Read "E11 is close to the
+baseline at half the training time", not "clearly ahead".
 
 ---
 
@@ -320,7 +323,19 @@ search reached ~49%, where pilots never exceeded ~13%.) Most of the gain came
 in the second half as the cosine schedule decayed; strength vs. E10 flattened
 between iterations 65 and 72. Self-play draws rose steadily to 24% and games
 lengthened to ~190 steps as play strengthened — watch in longer runs. Memory
-stayed healthy (host RAM ~14 GB). Ladder with fixed openings: pending.
+stayed healthy (host RAM ~14 GB).
+
+Ladder (fixed openings, table above): **E11 it 72 +99, it 36 -289** — a ~390 Elo
+swing in the second half as the cosine schedule decayed. It beats every pilot
+decisively (128-0 vs. the ResNet pilot and RayFormer, 126.5-1.5 vs. E5) but
+loses to the old baseline head-to-head 53-75.
+
+**Conclusion.** The full recipe works at full scale: in 7.2 h it reaches roughly
+the strength of a 14.6 h baseline trained with the original setup, and its
+ranking of the adopted steps matches the pilots. The ~8 h shape of the curve
+(most gains late, flattening over the last ~7 iterations) suggests sizing
+`max_num_iters` so the schedule completes just within the rental. Watch the
+rising draw rate (24%) and game length (~190 steps) in longer runs.
 
 ---
 

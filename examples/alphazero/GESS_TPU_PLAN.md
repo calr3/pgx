@@ -25,11 +25,12 @@ GessFormer (hybrid conv stem + transformer with Geometric Attention Bias) with:
 
 ### Pilot ladder
 
-See the current ladder in [`GESS_EXPERIMENTS.md`](GESS_EXPERIMENTS.md). Best at
-equal time (~1.22 h): + 4x reuse (E10) -90; + playout cap randomization (E9)
--98; bf16 self-play (E7) -142; 16 simulations (E8) -266; float32 (E5) -310;
-RayFormer -370 (at 1.88 h); ResNet pilot -717 (anchor: old ResNet baseline,
-14.6 h, 0).
+See the current ladder in [`GESS_EXPERIMENTS.md`](GESS_EXPERIMENTS.md).
+Validated at full size by E11 (7.2 h, 72 iterations): +99 Elo vs. the old
+14.6 h baseline in the fit (head-to-head 53-75, i.e. close but not clearly
+ahead), and far above every pilot. Pilot ordering at ~1.2 h: E10 (4x reuse)
+-231, E9 (playout cap) -252, E7 (bf16) -281, E5 (augmentation) -559,
+RayFormer -731, GessFormer -866, ResNet pilot -1422.
 
 Cached results: `elo_gess_pilots.json` (repo root). RayFormer is more
 sample-efficient but ~50% slower per iteration and does not benefit from
@@ -139,13 +140,10 @@ Ideas not on the current path; revisit if there is time or a need.
 
 ## Status
 
-2026-09-15: Steps 1 and 2 done; multi-device validation passed; wall-clock MCTS
-evaluation added; opening bug fixed (ladder gaps were compressed ~13%). Running
-E11, an ~8 h full-size run of the final recipe (ends ~23:15). Queued to start
-automatically after it: a replayed ladder with fixed openings on a trimmed set
-(old baseline, E3 ResNet, E2 GessFormer, E5 +aug, E4 RayFormer, E7 +bf16 it 90,
-E9 +playout cap it 147, E10 +4x reuse it 100, E11 it 36 and 72; 45 pairs,
-~1 h). Step 3 waits for the rental details (TPU type/chips, duration, storage).
+2026-09-16: Steps 1 and 2 done and validated at full size (E11). Remaining:
+Step 3 (TPU command + checklist), which needs the rental details (TPU type and
+chip count, duration, storage). Optional before the rental: model-size
+comparison at full size; ideas in "Maybe later".
 
 ## Log
 
@@ -161,3 +159,6 @@ E9 +playout cap it 147, E10 +4x reuse it 100, E11 it 36 and 72; 45 pairs,
 - 2026-09-15: E10 (4x reuse) -90 vs. E9 -98 at equal time (15-model ladder),
   52% head-to-head; tie at pilot scale, adopted for full size where updates
   are cheap.
+- 2026-09-16: E11 full-size run (7.2 h): +99 Elo vs. the old baseline in the
+  fixed-opening ladder (head-to-head 53-75), midpoint -289; recipe validated at
+  scale. Opening bug fixed, ladder replayed on a trimmed 10-model set.
