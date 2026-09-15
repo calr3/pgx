@@ -272,6 +272,12 @@ run**, where it is nearly free; no evidence of overfitting at this scale.
 - **Exact resume** (`save_data_state=true`): Ctrl+C mid-run and resume reproduces
   the uninterrupted run bit-for-bit (params, optimizer state, RNG), both at and
   between evaluation iterations.
+- **Multi-device** (8 simulated CPU devices, tiny GessFormer, every recipe
+  feature incl. micro-batches, bf16, playout cap, augmentation, data state and
+  MCTS eval): runs cleanly; Ctrl+C and resume on 8 devices is bit-identical to
+  an uninterrupted 8-device run; resuming 1 -> 8 and 8 -> 1 devices restores the
+  buffer, held-back steps and games. Added a check that `selfplay_batch_size`
+  divides by the device count (it was silently floored).
 - **Wall-clock MCTS evaluation during training** (`mcts_eval_opponent`):
   training verified bit-identical with and without it; ~40-65 s per 128-game
   match against a pilot checkpoint on the local GPU.

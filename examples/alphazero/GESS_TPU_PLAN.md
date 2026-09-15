@@ -96,7 +96,8 @@ batch 4096).
 - `save_data_state=true`; checkpoints (and `data_state.pkl`) on durable storage.
 - Copy the baseline checkpoint that `pgx/_src/baseline.py` loads for evaluation.
 - Short multi-device smoke test on the TPU before the long run: throughput,
-  memory, no recompiles, resume from a checkpoint.
+  memory, no recompiles, resume from a checkpoint. (Multi-device logic and
+  cross-device-count resume already pass on 8 simulated CPU devices.)
 - Track progress during the run with `mcts_eval_opponent=<fixed checkpoint>`
   (hourly MCTS match, `eval/mcts/score` and `elo` in wandb; ~1 min per 128
   games locally). Good opponents: the best pilot (E10 it 100), later a copy of
