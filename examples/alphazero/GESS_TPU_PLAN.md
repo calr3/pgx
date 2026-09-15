@@ -20,23 +20,12 @@ GessFormer (hybrid conv stem + transformer with Geometric Attention Bias) with:
 - `selfplay_bf16=true` – bfloat16 self-play inference (~2x faster network)
 - `save_data_state=true` on preemptible machines – exact resume
 
-### Pilot ladder (`elo_ladder.py`, 128 games/pair, 32 sims, anchor = old ResNet baseline)
+### Pilot ladder
 
-Pilots: 256 games x 128 steps per iteration, training batch 2048. Ratings are
-relative to the pool and shift as models are added; compare gaps.
-
-| Model | Train time | Elo |
-|---|---|---|
-| old ResNet baseline (`gess_v0`) | 14.6 h | 0 |
-| **GessFormer + augmentation + bf16 self-play (it 96)** | 1.29 h | **-100** |
-| GessFormer + augmentation + bf16 self-play (it 90) | 1.21 h | -127 |
-| GessFormer + augmentation | 1.23 h | -248 |
-| RayFormer (60 it) | 1.88 h | -313 |
-| GessFormer | 1.25 h | -394 |
-| RayFormer (40 it) | 1.22 h | -481 |
-| RayFormer + augmentation, symmetry-tied | 1.93 h | -538 |
-| RayFormer + augmentation | 1.82 h | -584 |
-| ResNet pilot | 0.99 h | -737 |
+See the current ladder in [`GESS_EXPERIMENTS.md`](GESS_EXPERIMENTS.md). Best at
+equal time (~1.21 h): GessFormer + augmentation + bf16 self-play (E7), -129;
+16 simulations (E8) -232; float32 (E5) -272; RayFormer -340 (at 1.88 h);
+ResNet pilot -737 (anchor: old ResNet baseline, 14.6 h, 0).
 
 Cached results: `elo_gess_pilots.json` (repo root). RayFormer is more
 sample-efficient but ~50% slower per iteration and does not benefit from
@@ -72,10 +61,9 @@ Self-play throughput is the bottleneck, so steps 1 and 2 target it.
 3. **Fewer simulations / playout cap randomization** (KataGo): most moves use a
    cheap search and are excluded from the policy loss; a fraction use the full
    search and provide policy targets. Try plain `num_simulations=16` first as
-   the simplest variant (E8: pilot finished, ladder comparison pending; the
-   command is in `GESS_EXPERIMENTS.md`). Playout cap randomization is
-   implemented (`playout_cap_prob`, `fast_num_simulations`) for the follow-up
-   pilot.
+   the simplest variant. **E8: rejected**, -103 Elo vs. 32 simulations at equal
+   time. Next: playout cap randomization (`playout_cap_prob`,
+   `fast_num_simulations`, implemented), which keeps full-search policy targets.
 
 Acceptance: pilot-scale runs at equal wall-clock time, compared on the Elo
 ladder against the current best recipe (now: bf16 pilot, iteration 90 at
@@ -99,6 +87,32 @@ Acceptance: equal-time pilot, ladder comparison as above.
 - Short multi-device smoke test on the TPU before the long run: throughput,
   memory, no recompiles, resume from a checkpoint.
 - Periodic `elo_ladder.py` against earlier checkpoints to track progress.
+
+## Maybe later
+
+Ideas not on the current path; revisit if there is time or a need.
+
+- **Bootstrapping a larger model once the current one plateaus.** Options, most
+  practical first: (1) grow GessFormer in place by adding transformer blocks
+  whose output projections start at zero (identity at first), keeping weights,
+  optimizer state and `data_state.pkl`; (2) train a larger model on the smaller
+  model's self-play games/replay buffer and switch self-play to it once it wins
+  on the ladder (KataGo-style); (3) distill the small model's policy/value (or
+  search results) into the larger one, then continue RL; (4) generate targets
+  with much deeper search. Check first that a plateau is really a capacity
+  limit (not search budget, replay window or LR).
+- **Measure the original ResNet with the original training loop** as a pilot,
+  to replace the estimated part of the total gain over the original setup
+  (roughly +600 to +1,000 Elo at equal pilot time).
+- **RayFormer**: close its ~50% iteration-time gap, or try a larger variant; it
+  learns more per game than GessFormer (E4) but loses at equal time.
+
+## Status
+
+2026-09-15: E8 done (16 simulations rejected). Next:
+1. Pilot playout cap randomization on the E7 recipe at equal time (~1.21 h):
+   `num_simulations=32 playout_cap_prob=0.25 fast_num_simulations=8`.
+2. Step 2 (more sample reuse), then Step 3.
 
 ## Maybe later
 

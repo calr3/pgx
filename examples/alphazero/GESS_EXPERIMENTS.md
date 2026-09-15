@@ -36,21 +36,23 @@ fixed-length rental.
 
 ## Current ladder
 
-10 models, anchor = old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`,
+12 models, anchor = old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`,
 32.8M positions, 14.6 h).
 
 | Model | Exp. | Train time | Elo |
 |---|---|---|---|
 | old ResNet baseline | – | 14.6 h | 0 |
-| GessFormer + aug + bf16 (it 96) | E7 | 1.29 h | -100 ± 19 |
-| GessFormer + aug + bf16 (it 90) | E7 | 1.21 h | -127 ± 19 |
-| GessFormer + aug | E5 | 1.23 h | -248 ± 19 |
-| RayFormer (it 60) | E4 | 1.88 h | -313 ± 19 |
-| GessFormer | E2 | 1.25 h | -394 ± 20 |
-| RayFormer (40-iteration run) | E4 | 1.22 h | -481 ± 20 |
-| RayFormer + aug, symmetry-tied | E6 | 1.93 h | -538 ± 21 |
-| RayFormer + aug | E6 | 1.82 h | -584 ± 21 |
-| ResNet pilot | E3 | 0.99 h | -737 ± 24 |
+| GessFormer + aug + bf16 (it 96) | E7 | 1.29 h | -111 ± 17 |
+| GessFormer + aug + bf16 (it 90) | E7 | 1.21 h | -129 ± 17 |
+| GessFormer + aug + bf16, 16 sims (it 130) | E8 | 1.13 h | -226 ± 17 |
+| GessFormer + aug + bf16, 16 sims (it 140) | E8 | 1.21 h | -232 ± 17 |
+| GessFormer + aug | E5 | 1.23 h | -272 ± 17 |
+| RayFormer (it 60) | E4 | 1.88 h | -340 ± 17 |
+| GessFormer | E2 | 1.25 h | -414 ± 17 |
+| RayFormer (40-iteration run) | E4 | 1.22 h | -500 ± 18 |
+| RayFormer + aug, symmetry-tied | E6 | 1.93 h | -555 ± 19 |
+| RayFormer + aug | E6 | 1.82 h | -599 ± 19 |
+| ResNet pilot | E3 | 0.99 h | -737 ± 21 |
 
 ---
 
@@ -190,21 +192,18 @@ cost again) beat 32 at equal time?
 `eval_interval=10`. Run `q8z0tred`, `checkpoints/gess_20260915055020`.
 
 **Result.** 140 iterations in 1.21 h (~31 s/iteration vs. ~48 s for E7), so
-iteration 140 is exactly equal-time with E7 iteration 90. Raw-policy win rate
-vs. baseline 21-32% late in the run (similar to E7). Policy loss fell much
+iteration 140 is exactly equal-time with E7 iteration 90. Policy loss fell much
 lower (0.40 vs. 0.94 for E7), as expected with sharper 16-simulation targets;
-value loss ~0.43 (E7: 0.29-0.31). **Ladder comparison pending** (paused for a
-WSL memory restart): add iterations 130 and 140 and compare with E7 iteration 90:
+value loss stayed ~0.43 (E7: 0.29-0.31). Ladder: iteration 140 **-232 vs. -129
+for E7 iteration 90, -103 Elo**; E7 iteration 90 won 92.5-35.5 head-to-head
+(85-43 vs. iteration 130). Iterations 130 and 140 are level (-226/-232; 66-62
+head-to-head). Still +40 over float32 32-simulation GessFormer + aug (E5).
 
-```
-python -u examples/alphazero/elo_ladder.py env_id=gess games_per_pair=128 batch_size=128 \
-  num_simulations=32 max_num_steps=256 results_file=elo_gess_pilots.json \
-  models=base=checkpoints/gess_20260604081951/000125.ckpt,resnet=checkpoints/gess_20260914051848/000060.ckpt,gf=checkpoints/gess_20260914031715/000060.ckpt,gf_sym=checkpoints/gess_20260914190157/000060.ckpt,rf40=checkpoints/gess_20260914161042/000040.ckpt,rf60=checkpoints/gess_20260914071958/000060.ckpt,rf_sym60=checkpoints/gess_20260914210805/000060.ckpt,rf_symtied60=checkpoints/gess_20260914235054/000060.ckpt,gf_bf16_90=checkpoints/gess_20260915035816/000090.ckpt,gf_bf16_96=checkpoints/gess_20260915035816/000096.ckpt,gf_s16_130=checkpoints/gess_20260915055020/000130.ckpt,gf_s16_140=checkpoints/gess_20260915055020/000140.ckpt
-```
-
-(Existing pairs come from the cache; only the 21 new pairs are played.)
-
-**Conclusion.** Pending the ladder.
+**Conclusion.** Not adopted: at equal time, 50% more games with half the search
+lose clearly to 32 simulations. Search quality of the training targets matters
+more here than game count. Playout cap randomization (full search for policy
+targets on a fraction of moves) remains worth testing, since it keeps
+full-quality policy targets.
 
 ---
 
