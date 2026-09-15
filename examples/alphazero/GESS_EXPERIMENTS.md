@@ -280,8 +280,15 @@ iteration 5 and resume. Run `txe8dngl`, `checkpoints/gess_20260915232736`.
 the run finished iteration 5, saved the checkpoint and `data_state.pkl`, and
 was relaunched at 15:55 with `resume_from`; it restored the full replay buffer
 (1,048,576 samples), 51,292 held-back steps and the in-progress games, and
-continued the same wandb run. ~6 min lost (finishing the iteration and
-recompiling). Starting MCTS score vs. E10: 0.086. Rest pending.
+continued the same wandb run. However, **the resumed process ran out of GPU
+memory at its first training step** (a single 10.29 GiB allocation for the
+batch-4096 train step, which the uninterrupted process had handled), twice —
+the second time with the GPU confirmed free, so not a driver-release delay.
+Likely allocator fragmentation: the resumed process allocates in a different
+order, leaving no contiguous 10.3 GiB block in JAX's ~12 GiB preallocated pool
+(unconfirmed). Resumed successfully at 16:07 with `train_micro_batches=2`
+(halves that allocation; same gradients). ~40 min lost in total. Starting MCTS
+score vs. E10: 0.086. Rest pending.
 
 ---
 

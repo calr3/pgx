@@ -94,6 +94,11 @@ batch 4096).
   count (batch sizes divisible by devices) and a `max_num_iters` that fits the
   rental so the cosine schedule completes.
 - `save_data_state=true`; checkpoints (and `data_state.pkl`) on durable storage.
+- Resume memory (E11): on the 16 GB GPU, a resumed full-size run OOMed on the
+  batch-4096 train step's single ~10.3 GiB allocation that the original process
+  had fit; `train_micro_batches=2` fixed it. On TPU each chip only sees
+  `training_batch_size / devices`, so this allocation is much smaller, but if a
+  resume OOMs, add `train_micro_batches=2` (or more).
 - Copy the baseline checkpoint that `pgx/_src/baseline.py` loads for evaluation.
 - Short multi-device smoke test on the TPU before the long run: throughput,
   memory, no recompiles, resume from a checkpoint. (Multi-device logic and
