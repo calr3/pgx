@@ -205,6 +205,19 @@ more here than game count. Playout cap randomization (full search for policy
 targets on a fraction of moves) remains worth testing, since it keeps
 full-quality policy targets.
 
+## E9. Playout cap randomization (running)
+
+**Question.** Can cheap searches on most moves buy more games without E8's
+loss of policy-target quality, by training the policy only on full-search
+moves (KataGo's playout cap randomization)?
+
+**Setup.** E7 settings + `playout_cap_prob=0.25 fast_num_simulations=8`
+(`num_simulations=32`; ~14 simulations per move on average), 147 iterations
+(~29 s each) to fill ~1.21 h, `eval_interval=7`. Run `6ymiv09q`. Compare with
+E7 iteration 90.
+
+**Result.** Pending.
+
 ---
 
 ## Infrastructure checks

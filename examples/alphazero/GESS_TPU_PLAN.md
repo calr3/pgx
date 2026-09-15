@@ -111,7 +111,8 @@ Ideas not on the current path; revisit if there is time or a need.
 
 2026-09-15: E8 done (16 simulations rejected). Next:
 1. Pilot playout cap randomization on the E7 recipe at equal time (~1.21 h):
-   `num_simulations=32 playout_cap_prob=0.25 fast_num_simulations=8`.
+   `num_simulations=32 playout_cap_prob=0.25 fast_num_simulations=8` (E9,
+   running since 09:36).
 2. Step 2 (more sample reuse), then Step 3.
 
 ## Log
