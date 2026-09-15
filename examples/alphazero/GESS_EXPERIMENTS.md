@@ -36,25 +36,26 @@ fixed-length rental.
 
 ## Current ladder
 
-14 models, anchor = old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`,
+15 models, anchor = old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`,
 32.8M positions, 14.6 h).
 
 | Model | Exp. | Train time | Elo |
 |---|---|---|---|
 | old ResNet baseline | – | 14.6 h | 0 |
-| GessFormer + aug + bf16, playout cap (it 147) | E9 | 1.22 h | -90 ± 15 |
-| GessFormer + aug + bf16, playout cap (it 140) | E9 | 1.16 h | -92 ± 15 |
-| GessFormer + aug + bf16 (it 96) | E7 | 1.29 h | -110 ± 15 |
-| GessFormer + aug + bf16 (it 90) | E7 | 1.21 h | -135 ± 15 |
-| GessFormer + aug + bf16, 16 sims (it 130) | E8 | 1.13 h | -252 ± 15 |
-| GessFormer + aug + bf16, 16 sims (it 140) | E8 | 1.21 h | -255 ± 15 |
-| GessFormer + aug | E5 | 1.23 h | -297 ± 15 |
-| RayFormer (it 60) | E4 | 1.88 h | -358 ± 15 |
-| GessFormer | E2 | 1.25 h | -426 ± 16 |
-| RayFormer (40-iteration run) | E4 | 1.22 h | -504 ± 16 |
-| RayFormer + aug, symmetry-tied | E6 | 1.93 h | -556 ± 17 |
-| RayFormer + aug | E6 | 1.82 h | -594 ± 17 |
-| ResNet pilot | E3 | 0.99 h | -720 ± 19 |
+| GessFormer + aug + bf16 + playout cap, 4x reuse (it 100) | E10 | 1.22 h | -90 ± 14 |
+| GessFormer + aug + bf16 + playout cap (it 147) | E9 | 1.22 h | -98 ± 14 |
+| GessFormer + aug + bf16 + playout cap (it 140) | E9 | 1.16 h | -104 ± 14 |
+| GessFormer + aug + bf16 (it 96) | E7 | 1.29 h | -119 ± 14 |
+| GessFormer + aug + bf16 (it 90) | E7 | 1.21 h | -142 ± 14 |
+| GessFormer + aug + bf16, 16 sims (it 130) | E8 | 1.13 h | -262 ± 14 |
+| GessFormer + aug + bf16, 16 sims (it 140) | E8 | 1.21 h | -266 ± 14 |
+| GessFormer + aug | E5 | 1.23 h | -310 ± 15 |
+| RayFormer (it 60) | E4 | 1.88 h | -370 ± 15 |
+| GessFormer | E2 | 1.25 h | -433 ± 15 |
+| RayFormer (40-iteration run) | E4 | 1.22 h | -509 ± 16 |
+| RayFormer + aug, symmetry-tied | E6 | 1.93 h | -559 ± 16 |
+| RayFormer + aug | E6 | 1.82 h | -595 ± 16 |
+| ResNet pilot | E3 | 0.99 h | -717 ± 18 |
 
 ---
 
@@ -232,17 +233,29 @@ probably modestly stronger (+45 in the fit, 52-56% head-to-head), with a much
 stronger raw policy. The gain is small relative to the noise of single pilots;
 unlike E8, keeping full-search policy targets avoids the loss from cheap search.
 
-## E10. 4x sample reuse (running)
+## E10. 4x sample reuse
 
 **Question.** Training is cheap relative to self-play; does doubling gradient
 updates per iteration (~4x reuse of each position instead of ~2x) help at equal
 time?
 
 **Setup.** E9 settings + `num_updates_per_iter=64`. Iterations ~43 s (vs. ~29 s
-for E9: each extra update costs ~0.44 s at pilot size), so 100 iterations to
-fill ~1.22 h. Run `hws697pp`. Compare with E9 iteration 147.
+for E9: each extra update costs ~0.44 s at pilot size), so 100 iterations in
+1.22 h — about a third fewer self-play games than E9. Run `hws697pp`,
+`checkpoints/gess_20260915200817`.
 
-**Result.** Pending.
+**Result.** Raw-policy win rate vs. baseline 44.5% at the end (E9: 48%); value
+loss 0.34 (E9: 0.38). Ladder at equal time: **-90 vs. -98 for E9 iteration
+147, +8 Elo** — a tie within noise. Head-to-head vs. E9 iteration 147: 66.5/128
+(52%); vs. E9 iteration 140: 73.5 (57%); vs. E7 iterations 90/96: 71.5 and
+70.5 (56%, 55%).
+
+**Conclusion.** At pilot scale, 4x reuse matches 2x at equal time while playing
+~1/3 fewer games, i.e. each game is worth more. At pilot size the extra updates
+are expensive (~50% longer iterations); at full size they are cheap (training
+~0.2 s/update with batch 4096, ~4% of an iteration at 128 updates), so doubling
+updates there costs only ~4% more time. **Adopt ~4x reuse for the full-size
+run**, where it is nearly free; no evidence of overfitting at this scale.
 
 ---
 

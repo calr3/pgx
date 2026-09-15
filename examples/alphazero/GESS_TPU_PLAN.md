@@ -14,7 +14,8 @@ GessFormer (hybrid conv stem + transformer with Geometric Attention Bias) with:
 
 - `continue_games=true` – games carry over between iterations, so every
   position gets a real value target
-- `replay_buffer_iters=4`, ~2x sample reuse
+- `replay_buffer_iters=4`, ~4x sample reuse at full size (E10; ~2x in earlier
+  pilots)
 - `lr_schedule=cosine`, AdamW (`weight_decay=1e-4`), warmup, `grad_clip_norm=1.0`
 - `symmetry_augmentation=true` – random one of the 8 board symmetries per sample
 - `selfplay_bf16=true` – bfloat16 self-play inference (~2x faster network)
@@ -25,9 +26,10 @@ GessFormer (hybrid conv stem + transformer with Geometric Attention Bias) with:
 ### Pilot ladder
 
 See the current ladder in [`GESS_EXPERIMENTS.md`](GESS_EXPERIMENTS.md). Best at
-equal time (~1.21 h): + playout cap randomization (E9) -90; bf16 self-play (E7)
--135; 16 simulations (E8) -255; float32 (E5) -297; RayFormer -358 (at 1.88 h);
-ResNet pilot -720 (anchor: old ResNet baseline, 14.6 h, 0).
+equal time (~1.22 h): + 4x reuse (E10) -90; + playout cap randomization (E9)
+-98; bf16 self-play (E7) -142; 16 simulations (E8) -266; float32 (E5) -310;
+RayFormer -370 (at 1.88 h); ResNet pilot -717 (anchor: old ResNet baseline,
+14.6 h, 0).
 
 Cached results: `elo_gess_pilots.json` (repo root). RayFormer is more
 sample-efficient but ~50% slower per iteration and does not benefit from
@@ -80,6 +82,12 @@ Watch for overfitting (train loss falling while ladder strength stalls).
 
 Acceptance: equal-time pilot, ladder comparison as above.
 
+**E10 result:** tie at pilot scale (+8 Elo, 52% head-to-head vs. E9) despite
+~1/3 fewer games, because extra updates cost ~0.44 s each at pilot size. At
+full size updates are ~4% of iteration time, so **adopt ~4x reuse for the
+full-size run** (e.g. `num_updates_per_iter=256` with 1024 x 256 samples and
+batch 4096).
+
 ## Step 3: record the TPU command and checklist
 
 - Final `train.py` command with full-size settings, scaled to the TPU's device
@@ -121,10 +129,8 @@ Ideas not on the current path; revisit if there is time or a need.
 
 ## Status
 
-2026-09-15: E9 done (playout cap randomization adopted, tentatively). Next:
-1. Step 2: 4x sample reuse (`num_updates_per_iter=64`) on the E9 recipe, equal
-   time (~1.22 h), compared with E9 iteration 147 (E10, running since 12:08).
-2. Step 3: record the TPU command and checklist.
+2026-09-15: Steps 1 and 2 done (E7 bf16, E9 playout cap randomization, E10 4x
+reuse adopted). Next: Step 3, record the TPU command and checklist.
 
 ## Log
 
@@ -137,3 +143,6 @@ Ideas not on the current path; revisit if there is time or a need.
   ladder); rejected.
 - 2026-09-15: E9 (playout cap randomization) -90 vs. E7 -135 at equal time
   (14-model ladder), 52-56% head-to-head; adopted tentatively.
+- 2026-09-15: E10 (4x reuse) -90 vs. E9 -98 at equal time (15-model ladder),
+  52% head-to-head; tie at pilot scale, adopted for full size where updates
+  are cheap.
