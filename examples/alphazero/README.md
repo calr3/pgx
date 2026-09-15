@@ -54,7 +54,11 @@ All default to the original behaviour; see `config.py` for details.
   in-progress games (`data_state.pkl` in the checkpoint directory, overwritten
   at each checkpoint; can be several GB). `resume_from=` the latest checkpoint
   then continues exactly as if uninterrupted, including after Ctrl+C.
-
+- `selfplay_bf16=true`: run the self-play search network in bfloat16 (about 2x
+  faster inference for GessFormer); training and evaluation stay float32.
+- `playout_cap_prob=P`, `fast_num_simulations=N`: playout cap randomization.
+  Each self-play step uses the full `num_simulations` search with probability P,
+  otherwise an N-simulation search whose policy targets are not trained on.
 - `mcts_eval_opponent=<checkpoint>`: during training, play an MCTS match
   against a fixed checkpoint every `mcts_eval_interval_hours` of wall-clock time
   (default 1.0; also at the start and end), logged as `eval/mcts/*`. Uses the
