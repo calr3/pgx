@@ -257,6 +257,27 @@ are expensive (~50% longer iterations); at full size they are cheap (training
 updates there costs only ~4% more time. **Adopt ~4x reuse for the full-size
 run**, where it is nearly free; no evidence of overfitting at this scale.
 
+## E11. Full-size run of the final recipe, ~8 h (running)
+
+**Question.** Does the adopted recipe behave well at full size over a long run
+(memory, held-back steps, game length and draws, late-schedule stability),
+how fast does it improve, and when does it pass the old baseline? Also a
+rehearsal of Ctrl+C + resume at full scale.
+
+**Setup.** Full size: `selfplay_batch_size=1024 max_num_steps=256
+training_batch_size=4096 num_updates_per_iter=256` (~4x reuse),
+`replay_buffer_iters=4`, `architecture=gessformer selfplay_bf16=true
+num_simulations=32 playout_cap_prob=0.25 fast_num_simulations=8
+symmetry_augmentation=true continue_games=true`, AdamW `learning_rate=5e-4
+weight_decay=1e-4 warmup_steps=500 grad_clip_norm=1.0 lr_schedule=cosine`,
+`save_data_state=true`, `max_num_iters=72 eval_interval=4`, hourly
+`mcts_eval_opponent=checkpoints/gess_20260915200817/000100.ckpt` (E10 it 100).
+A timing run measured ~5-6 min/iteration (training ~0.5 s/update, about a
+third of the iteration at 256 updates). Started 15:27; planned Ctrl+C after
+iteration 5 and resume. Run `txe8dngl`, `checkpoints/gess_20260915232736`.
+
+**Result.** Pending.
+
 ---
 
 ## Infrastructure checks

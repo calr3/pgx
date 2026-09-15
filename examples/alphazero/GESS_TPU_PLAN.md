@@ -134,8 +134,10 @@ Ideas not on the current path; revisit if there is time or a need.
 
 ## Status
 
-2026-09-15: Steps 1 and 2 done (E7 bf16, E9 playout cap randomization, E10 4x
-reuse adopted). Next: Step 3, record the TPU command and checklist.
+2026-09-15: Steps 1 and 2 done; multi-device validation passed; wall-clock MCTS
+evaluation added. Running E11, an ~8 h full-size run of the final recipe
+(started 15:27, with a Ctrl+C/resume rehearsal). Step 3 waits for the rental
+details (TPU type/chips, duration, storage).
 
 ## Log
 
