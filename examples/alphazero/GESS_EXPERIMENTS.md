@@ -276,7 +276,12 @@ A timing run measured ~5-6 min/iteration (training ~0.5 s/update, about a
 third of the iteration at 256 updates). Started 15:27; planned Ctrl+C after
 iteration 5 and resume. Run `txe8dngl`, `checkpoints/gess_20260915232736`.
 
-**Result.** Pending.
+**Result.** Resume rehearsal succeeded: Ctrl+C at 15:49 (after iteration 4),
+the run finished iteration 5, saved the checkpoint and `data_state.pkl`, and
+was relaunched at 15:55 with `resume_from`; it restored the full replay buffer
+(1,048,576 samples), 51,292 held-back steps and the in-progress games, and
+continued the same wandb run. ~6 min lost (finishing the iteration and
+recompiling). Starting MCTS score vs. E10: 0.086. Rest pending.
 
 ---
 
