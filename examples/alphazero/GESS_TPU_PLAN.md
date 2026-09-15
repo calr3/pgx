@@ -140,9 +140,12 @@ Ideas not on the current path; revisit if there is time or a need.
 ## Status
 
 2026-09-15: Steps 1 and 2 done; multi-device validation passed; wall-clock MCTS
-evaluation added. Running E11, an ~8 h full-size run of the final recipe
-(started 15:27, with a Ctrl+C/resume rehearsal). Step 3 waits for the rental
-details (TPU type/chips, duration, storage).
+evaluation added; opening bug fixed (ladder gaps were compressed ~13%). Running
+E11, an ~8 h full-size run of the final recipe (ends ~23:15). Queued to start
+automatically after it: a replayed ladder with fixed openings on a trimmed set
+(old baseline, E3 ResNet, E2 GessFormer, E5 +aug, E4 RayFormer, E7 +bf16 it 90,
+E9 +playout cap it 147, E10 +4x reuse it 100, E11 it 36 and 72; 45 pairs,
+~1 h). Step 3 waits for the rental details (TPU type/chips, duration, storage).
 
 ## Log
 
