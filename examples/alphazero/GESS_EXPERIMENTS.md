@@ -30,6 +30,13 @@ pairs with a 2-ply random opening). Ladder results are cached in
 games are correlated), and ladder ratings shift as models are added, so
 compare gaps within one ladder fit.
 
+**Opening bug (fixed 2026-09-15, `eb39f31`).** Until then ~13% of ladder
+games (and 22/128 training MCTS-eval games) ended during the 2-ply random
+opening: a Gess piece whose every move destroys its owner's last ring could be
+chosen. Mirrored seats gave both models the same free points, so rankings were
+unaffected, but **all ladder Elo gaps below are compressed by roughly that
+proportion**. The ladder cache is versioned, so new ladders replay games.
+
 **Equal time.** Recipes are compared at equal training time (the checkpoint
 nearest the reference run's hours), since that is what matters for a
 fixed-length rental.
@@ -288,7 +295,11 @@ Likely allocator fragmentation: the resumed process allocates in a different
 order, leaving no contiguous 10.3 GiB block in JAX's ~12 GiB preallocated pool
 (unconfirmed). Resumed successfully at 16:07 with `train_micro_batches=2`
 (halves that allocation; same gradients). ~40 min lost in total. Starting MCTS
-score vs. E10: 0.086. Rest pending.
+score vs. E10: 0.086. That score stayed at exactly 11/128 at iterations 5 and 15;
+debugging showed all 11 "wins" were opening-bug games (E11 lost every real game
+to the fully annealed E10 so far), which led to the opening fix. The running
+process still uses the old openings, so its `eval/mcts/score` has a floor of
+11/128 but stays comparable within the run. Rest pending.
 
 ---
 
@@ -311,6 +322,9 @@ score vs. E10: 0.086. Rest pending.
   an uninterrupted 8-device run; resuming 1 -> 8 and 8 -> 1 devices restores the
   buffer, held-back steps and games. Added a check that `selfplay_batch_size`
   divides by the device count (it was silently floored).
+- **Opening bug**: see Conventions. Found via the constant E11 MCTS-eval score;
+  the old code ended 22/128 (eval key) and 66/512 (ladder seed) games in the
+  opening, the fixed code 0/640.
 - **Wall-clock MCTS evaluation during training** (`mcts_eval_opponent`):
   training verified bit-identical with and without it; ~40-65 s per 128-game
   match against a pilot checkpoint on the local GPU.
