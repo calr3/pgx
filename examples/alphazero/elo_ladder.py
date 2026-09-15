@@ -155,6 +155,10 @@ def main() -> None:
     # Cache entries are keyed by both checkpoint paths and every setting that
     # affects the games.
     settings = lcfg.model_dump(exclude={"models", "results_file"})
+    # Bump when game generation changes, so older cached results are replayed.
+    # 2: random openings avoid multi-stage choices whose every follow-up ends the
+    #    game (previously ~13% of Gess games ended in the opening).
+    settings["game_version"] = 2
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:

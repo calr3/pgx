@@ -159,6 +159,10 @@ def make_recurrent_fn(env: pgx.Env, forward: hk.TransformedWithState) -> mctx.Re
     return recurrent_fn
 
 
+# Random-opening candidates per game when avoiding doomed multi-stage choices.
+_OPENING_CANDIDATES = 8
+
+
 def build_round_runner(
     env: pgx.Env,
     forward_a: hk.TransformedWithState,
@@ -219,16 +223,28 @@ def build_round_runner(
         # ── Random opening ─────────────────────────────────────────────────
         # Sample uniformly-random legal actions for the first half and replay
         # them verbatim in the second half, so each pair shares its opening.
-        # Actions that would terminate the game immediately can crush the
+        # Actions that would terminate the game immediately (e.g. crush the
         # mover's own last ring) are excluded so that no opening decides a
         # game before the opponent ever chooses a move; this is found by brute
-        # force, stepping every (game, action) pair. (For a stage-0 source
-        # choice nothing terminates, so nothing is excluded there.)
+        # force, stepping every (game, action) pair. For multi-stage turns
+        # (Gess source then destination) a first-stage choice never terminates,
+        # so its candidates are also checked one ply deeper (see doomed()).
+        all_actions = jnp.arange(env.num_actions)
+
+        def doomed(s: pgx.State, a: jnp.ndarray) -> jnp.ndarray:
+            """True if `a` keeps the same player to move and every legal follow-up
+            ends the game: e.g. a Gess source piece whose every destination
+            destroys its owner's last ring. A one-ply check cannot see this for
+            multi-stage turns, since the first stage never ends the game."""
+            s1 = env.step(s, a)
+            same_mover = (s1.current_player == s.current_player) & ~s1.terminated
+            follow_ends = jax.vmap(lambda b: env.step(s1, b).terminated)(all_actions)
+            return same_mover & ~(s1.legal_action_mask & ~follow_ends).any()
+
         def opening_ply(carry, key):
             state, R = carry
             key_act, key_step = jax.random.split(key)
             half_state = jax.tree_util.tree_map(lambda x: x[:half], state)
-            all_actions = jnp.arange(state.legal_action_mask.shape[-1])
             ends = jax.vmap(  # over games
                 jax.vmap(lambda s, a: env.step(s, a).terminated, in_axes=(None, 0)),
                 in_axes=(0, None),
@@ -239,7 +255,17 @@ def build_round_runner(
             # every legal action ends the game.
             mask = jnp.where(safe.any(axis=-1, keepdims=True), safe, legal)
             logits_half = jnp.where(mask, 0.0, -jnp.inf)
-            action_half = jax.random.categorical(key_act, logits_half, axis=-1)
+            # Draw a few candidates per game and keep the first that is not
+            # doomed (checking all actions two plies deep would be too costly);
+            # if every candidate is doomed, keep the first.
+            candidates = jax.random.categorical(
+                key_act, logits_half, axis=-1, shape=(_OPENING_CANDIDATES, half)
+            )  # (candidates, half)
+            is_doomed = jax.vmap(  # over games
+                jax.vmap(doomed, in_axes=(None, 0)), in_axes=(0, 1), out_axes=1
+            )(half_state, candidates)  # (candidates, half)
+            first_ok = jnp.argmax(~is_doomed, axis=0)
+            action_half = candidates[first_ok, jnp.arange(half)]
             action = jnp.concatenate([action_half, action_half])
             step_keys = jnp.tile(jax.random.split(key_step, half), (2, 1))
             state = jax.vmap(env.step)(state, action, step_keys)
