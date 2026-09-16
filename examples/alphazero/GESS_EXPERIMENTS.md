@@ -364,6 +364,21 @@ captures for 20 turns" is an extra strategy to learn.
 scale it costs ~90 Elo. One seed at one scale; a longer run might close the gap.
 Not adopted for now (see plan).
 
+## E13. Full-size run under v1 rules, ~8 h (running)
+
+**Question.** E12 showed the v1 stalemate rule removes draws but cost ~90 Elo
+at pilot scale. Adopted anyway (user decision: the rule is the game we want).
+How does the full recipe behave under v1 at full size, and how does it compare
+with E11 (same recipe, v0 rules, 7.2 h)?
+
+**Setup.** As E11 (1024 games x 256 steps, batch 4096, 256 updates/iteration,
+replay 4, bf16, playout cap 0.25/8, augmentation, cosine, warmup 500,
+`save_data_state=true`, 72 iterations, hourly MCTS eval vs. E10) plus
+`train_micro_batches=2` from the start (E11 needed it to resume). Started
+12:05. Run `zfnfbzor`.
+
+**Result.** Pending.
+
 ---
 
 ## Infrastructure checks

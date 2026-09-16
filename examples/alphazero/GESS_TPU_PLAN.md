@@ -22,6 +22,8 @@ GessFormer (hybrid conv stem + transformer with Geometric Attention Bias) with:
 - `playout_cap_prob=0.25 fast_num_simulations=8` (with `num_simulations=32`) –
   playout cap randomization; policy trained on full-search moves only
 - `save_data_state=true` on preemptible machines – exact resume
+- Gess **v1 rules**: a captureless stalemate is decided on stone count (adopted
+  2026-09-16; removes the rising draw rate, cost ~90 Elo at pilot scale, E12)
 
 ### Pilot ladder
 
@@ -140,10 +142,10 @@ Ideas not on the current path; revisit if there is time or a need.
 
 ## Status
 
-2026-09-16: Steps 1 and 2 done and validated at full size (E11). Remaining:
-Step 3 (TPU command + checklist), which needs the rental details (TPU type and
-chip count, duration, storage). Optional before the rental: model-size
-comparison at full size; ideas in "Maybe later".
+2026-09-16: Gess v1 stalemate rule adopted. Running E13, an ~8 h full-size run
+of the recipe under v1 (started 12:05, ends ~19:30), to be compared with E11
+(v0) and laddered under v1. Step 3 (TPU command + checklist) still needs the
+rental details (TPU type/chips, duration, storage).
 
 ## Log
 
