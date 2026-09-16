@@ -1,108 +1,87 @@
-import jax.numpy as jnp
-
 from pgx.domineering import State as DomineeringState
 
 
 def _make_domineering_dwg(dwg, state: DomineeringState, config):
-    GRID_SIZE = 8
-    BOARD_SIZE = 8
+    GRID_SIZE = config["GRID_SIZE"]
+    WIDTH = config["BOARD_WIDTH"]
+    HEIGHT = config["BOARD_HEIGHT"]
     color_set = config["COLOR_SET"]
 
-    # background
     dwg.add(
         dwg.rect(
             (0, 0),
-            (BOARD_SIZE * GRID_SIZE, BOARD_SIZE * GRID_SIZE),
-            # stroke=svgwrite.rgb(10, 10, 16, "%"),
+            (WIDTH * GRID_SIZE, HEIGHT * GRID_SIZE),
             fill=color_set.background_color,
         )
     )
-
-    # board
-    # grid
     board_g = dwg.g()
-    hlines = board_g.add(dwg.g(id="hlines", stroke=color_set.grid_color))
-    for y in range(1, BOARD_SIZE - 1):
-        hlines.add(
+
+    # The game transposes the board after every move so that the player to move
+    # always places horizontally, so an odd number of moves have been played
+    # whenever it is player 1's turn. Undo that, or the drawn position mirrors
+    # itself between one frame and the next.
+    board = state._x.board
+    mover = int(state._x.color)
+    if mover == 1:
+        board = board.T
+    size = board.shape[0]
+
+    # Occupied squares. Which player covered a square is not recorded, and
+    # cannot be recovered - a 2x2 block is two horizontal dominoes or two
+    # vertical ones - so they are all drawn alike.
+    for row in range(size):
+        for col in range(size):
+            if bool(board[row, col]):
+                continue
+            board_g.add(
+                dwg.rect(
+                    (col * GRID_SIZE, row * GRID_SIZE),
+                    (GRID_SIZE, GRID_SIZE),
+                    fill=color_set.p2_color,
+                )
+            )
+
+    grid = board_g.add(dwg.g(id="grid", stroke=color_set.grid_color))
+    for i in range(size + 1):
+        grid.add(
             dwg.line(
-                start=(0, GRID_SIZE * y),
-                end=(
-                    GRID_SIZE * (BOARD_SIZE - 1),
-                    GRID_SIZE * y,
-                ),
+                start=(0, GRID_SIZE * i),
+                end=(GRID_SIZE * size, GRID_SIZE * i),
                 stroke_width="0.5px",
             )
         )
-    vlines = board_g.add(dwg.g(id="vline", stroke=color_set.grid_color))
-    for x in range(1, BOARD_SIZE - 1):
-        vlines.add(
+        grid.add(
             dwg.line(
-                start=(GRID_SIZE * x, 0),
-                end=(
-                    GRID_SIZE * x,
-                    GRID_SIZE * (BOARD_SIZE - 1),
-                ),
+                start=(GRID_SIZE * i, 0),
+                end=(GRID_SIZE * i, GRID_SIZE * size),
                 stroke_width="0.5px",
             )
         )
     board_g.add(
         dwg.rect(
             (0, 0),
-            (
-                (BOARD_SIZE - 1) * GRID_SIZE,
-                (BOARD_SIZE - 1) * GRID_SIZE,
-            ),
+            (size * GRID_SIZE, size * GRID_SIZE),
             fill="none",
             stroke=color_set.grid_color,
             stroke_width="2px",
         )
     )
-    # hoshi
-    hoshi_g = dwg.g()
-    hosi_pos = []
-    if BOARD_SIZE == 19:
-        hosi_pos = [
-            (4, 4),
-            (4, 10),
-            (4, 16),
-            (10, 4),
-            (10, 10),
-            (10, 16),
-            (16, 4),
-            (16, 10),
-            (16, 16),
-        ]
-    elif BOARD_SIZE == 5:
-        hosi_pos = [(3, 3)]
 
-    for x, y in hosi_pos:
-        hoshi_g.add(
-            dwg.circle(
-                center=((x - 1) * GRID_SIZE, (y - 1) * GRID_SIZE),
-                r=GRID_SIZE / 10,
-                fill=color_set.grid_color,
-            )
+    # Which way the player to move must lay their domino is the whole game, and
+    # nothing on the board itself shows it.
+    winner = int(state._x.winner)
+    if winner >= 0:
+        caption = f"player {winner} wins"
+    else:
+        caption = f"player {mover} to play: " + ("horizontal" if mover == 0 else "vertical")
+    board_g.add(
+        dwg.text(
+            text=caption,
+            insert=(0, (size + 0.6) * GRID_SIZE),
+            fill=color_set.text_color,
+            font_size=f"{GRID_SIZE * 0.45}px",
+            font_family="monospace",
         )
-    board_g.add(hoshi_g)
-
-    # stones
-    board = jnp.clip(state._x.board, -1, 1)
-    for xy, stone in enumerate(board):
-        if not stone:
-            continue
-        stone_y = xy // BOARD_SIZE * GRID_SIZE
-        stone_x = xy % BOARD_SIZE * GRID_SIZE
-
-        color = color_set.p1_color
-        outline = color_set.p1_outline
-        board_g.add(
-            dwg.circle(
-                center=(stone_x, stone_y),
-                r=GRID_SIZE / 2.2,
-                stroke=outline,
-                fill=color,
-            )
-        )
-    board_g.translate(GRID_SIZE / 2, GRID_SIZE / 2)
+    )
 
     return board_g
