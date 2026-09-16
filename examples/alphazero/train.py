@@ -116,19 +116,47 @@ def recurrent_fn(
     # state: embedding
     model_params, model_state = model
 
+    batch = action.shape[0]
     current_player = state.current_player
     # Stochastic envs (e.g. pig) consume the key to resolve chance events, so
     # every node of the search tree samples its own outcome. Deterministic envs
     # ignore it.
-    state = jax.vmap(env.step)(state, action, jax.random.split(rng_key, action.shape[0]))
+    step = lambda k: jax.vmap(env.step)(state, action, jax.random.split(k, batch))
 
-    (logits, value), _ = selfplay_forward.apply(model_params, model_state, state.observation, is_eval=True)
+    def evaluate_state(s):
+        (logits, value), _ = selfplay_forward.apply(
+            model_params, model_state, s.observation, is_eval=True
+        )
+        return logits, jnp.where(s.terminated, 0.0, value)
+
+    keys = jax.random.split(rng_key, config.chance_samples)
+    state = step(keys[0])
+    logits, value = evaluate_state(state)
+    if config.chance_samples > 1:
+        # mctx stores one sampled successor per edge, so an edge's value would
+        # otherwise stay conditioned on a single chance outcome however many
+        # simulations run - the search never resamples it. Averaging the value
+        # (and immediate reward) over several draws removes that variance from
+        # the policy target. Only the value is averaged; the tree still descends
+        # through the first draw, so this assumes the outcomes agree on who
+        # moves next, as they do in pig.
+        others = jax.vmap(step)(keys[1:])
+        value = (value + jax.vmap(lambda s: evaluate_state(s)[1])(others).sum(axis=0)) / (
+            config.chance_samples
+        )
+        reward = jnp.concatenate(
+            [
+                state.rewards[jnp.arange(batch), current_player][None],
+                others.rewards[:, jnp.arange(batch), current_player],
+            ]
+        ).mean(axis=0)
+    else:
+        reward = state.rewards[jnp.arange(batch), current_player]
+
     # mask invalid actions
     logits = logits - jnp.max(logits, axis=-1, keepdims=True)
     logits = jnp.where(state.legal_action_mask, logits, jnp.finfo(logits.dtype).min)
 
-    reward = state.rewards[jnp.arange(state.rewards.shape[0]), current_player]
-    value = jnp.where(state.terminated, 0.0, value)
     # +1 when the same player is still to move (multi-stage turn), -1 when the
     # opponent is now to move (normal alternating case), 0 at terminal.
     discount = jnp.where(state.current_player == current_player, 1.0, -1.0)

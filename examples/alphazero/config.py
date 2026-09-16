@@ -88,6 +88,13 @@ class Config(BaseModel):
     # selfplay params
     selfplay_batch_size: int = 1024
     num_simulations: int = 32
+    # Chance outcomes averaged per search edge. mctx keeps one sampled successor
+    # per edge, so in a stochastic game its value stays conditioned on a single
+    # draw no matter how many simulations run. Values > 1 average the value over
+    # that many draws, at that many times the inference cost; only useful for
+    # stochastic envs (e.g. pig), and it assumes every outcome of an action
+    # leaves the same player to move.
+    chance_samples: int = 1
     # Run the self-play network in bfloat16 (weights cast per call; training and
     # evaluation stay float32). ~2x faster inference for gessformer.
     selfplay_bf16: bool = False
