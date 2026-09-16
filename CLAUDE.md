@@ -25,10 +25,22 @@ in `examples/alphazero/GESS_EXPERIMENTS.md` and the forward plan in
   Checkpoints land in `checkpoints/<env>_<timestamp>/`.
 - Long runs: launch detached (`nohup setsid ... &`), record the PID, and watch
   the log. Harness background tasks get killed by a low-memory guard even with
-  tens of GB free; detached processes survive.
-- **Never `pkill -f <pattern>` with a pattern that appears in your own command
-  line** — it kills the calling shell. Same trap with `until pgrep -f ...`
-  watchers: they match themselves and never exit. Wait on PIDs.
+  tens of GB free; detached processes survive. Monitors also expire after ~30
+  minutes, so re-arm them for anything longer.
+- **Watch processes by PID, never by `pgrep -f <pattern>`.** A watcher's own
+  command line contains the pattern, so it matches itself. Both failure modes
+  happened here:
+  - `until ! pgrep -f "train.py env_id=gess..."; do sleep 30; done` never
+    exited, because `pgrep` kept finding the watcher. A tournament queued behind
+    such a loop never started and the GPU sat idle for 35 minutes.
+  - `pkill -f epam_equiv` killed the calling shell (and the running monitors)
+    before the rest of the command ran, since the pattern appeared in its own
+    argument list.
+
+  Instead: write the PID when launching (`echo $! > run.pid`) and poll with
+  `kill -0 $PID`. Note `nohup setsid cmd &` gives the PID of `setsid`, which
+  exits immediately — capture the real one with `pgrep -af` once, or have the
+  launcher script record it. To stop something, `kill` that PID.
 - Resume with `resume_from=<ckpt>`; add `save_data_state=true` to also restore
   the replay buffer, held-back steps and in-progress games (verified
   bit-identical to an uninterrupted run). On the 16 GB GPU a resumed full-size
