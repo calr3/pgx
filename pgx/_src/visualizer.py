@@ -576,7 +576,7 @@ class Visualizer:
             from pgx._src.dwg.pig import _make_pig_dwg
 
             self.config["GRID_SIZE"] = 30
-            self.config["BOARD_WIDTH"] = 7
+            self.config["BOARD_WIDTH"] = 9
             self.config["BOARD_HEIGHT"] = 6
             self._make_dwg_group = _make_pig_dwg  # type:ignore
             if (self.config["COLOR_THEME"] is None and self.config["COLOR_THEME"] == "dark") or self.config[
