@@ -68,6 +68,19 @@ def solve(tol: float = 1e-12, max_sweeps: int = 1000):
     return v[:KMAX].copy(), roll_opt, sweep, delta
 
 
+def sustained_hold(actions):
+    """Lowest turn total from which the policy holds and never rolls again.
+
+    The first hold on its own is misleading: a policy can hold at a turn total
+    of 1 and still roll at 10, which is not a threshold at all.
+    """
+    holds = np.asarray(actions) == 0
+    for k in range(len(holds)):
+        if holds[k:].all():
+            return k + 1
+    return -1
+
+
 def optimal_action(table_roll, obs):
     """Action (0 = hold, 1 = roll) of the optimal player, from a pgx pig obs."""
     own = jnp.clip(obs[:, 0].astype(jnp.int32), 0, TARGET - 1)
@@ -131,6 +144,41 @@ def main() -> None:
         params, model_state = ckpt["model"]
         forward = make_forward(env.num_actions, config)
 
+        def value_of(obs):
+            (_, value), _ = forward.apply(params, model_state, obs, is_eval=True)
+            return value
+
+        @jax.jit
+        def expectimax(obs, legal):
+            """Act on the value head alone, expanding the six die faces exactly.
+
+            Pig's chance is enumerable, so the value of an action is an average
+            over faces rather than a sample of one. This isolates how much of the
+            model's strength is in the value head and how much the policy head
+            throws away.
+            """
+            own, opp, turn = obs[:, 0], obs[:, 1], obs[:, 2]
+            faces = jnp.arange(1, 7, dtype=obs.dtype)[None, :]  # (1, 6)
+
+            def mean_value(o, p, t, r):
+                """Mean value to the player to move over the six faces r."""
+                b = jnp.broadcast_arrays(o, p, t, r)
+                s = jnp.stack([b[0], b[1], b[2], b[2], b[3], b[3]], axis=-1)
+                return value_of(s.reshape(-1, 6)).reshape(-1, 6).mean(axis=-1)
+
+            # Rolling keeps the turn: the face lands on the turn total.
+            q_roll = mean_value(own[:, None], opp[:, None], turn[:, None] + faces, faces)
+            # Holding banks the turn total and hands over the move, which the
+            # opponent starts by rolling - unless banking wins outright.
+            banked = own + turn
+            q_hold = jnp.where(
+                banked >= TARGET,
+                1.0,
+                -mean_value(opp[:, None], banked[:, None], faces, faces),
+            )
+            q = jnp.stack([q_hold, q_roll], axis=-1)
+            return jnp.argmax(jnp.where(legal, q, -jnp.inf), axis=-1), value_of(obs)
+
         @jax.jit
         def policy(obs, legal):
             (logits, value), _ = forward.apply(params, model_state, obs, is_eval=True)
@@ -158,11 +206,20 @@ def main() -> None:
              jnp.full((100,), 5.0), jnp.full((100,), 5.0)], axis=-1
         )
         act, _ = policy(probe, jnp.ones((100, 2), dtype=bool))
-        holds = act == 0
-        thr = int(jnp.argmax(holds)) + 1 if bool(holds.any()) else -1
+        thr = sustained_hold(act)
         print(
             f"{path:<44} {agree:7.3f} {float(played_agree):7.3f} {v_rmse:7.3f} "
             f"{wins:11.3f} {thr:11d}"
+        )
+
+        # The same value head, played by one-ply expectimax instead of by its
+        # own policy head.
+        R, played_agree = match(jax.random.PRNGKey(0), expectimax)
+        act, _ = expectimax(probe, jnp.ones((100, 2), dtype=bool))
+        thr = sustained_hold(act)
+        print(
+            f"{'  ^ value head, 1-ply expectimax':<44} {'':>7} {float(played_agree):7.3f} "
+            f"{'':>7} {float((R > 0).mean()):11.3f} {thr:11d}"
         )
 
     for name, policy in reference.items():
