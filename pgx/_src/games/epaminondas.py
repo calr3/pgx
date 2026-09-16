@@ -171,42 +171,52 @@ def _all_runs(mask: Array) -> Array:
     return jnp.stack([_runs(mask, d) for d in range(NUM_DIRS)])
 
 
-def _move_legality(board: Array, color: Array):
-    """Legality of every (lead square, direction, group size, distance).
+def _line_info(board: Array, color: Array):
+    """Per direction and square: how far own/enemy/empty lines run.
 
-    Returns a bool array of shape (NUM_DIRS, N, MAX_GROUP + 1, MAX_STEP + 1)
-    indexed [d, lead, m, k]: moving the m pieces ending at `lead` (extending back
-    against `d`) k squares along `d`. Index 0 of the m/k axes is unused.
+    Returns (own_back, enemy_runs, empty_runs), each (NUM_DIRS, N):
+      own_back[d, s]   own pieces from s extending back against d (the largest
+                       group s can lead in direction d, so >= 1 iff s is ours)
+      enemy_runs[d, s] enemy pieces from s continuing along d
+      empty_runs[d, s] empty squares from s continuing along d
     """
     own = board == _stone(color)
     enemy = (board != EMPTY) & ~own
     empty = board == EMPTY
+    runs = _all_runs(own)
+    own_back = jnp.stack([runs[_OPP_DIR[d]] for d in range(NUM_DIRS)])
+    return own_back, _all_runs(enemy), _all_runs(empty)
 
-    own_back = _all_runs(own)  # own_back[d, s]: own pieces from s going against d
-    enemy_runs = _all_runs(enemy)  # enemy line from s continuing along d
-    empty_runs = _all_runs(empty)
 
-    m = jnp.arange(MAX_GROUP + 1, dtype=jnp.int32)[None, None, :, None]  # group size
-    k = _STEPS[None, None, None, :]  # distance
+def _move_legality_for_lead(board: Array, color: Array, lead: Array):
+    """Legality of every (direction, group size, distance) for one lead square.
 
-    # Group of size m ending at `lead`, extending back against d.
-    max_group = jnp.stack([own_back[_OPP_DIR[d]] for d in range(NUM_DIRS)])[:, :, None, None]
-    target_idx = RAY_IDX[:, :, None, :]  # (NUM_DIRS, N, 1, MAX_STEP + 1)
-    on_board = RAY_OK[:, :, None, :]
+    Shape (NUM_DIRS, MAX_GROUP + 1, MAX_STEP + 1), indexed [d, m, k]: moving the
+    m pieces ending at `lead` (extending back against d) k squares along d.
+    Index 0 of the m/k axes is unused.
+    """
+    own_back, enemy_runs, empty_runs = _line_info(board, color)
+    enemy = (board != EMPTY) & (board != _stone(color))
+    empty = board == EMPTY
+    dirs = jnp.arange(NUM_DIRS)
 
-    # Squares strictly between lead and target must be empty: that is k - 1
-    # empty squares starting one step along d (vacuously true for k == 1).
-    first = RAY_IDX[:, :, 1][:, :, None, None]  # square one step along d
-    empties_ahead = jnp.stack([empty_runs[d][first[d, :, 0, 0]] for d in range(NUM_DIRS)])
-    path_clear = (k <= 1) | (empties_ahead[:, :, None, None] >= k - 1)
+    rays = RAY_IDX[:, lead]  # (NUM_DIRS, MAX_STEP + 1) squares along each direction
+    on_board = RAY_OK[:, lead]
+    max_group = own_back[dirs, lead][:, None, None]
 
-    target_empty = jnp.stack([empty[target_idx[d, :, 0]] for d in range(NUM_DIRS)])[:, :, None, :]
-    target_enemy = jnp.stack([enemy[target_idx[d, :, 0]] for d in range(NUM_DIRS)])[:, :, None, :]
-    enemy_len = jnp.stack([enemy_runs[d][target_idx[d, :, 0]] for d in range(NUM_DIRS)])[:, :, None, :]
+    # Squares strictly between lead and target must be empty: k - 1 of them,
+    # starting one step along d (vacuously true for k == 1).
+    empties_ahead = jnp.where(on_board[:, 1], empty_runs[dirs, rays[:, 1]], 0)
 
-    can_land = target_empty | (target_enemy & (enemy_len < m))
+    m = jnp.arange(MAX_GROUP + 1, dtype=jnp.int32)[None, :, None]
+    k = _STEPS[None, None, :]
+    path_clear = (k <= 1) | (empties_ahead[:, None, None] >= k - 1)
+    can_land = empty[rays][:, None, :] | (
+        enemy[rays][:, None, :] & (enemy_runs[dirs[:, None], rays][:, None, :] < m)
+    )
     return (
-        (m >= 1) & (k >= 1) & (k <= m) & (m <= max_group) & on_board & path_clear & can_land
+        (m >= 1) & (k >= 1) & (k <= m) & (m <= max_group)
+        & on_board[:, None, :] & path_clear & can_land
     )
 
 
@@ -298,17 +308,41 @@ def _wins_at_turn_start(board: Array, color: Array) -> Array:
 
 
 def _lead_mask(state: GameState) -> Array:
-    """Squares that can lead a move: an own piece with at least one legal move."""
-    legal = _move_legality(state.board, state.color)  # (d, lead, m, k)
-    return legal.any(axis=(0, 2, 3))
+    """Squares that can lead a move: an own piece with at least one legal move.
+
+    Computed without enumerating group sizes and distances: for each direction a
+    lead can move quietly if there is any empty square ahead, and can capture the
+    first piece ahead if that piece is an enemy whose line is shorter than the
+    group and lies within reach.
+    """
+    own_back, enemy_runs, empty_runs = _line_info(state.board, state.color)
+    enemy = (state.board != EMPTY) & (state.board != _stone(state.color))
+    dirs = jnp.arange(NUM_DIRS)[:, None]
+
+    group = own_back  # (NUM_DIRS, N): pieces this square can lead in direction d
+    first, first_ok = RAY_IDX[:, :, 1], RAY_OK[:, :, 1]
+    empties_ahead = jnp.where(first_ok, empty_runs[dirs, first], 0)
+
+    quiet = (group >= 1) & (empties_ahead >= 1)
+
+    # The first piece along d sits just past the empty squares.
+    steps = jnp.clip(empties_ahead + 1, 0, MAX_STEP)[:, :, None]
+    blocker = jnp.take_along_axis(RAY_IDX, steps, axis=2)[:, :, 0]
+    blocker_ok = jnp.take_along_axis(RAY_OK, steps, axis=2)[:, :, 0]
+    capture = (
+        blocker_ok & enemy[blocker]
+        & (empties_ahead + 1 <= group)
+        & (enemy_runs[dirs, blocker] < group)
+    )
+    return (quiet | capture).any(axis=0)
 
 
 def _rear_mask(state: GameState) -> Array:
     """Rear squares for the chosen lead: the lead itself (single piece) or the
     rear of a contiguous own group that has a legal move."""
-    legal = _move_legality(state.board, state.color)  # (d, lead, m, k)
     lead = state.lead
-    per_dir = legal[:, lead].any(axis=-1)  # (d, m): some distance is legal
+    legal = _move_legality_for_lead(state.board, state.color, lead)  # (d, m, k)
+    per_dir = legal.any(axis=-1)  # (d, m): some distance is legal
 
     # Rear square for direction d and group size m is lead - (m - 1) * d.
     back = _OPP_DIR
@@ -321,20 +355,20 @@ def _rear_mask(state: GameState) -> Array:
     for d in range(NUM_DIRS):
         mask = mask.at[rear_idx[d]].max(ok[d] & RAY_OK[back[d], lead])
     # A single piece (rear == lead) is legal when the piece can move at all.
-    single_ok = legal[:, lead, 1, 1].any()
+    single_ok = legal[:, 1, 1].any()
     return mask.at[lead].max(single_ok)
 
 
 def _dest_mask(state: GameState) -> Array:
     """Destinations for the chosen (lead, rear) group."""
-    legal = _move_legality(state.board, state.color)
     lead, rear = state.lead, state.rear
+    legal = _move_legality_for_lead(state.board, state.color, lead)  # (d, m, k)
     single = lead == rear
     d_group, size = _group_of(lead, rear)
     m = jax.lax.select(single, jnp.int32(1), size)
 
     def for_dir(d):
-        ok = legal[d, lead, m]  # (k,)
+        ok = legal[d, m]  # (k,)
         return jnp.zeros(N, bool).at[RAY_IDX[d, lead]].max(ok & RAY_OK[d, lead])
 
     all_dirs = jnp.stack([for_dir(d) for d in range(NUM_DIRS)])
@@ -344,17 +378,23 @@ def _dest_mask(state: GameState) -> Array:
 
 def _symmetry_allowed(state: GameState, candidates: Array) -> Array:
     """Forbid destinations that put a piece on the opponent's back rank and make
-    the whole position left-to-right symmetric."""
+    the whole position left-to-right symmetric.
+
+    Only the lead piece can reach further forward than the rest of its group, so
+    a move puts a piece on that rank exactly when the lead lands there. That
+    leaves WIDTH candidate destinations to simulate instead of all N.
+    """
     opp_back_row = jax.lax.select(state.color == 0, jnp.int32(HEIGHT - 1), jnp.int32(0))
+    row_cells = opp_back_row * WIDTH + jnp.arange(WIDTH, dtype=jnp.int32)
 
-    def check(dest):
+    def symmetric_after(dest):
         board = _do_move(state.board, state.color, state.lead, state.rear, dest)
-        lands = (board.reshape(HEIGHT, WIDTH)[opp_back_row] == _stone(state.color)).sum() > (
-            state.board.reshape(HEIGHT, WIDTH)[opp_back_row] == _stone(state.color)
-        ).sum()
-        return ~(lands & _is_mirror_symmetric(board))
+        return _is_mirror_symmetric(board)
 
-    return jax.vmap(check)(jnp.arange(N))
+    # Simulate only the destinations that could trigger the rule, and only those
+    # that are actually on offer.
+    forbidden = jax.vmap(symmetric_after)(row_cells) & candidates[row_cells]
+    return jnp.ones(N, bool).at[row_cells].set(~forbidden)
 
 
 # ─── Observation ─────────────────────────────────────────────────────────────
