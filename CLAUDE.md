@@ -1,9 +1,15 @@
 # Working notes for this repo
 
-Pgx fork used to train AlphaZero agents (currently Gess, plus a new Epaminondas
-env). What follows is what was learned the hard way; the experiment history is
-in `examples/alphazero/GESS_EXPERIMENTS.md` and the forward plan in
-`examples/alphazero/GESS_TPU_PLAN.md`.
+Pgx fork used to train AlphaZero agents (Gess, plus Epaminondas and Pig envs
+added here). What follows is what was learned the hard way.
+
+- **Starting a run for a game: `examples/alphazero/RECIPES.md`** - the
+  architecture and settings known to work per game, and the evidence for them.
+  Keep it current: when an experiment changes what you would recommend, update
+  that file, not just the experiment log.
+- Experiment history: `examples/alphazero/GESS_EXPERIMENTS.md`,
+  `examples/alphazero/PIG_EXPERIMENTS.md`. The forward plan for the TPU rental
+  is `examples/alphazero/GESS_TPU_PLAN.md`.
 
 ## Environment
 

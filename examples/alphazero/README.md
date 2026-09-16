@@ -7,6 +7,11 @@ A simple (Gumbel) AlphaZero [[Silver+18](https://www.science.org/doi/10.1126/sci
 > [!NOTE]
 > This implementation of AlphaZero demonstrates sufficient learning performance in environments including 9x9 Go, but it has some slight differences in learning details compared to the original AlphaZero and Gumbel AlphaZero. An implementation that addresses these differences and focuses on enhanced efficiency is currently under development and is expected to be released shortly.
 
+> **Start here for a specific game:** [`RECIPES.md`](RECIPES.md) lists the
+> architecture and settings known to work for each game, and what evidence backs
+> them. The experiment logs behind it are [`GESS_EXPERIMENTS.md`](GESS_EXPERIMENTS.md)
+> and [`PIG_EXPERIMENTS.md`](PIG_EXPERIMENTS.md).
+
 ## Usage
 
 Note that you need to install `jax` and `jaxlib` in addition to the packages written in `requirements.txt` according to your execution environment.
