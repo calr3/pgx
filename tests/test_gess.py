@@ -373,8 +373,10 @@ def test_no_capture_counter_increments():
     assert not bool(game.is_terminal(x))
 
 
-def test_draw_after_20_no_capture_turns():
-    # Counter sitting one below the threshold; a final captureless turn draws.
+def test_stalemate_after_20_captureless_turns_goes_to_material():
+    # Counter sitting one below the threshold; a final captureless turn ends the
+    # game, which is then decided on stone count (v1 rules). The board has 10
+    # black stones to white's 8, so black wins.
     state = make_state(color=0, board=_draw_test_board(), stage=1,
                        source=idx(10, 5))
     state = state._replace(
@@ -383,9 +385,21 @@ def test_draw_after_20_no_capture_turns():
     x = game.step(state, jnp.int32(idx(9, 5)))   # 20th captureless turn
 
     assert int(x.no_capture_turns) == DRAW_NO_CAPTURE_TURNS
-    assert bool(game.is_terminal(x)), "game should be drawn after 20 captureless turns"
-    assert int(x.winner) == -1, "a draw has no winner"
-    assert game.rewards(x).tolist() == [0.0, 0.0], "a draw rewards both players 0"
+    assert bool(game.is_terminal(x)), "game should end after 20 captureless turns"
+    assert game.rewards(x).tolist() == [1.0, -1.0], "the player with more stones wins"
+
+
+def test_stalemate_with_equal_stones_is_a_draw():
+    # Same position plus two spare white stones: 10 stones each, so the
+    # captureless stalemate really is a draw.
+    board = _draw_test_board().at[idx(2, 2)].set(WHITE).at[idx(2, 3)].set(WHITE)
+    state = make_state(color=0, board=board, stage=1, source=idx(10, 5))
+    state = state._replace(no_capture_turns=jnp.int32(DRAW_NO_CAPTURE_TURNS - 1))
+    x = game.step(state, jnp.int32(idx(9, 5)))
+
+    assert bool(game.is_terminal(x))
+    assert int(x.winner) == -1, "an exact tie has no winner"
+    assert game.rewards(x).tolist() == [0.0, 0.0], "a tie rewards both players 0"
 
 
 def test_capture_resets_no_capture_counter():
@@ -468,8 +482,9 @@ def test_self_destruction_loss_on_threshold_turn_is_not_a_draw():
     assert game.rewards(x).tolist() == [-1.0, 1.0], "decisive loss, not a draw"
 
 
-def test_pgx_draw_terminates_with_zero_rewards():
-    # End-to-end through the pgx env: a draw sets terminated and zero rewards.
+def test_pgx_stalemate_terminates_with_material_result():
+    # End-to-end through the pgx env: the stalemate terminates the episode and
+    # pays out according to stone count (black leads 10-8 here).
     public = State(  # type: ignore
         current_player=jnp.int32(0),
         _x=make_state(color=0, board=_draw_test_board(), stage=1,
@@ -478,8 +493,8 @@ def test_pgx_draw_terminates_with_zero_rewards():
         ),
     )
     public = _step(public, jnp.int32(idx(9, 5)))
-    assert bool(public.terminated), "draw should terminate the pgx episode"
-    assert public.rewards.tolist() == [0.0, 0.0]
+    assert bool(public.terminated), "stalemate should terminate the pgx episode"
+    assert public.rewards.tolist() == [1.0, -1.0]
     assert int(public._x.no_capture_turns) == DRAW_NO_CAPTURE_TURNS
 
 
