@@ -117,8 +117,19 @@ The policy head still trails its own value head (0.298 vs 0.448), so there is
 more to get here - more iterations, and `chance_samples` is worth retesting now
 that its failure mode (a sign-only target) is gone.
 
-**For a stochastic game, search should expand
-chance nodes rather than sample one successor per edge**, and a two-action game
-needs a q-transform that preserves the magnitude of the advantage (e.g.
-`qtransform_by_min_max` over a fixed [-1, 1]) rather than one that rescales it
-to the range of the two actions being compared.
+## Lessons that generalise
+
+- **A small action space needs `qtransform=completed_unscaled`.** mctx's default
+  rescales Q to the range across a node's actions, which is fine with hundreds
+  of actions but destroys the signal when there are two or three: the range *is*
+  the quantity being measured. This is the single biggest effect found here.
+- **Check the search with an oracle before blaming the network.** Substituting
+  exact values and an exact prior for the network localised the fault to the
+  q-transform in minutes, and correctly predicted which fix would work.
+- **Separate the heads when diagnosing.** Playing the value head alone by
+  expectimax showed the network knew the game while its policy head did not - a
+  distinction the aggregate metrics hid.
+- For a stochastic game, search that samples one successor per edge never
+  resamples it, so an edge's Q keeps the variance of a single chance outcome
+  however many simulations run. Averaging it (`chance_samples`) is only safe once
+  the policy target is not sign-quantised.
