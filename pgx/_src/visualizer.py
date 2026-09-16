@@ -536,6 +536,23 @@ class Visualizer:
                     "black",
                     "black",
                 )
+        elif _state.env_id == "epaminondas":
+            from pgx._src.dwg.epaminondas import _make_epaminondas_dwg
+
+            self.config["GRID_SIZE"] = 30
+            self.config["BOARD_WIDTH"] = 14
+            self.config["BOARD_HEIGHT"] = 12
+            self._make_dwg_group = _make_epaminondas_dwg  # type:ignore
+            if (self.config["COLOR_THEME"] is None and self.config["COLOR_THEME"] == "dark") or self.config[
+                "COLOR_THEME"
+            ] == "dark":
+                self.config["COLOR_SET"] = ColorSet(
+                    "gray", "black", "white", "white", "#1e1e1e", "silver", ""
+                )
+            else:
+                self.config["COLOR_SET"] = ColorSet(
+                    "white", "black", "white", "black", "white", "black", ""
+                )
         elif _state.env_id == "othello":
             from pgx._src.dwg.othello import _make_othello_dwg
 

@@ -46,6 +46,7 @@ EnvId = Literal[
     "chess",
     "connect_four",
     "domineering",
+    "epaminondas",
     "gardner_chess",
     "g_hex",
     "g_hex2",
@@ -387,6 +388,10 @@ def make(env_id: EnvId):  # noqa: C901
         from pgx.go import Go
 
         return Go(size=19, komi=7.5)
+    elif env_id == "epaminondas":
+        from pgx.epaminondas import Epaminondas
+
+        return Epaminondas()
     elif env_id == "gess":
         from pgx.gess import Gess
 

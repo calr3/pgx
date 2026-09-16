@@ -1,0 +1,384 @@
+# Copyright 2026 The Pgx Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Epaminondas (Robert Abbott, 1975), played on a 14 x 12 board.
+#
+# Each player starts with 28 pieces filling the two rows nearest them. A
+# *phalanx* is two or more friendly pieces adjacent in a straight line
+# (orthogonal or diagonal). A turn moves either a single piece one square in any
+# direction to an empty square, or a phalanx along its own line: every piece
+# moves the same number of squares, at most the number of pieces moving, and a
+# phalanx may be split (any contiguous sub-run that includes the leading piece).
+# Nothing may move onto or over a friendly piece or over an enemy piece.
+#
+# Capture: the lead piece may land on an enemy piece if the enemy line starting
+# there and continuing *away* in the direction of movement is strictly shorter
+# than the moving phalanx; that whole enemy line is removed and the movement
+# stops there.
+#
+# Objective: at the start of your turn, if you have more pieces on your
+# opponent's back rank than they have on yours, you win — so an incursion gives
+# the opponent one turn to capture it or match it. A player may not move a piece
+# onto the opponent's back rank if that would make the whole position
+# left-to-right symmetric (this stops a mirroring draw).
+#
+# A move is played as three actions, each naming a square (0..167):
+#   Stage 0 - the lead piece (the one that moves furthest forward).
+#   Stage 1 - the rear piece of the moving group; the lead square itself means
+#             a single piece. This fixes the direction and the group size.
+#   Stage 2 - the destination of the lead piece.
+
+from typing import NamedTuple, Optional
+
+import numpy as np
+import jax
+import jax.numpy as jnp
+from jax import Array
+
+WIDTH = 14
+HEIGHT = 12
+N = WIDTH * HEIGHT  # 168 squares, indexed row-major: idx = row * WIDTH + col
+
+# Board values.
+EMPTY = 0
+WHITE = 1  # player 0, moves first, back rank is row 0
+BLACK = 2  # player 1, back rank is row HEIGHT - 1
+
+# Drawn once this many full moves have been played without a win.
+MAX_MOVES = 300
+
+# The eight directions, and the index of each one's opposite.
+_DIRS = np.array(
+    [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)], dtype=np.int32
+)
+_OPP_DIR = np.array([7, 6, 5, 4, 3, 2, 1, 0], dtype=np.int32)
+NUM_DIRS = 8
+# The longest line on the board is 14 squares, so at most 13 steps of movement,
+# and a phalanx of at most 14 pieces.
+MAX_STEP = max(WIDTH, HEIGHT) - 1
+MAX_GROUP = max(WIDTH, HEIGHT)
+
+
+def _build_rays():
+    """Ray tables: for each direction, square and step count k (0..MAX_STEP),
+    the index of the square k steps away, and whether it is on the board."""
+    idx = np.zeros((NUM_DIRS, N, MAX_STEP + 1), dtype=np.int32)
+    ok = np.zeros((NUM_DIRS, N, MAX_STEP + 1), dtype=bool)
+    for d, (dr, dc) in enumerate(_DIRS):
+        for s in range(N):
+            r0, c0 = divmod(s, WIDTH)
+            for k in range(MAX_STEP + 1):
+                r, c = r0 + dr * k, c0 + dc * k
+                if 0 <= r < HEIGHT and 0 <= c < WIDTH:
+                    idx[d, s, k] = r * WIDTH + c
+                    ok[d, s, k] = True
+    return jnp.asarray(idx), jnp.asarray(ok)
+
+
+RAY_IDX, RAY_OK = _build_rays()
+# JAX copies, for indexing with traced values.
+_DIRS_J = jnp.asarray(_DIRS)
+_OPP_DIR_J = jnp.asarray(_OPP_DIR)
+_STEPS = jnp.arange(MAX_STEP + 1, dtype=jnp.int32)  # 0..MAX_STEP
+
+
+class GameState(NamedTuple):
+    color: Array = jnp.int32(0)  # 0 = white to move, 1 = black
+    board: Array = jnp.zeros(N, jnp.int8)
+    stage: Array = jnp.int32(0)  # 0 = pick lead, 1 = pick rear, 2 = pick destination
+    lead: Array = jnp.int32(0)  # chosen in stage 0
+    rear: Array = jnp.int32(0)  # chosen in stage 1 (== lead for a single piece)
+    winner: Array = jnp.int32(-1)  # -1 = ongoing, else the winning player
+    moves: Array = jnp.int32(0)  # completed full moves, for the draw cap
+
+
+class Game:
+    def init(self) -> GameState:
+        return GameState(board=_init_board())
+
+    def step(self, state: GameState, action: Array) -> GameState:
+        return jax.lax.switch(
+            state.stage,
+            [
+                lambda: state._replace(stage=jnp.int32(1), lead=action, rear=action),
+                lambda: state._replace(stage=jnp.int32(2), rear=action),
+                lambda: _apply_move(state, action),
+            ],
+        )
+
+    def observe(self, state: GameState, color: Optional[Array] = None) -> Array:
+        if color is None:
+            color = state.color
+        return _observe(state, color)
+
+    def legal_action_mask(self, state: GameState) -> Array:
+        return jax.lax.switch(
+            state.stage,
+            [
+                lambda: _lead_mask(state),
+                lambda: _rear_mask(state),
+                lambda: _dest_mask(state),
+            ],
+        )
+
+    def is_terminal(self, state: GameState) -> Array:
+        return (state.winner >= 0) | (state.moves >= MAX_MOVES)
+
+    def rewards(self, state: GameState) -> Array:
+        return jax.lax.select(
+            state.winner >= 0,
+            jnp.float32([-1.0, -1.0]).at[jnp.clip(state.winner, 0, 1)].set(1.0),
+            jnp.zeros(2, jnp.float32),
+        )
+
+
+# ─── Board helpers ───────────────────────────────────────────────────────────
+
+
+def _init_board() -> Array:
+    """Each player fills the two rows nearest them: 28 pieces each."""
+    board = np.zeros(N, dtype=np.int8)
+    board[: 2 * WIDTH] = WHITE
+    board[N - 2 * WIDTH :] = BLACK
+    return jnp.asarray(board)
+
+
+def _stone(color: Array) -> Array:
+    """Board value of `color`'s pieces (0 -> WHITE, 1 -> BLACK)."""
+    return jnp.int8(color + 1)
+
+
+def _runs(mask: Array, d: int) -> Array:
+    """Per square, the number of consecutive True cells along direction `d`,
+    counting the square itself (0 if it is False)."""
+    vals = mask[RAY_IDX[d]] & RAY_OK[d]  # (N, MAX_STEP + 1)
+    return jnp.cumprod(vals, axis=1).sum(axis=1).astype(jnp.int32)
+
+
+def _all_runs(mask: Array) -> Array:
+    """`_runs` for every direction, stacked: (NUM_DIRS, N)."""
+    return jnp.stack([_runs(mask, d) for d in range(NUM_DIRS)])
+
+
+def _move_legality(board: Array, color: Array):
+    """Legality of every (lead square, direction, group size, distance).
+
+    Returns a bool array of shape (NUM_DIRS, N, MAX_GROUP + 1, MAX_STEP + 1)
+    indexed [d, lead, m, k]: moving the m pieces ending at `lead` (extending back
+    against `d`) k squares along `d`. Index 0 of the m/k axes is unused.
+    """
+    own = board == _stone(color)
+    enemy = (board != EMPTY) & ~own
+    empty = board == EMPTY
+
+    own_back = _all_runs(own)  # own_back[d, s]: own pieces from s going against d
+    enemy_runs = _all_runs(enemy)  # enemy line from s continuing along d
+    empty_runs = _all_runs(empty)
+
+    m = jnp.arange(MAX_GROUP + 1, dtype=jnp.int32)[None, None, :, None]  # group size
+    k = _STEPS[None, None, None, :]  # distance
+
+    # Group of size m ending at `lead`, extending back against d.
+    max_group = jnp.stack([own_back[_OPP_DIR[d]] for d in range(NUM_DIRS)])[:, :, None, None]
+    target_idx = RAY_IDX[:, :, None, :]  # (NUM_DIRS, N, 1, MAX_STEP + 1)
+    on_board = RAY_OK[:, :, None, :]
+
+    # Squares strictly between lead and target must be empty: that is k - 1
+    # empty squares starting one step along d (vacuously true for k == 1).
+    first = RAY_IDX[:, :, 1][:, :, None, None]  # square one step along d
+    empties_ahead = jnp.stack([empty_runs[d][first[d, :, 0, 0]] for d in range(NUM_DIRS)])
+    path_clear = (k <= 1) | (empties_ahead[:, :, None, None] >= k - 1)
+
+    target_empty = jnp.stack([empty[target_idx[d, :, 0]] for d in range(NUM_DIRS)])[:, :, None, :]
+    target_enemy = jnp.stack([enemy[target_idx[d, :, 0]] for d in range(NUM_DIRS)])[:, :, None, :]
+    enemy_len = jnp.stack([enemy_runs[d][target_idx[d, :, 0]] for d in range(NUM_DIRS)])[:, :, None, :]
+
+    can_land = target_empty | (target_enemy & (enemy_len < m))
+    return (
+        (m >= 1) & (k >= 1) & (k <= m) & (m <= max_group) & on_board & path_clear & can_land
+    )
+
+
+def _group_of(lead: Array, rear: Array):
+    """Direction index and size of the group from `rear` to `lead`.
+
+    For rear == lead (a single piece) the direction is undefined and returned as
+    0 with size 1; callers handle that case separately.
+    """
+    lr, lc = lead // WIDTH, lead % WIDTH
+    rr, rc = rear // WIDTH, rear % WIDTH
+    dr, dc = jnp.sign(lr - rr), jnp.sign(lc - rc)
+    size = jnp.maximum(jnp.abs(lr - rr), jnp.abs(lc - rc)) + 1
+    d = jnp.argmax((_DIRS_J[:, 0] == dr) & (_DIRS_J[:, 1] == dc)).astype(jnp.int32)
+    return d, size.astype(jnp.int32)
+
+
+def _is_mirror_symmetric(board: Array) -> Array:
+    b = board.reshape(HEIGHT, WIDTH)
+    return jnp.all(b == b[:, ::-1])
+
+
+def _back_rank_rows():
+    return jnp.int32([0, HEIGHT - 1])
+
+
+def _apply_move(state: GameState, dest: Array) -> GameState:
+    """Play the move (lead, rear, dest) and hand the turn to the opponent."""
+    board = _do_move(state.board, state.color, state.lead, state.rear, dest)
+    color = 1 - state.color
+    moves = state.moves + 1
+    # The player about to move wins if they have more pieces on the opponent's
+    # back rank than the opponent has on theirs.
+    winner = jax.lax.select(_wins_at_turn_start(board, color), color, jnp.int32(-1))
+    # A player with no legal move loses (the rules forbid passing; this cannot
+    # normally arise).
+    stuck = ~_lead_mask(GameState(color=color, board=board, stage=jnp.int32(0))).any()
+    winner = jax.lax.select((winner < 0) & stuck, 1 - color, winner)
+    return GameState(
+        color=color, board=board, stage=jnp.int32(0), lead=jnp.int32(0), rear=jnp.int32(0),
+        winner=winner, moves=moves,
+    )
+
+
+def _do_move(board: Array, color: Array, lead: Array, rear: Array, dest: Array) -> Array:
+    """Board after moving the group `rear`..`lead` so that `lead` lands on `dest`."""
+    single = lead == rear
+    d_group, size = _group_of(lead, rear)
+    d_single, _ = _group_of(dest, lead)  # direction of a single-piece step
+    d = jax.lax.select(single, d_single, d_group)
+    m = jax.lax.select(single, jnp.int32(1), size)
+
+    lr, lc = lead // WIDTH, lead % WIDTH
+    tr, tc = dest // WIDTH, dest % WIDTH
+    k = jnp.maximum(jnp.abs(tr - lr), jnp.abs(tc - lc)).astype(jnp.int32)
+
+    back = _OPP_DIR_J[d]
+    offsets = _STEPS  # 0..MAX_STEP
+    in_group = offsets < m
+    # Squares vacated: lead, lead - d, ... (m of them, against d).
+    src_cells = RAY_IDX[back, lead]
+    # Squares occupied after the move: the same group shifted k steps along d.
+    dst_cells = RAY_IDX[back, dest]
+
+    src_mask = jnp.zeros(N, bool).at[src_cells].max(in_group)
+    dst_mask = jnp.zeros(N, bool).at[dst_cells].max(in_group)
+
+    # Captured: the enemy line from `dest` continuing along d.
+    enemy = (board != EMPTY) & (board != _stone(color))
+    cap_len = jax.lax.select(enemy[dest], _all_runs(enemy)[d, dest], jnp.int32(0))
+    cap_cells = RAY_IDX[d, dest]
+    cap_mask = jnp.zeros(N, bool).at[cap_cells].max(offsets < cap_len)
+
+    board = jnp.where(src_mask | cap_mask, jnp.int8(EMPTY), board)
+    return jnp.where(dst_mask, _stone(color), board)
+
+
+def _wins_at_turn_start(board: Array, color: Array) -> Array:
+    """True if `color`, about to move, has more pieces on the opponent's back
+    rank than the opponent has on `color`'s back rank."""
+    b = board.reshape(HEIGHT, WIDTH)
+    own_home, opp_home = jax.lax.select(color == 0, _back_rank_rows(), jnp.flip(_back_rank_rows()))
+    mine_there = (b[opp_home] == _stone(color)).sum()
+    theirs_here = (b[own_home] == _stone(1 - color)).sum()
+    return mine_there > theirs_here
+
+
+# ─── Legal action masks ──────────────────────────────────────────────────────
+
+
+def _lead_mask(state: GameState) -> Array:
+    """Squares that can lead a move: an own piece with at least one legal move."""
+    legal = _move_legality(state.board, state.color)  # (d, lead, m, k)
+    return legal.any(axis=(0, 2, 3))
+
+
+def _rear_mask(state: GameState) -> Array:
+    """Rear squares for the chosen lead: the lead itself (single piece) or the
+    rear of a contiguous own group that has a legal move."""
+    legal = _move_legality(state.board, state.color)  # (d, lead, m, k)
+    lead = state.lead
+    per_dir = legal[:, lead].any(axis=-1)  # (d, m): some distance is legal
+
+    # Rear square for direction d and group size m is lead - (m - 1) * d.
+    back = _OPP_DIR
+    rear_idx = jnp.stack([RAY_IDX[back[d], lead] for d in range(NUM_DIRS)])  # (d, MAX_STEP + 1)
+    # A group of size m has its rear at offset m - 1 from the lead.
+    sizes = _STEPS + 1  # group size for each offset
+    ok = jnp.stack([per_dir[d, sizes] & (sizes >= 2) for d in range(NUM_DIRS)])
+    # Group of size m occupies offsets 0..m-1, so its rear is at offset m - 1.
+    mask = jnp.zeros(N, bool)
+    for d in range(NUM_DIRS):
+        mask = mask.at[rear_idx[d]].max(ok[d] & RAY_OK[back[d], lead])
+    # A single piece (rear == lead) is legal when the piece can move at all.
+    single_ok = legal[:, lead, 1, 1].any()
+    return mask.at[lead].max(single_ok)
+
+
+def _dest_mask(state: GameState) -> Array:
+    """Destinations for the chosen (lead, rear) group."""
+    legal = _move_legality(state.board, state.color)
+    lead, rear = state.lead, state.rear
+    single = lead == rear
+    d_group, size = _group_of(lead, rear)
+    m = jax.lax.select(single, jnp.int32(1), size)
+
+    def for_dir(d):
+        ok = legal[d, lead, m]  # (k,)
+        return jnp.zeros(N, bool).at[RAY_IDX[d, lead]].max(ok & RAY_OK[d, lead])
+
+    all_dirs = jnp.stack([for_dir(d) for d in range(NUM_DIRS)])
+    mask = jax.lax.select(single, all_dirs.any(axis=0), all_dirs[d_group])
+    return mask & _symmetry_allowed(state, mask)
+
+
+def _symmetry_allowed(state: GameState, candidates: Array) -> Array:
+    """Forbid destinations that put a piece on the opponent's back rank and make
+    the whole position left-to-right symmetric."""
+    opp_back_row = jax.lax.select(state.color == 0, jnp.int32(HEIGHT - 1), jnp.int32(0))
+
+    def check(dest):
+        board = _do_move(state.board, state.color, state.lead, state.rear, dest)
+        lands = (board.reshape(HEIGHT, WIDTH)[opp_back_row] == _stone(state.color)).sum() > (
+            state.board.reshape(HEIGHT, WIDTH)[opp_back_row] == _stone(state.color)
+        ).sum()
+        return ~(lands & _is_mirror_symmetric(board))
+
+    return jax.vmap(check)(jnp.arange(N))
+
+
+# ─── Observation ─────────────────────────────────────────────────────────────
+
+
+def _observe(state: GameState, color: Array) -> Array:
+    """(HEIGHT, WIDTH, 7) float32 from `color`'s perspective.
+
+    Rows are flipped for black so that the player to move always looks "up" the
+    board: own back rank is row 0.
+
+    Channels: own pieces, opponent pieces, lead marker, rear marker, and three
+    constant planes one-hot encoding the stage.
+    """
+    b = state.board.reshape(HEIGHT, WIDTH)
+    own = (b == _stone(color)).astype(jnp.float32)
+    opp = (b == _stone(1 - color)).astype(jnp.float32)
+
+    def marker(idx, active):
+        return (jnp.zeros(N, jnp.float32).at[idx].set(active.astype(jnp.float32))).reshape(HEIGHT, WIDTH)
+
+    lead = marker(state.lead, state.stage >= 1)
+    rear = marker(state.rear, state.stage >= 2)
+    stage_planes = [jnp.full((HEIGHT, WIDTH), (state.stage == i).astype(jnp.float32)) for i in range(3)]
+
+    planes = jnp.stack([own, opp, lead, rear, *stage_planes], axis=-1)
+    return jax.lax.select(color == 0, planes, jnp.flip(planes, axis=0))
