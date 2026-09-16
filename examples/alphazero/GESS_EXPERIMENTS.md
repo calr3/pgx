@@ -48,6 +48,8 @@ old ResNet baseline (`checkpoints/gess_20260604081951/000125.ckpt`, 32.8M
 positions, 14.6 h). Trimmed to one model per conclusion; earlier ladders (with
 the opening bug) had compressed gaps.
 
+(A separate 5-model ladder played under **v1 rules** is in E12.)
+
 | Model | Exp. | Train time | Elo |
 |---|---|---|---|
 | **full-size recipe (it 72)** | E11 | 7.2 h | **+99 ± 22** |
@@ -336,6 +338,31 @@ ranking of the adopted steps matches the pilots. The ~8 h shape of the curve
 (most gains late, flattening over the last ~7 iterations) suggests sizing
 `max_num_iters` so the schedule completes just within the rental. Watch the
 rising draw rate (24%) and game length (~190 steps) in longer runs.
+
+## E12. Gess v1 rules: captureless stalemate decided on stone count
+
+**Question.** E11's self-play draw rate rose to 24% (games ~190 steps) as play
+strengthened. Does deciding a captureless stalemate on material (the player
+with more stones wins; only an exact tie draws) remove the draws without
+costing strength?
+
+**Setup.** Rule implemented in `pgx/_src/games/gess.py` (env version v1,
+`f190112`). Pilot with E9's settings (bf16, playout cap 0.25/8, augmentation,
+replay 4, 32 updates/iteration, cosine), 147 iterations, 1.18 h. Run
+`husyrrt4`, `checkpoints/gess_20260916165614`. Ladder of 5 models played
+**entirely under v1 rules** (`elo_gess_v1rules.json`), so no model has a rules
+handicap.
+
+**Result.** Draws fell from 15-20% (v0 pilots) and 24% (E11) to **~1%**, and
+games shortened (~164 vs. ~190 steps). But E12 is **weaker**: ladder -348 vs.
+E9 -259 and E10 -249 (E9 beat it 84-44, 66%); raw policy vs. the old baseline
+41% vs. E9's 48%. Value loss stayed higher all run (0.41 vs. 0.38): a material
+verdict is harder to predict than a draw, and "be ahead on material, then avoid
+captures for 20 turns" is an extra strategy to learn.
+
+**Conclusion.** The rule does what it was meant to do about draws, but at pilot
+scale it costs ~90 Elo. One seed at one scale; a longer run might close the gap.
+Not adopted for now (see plan).
 
 ---
 
