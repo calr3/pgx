@@ -37,7 +37,7 @@ class Config(BaseModel):
     # "resnet" is AZNet (above fields). "gessformer" is the hybrid conv-stem +
     # Chessformer-style transformer for Gess (network.GessFormer), configured by
     # the gf_* fields below, which the resnet ignores.
-    architecture: Literal["resnet", "gessformer", "rayformer"] = "resnet"
+    architecture: Literal["resnet", "gessformer", "rayformer", "boardformer"] = "resnet"
     gf_stem_channels: int = 64
     gf_stem_blocks: int = 2
     gf_embed_dim: int = 192
@@ -67,6 +67,17 @@ class Config(BaseModel):
     # symmetric cells. The encoder is then equivariant to rotations/reflections
     # (the conv stem is not constrained).
     rf_symmetric: bool = False
+    # "boardformer" (network.BoardFormer): GessFormer's architecture for any
+    # even-sized board whose action space is one action per cell (e.g.
+    # epaminondas). Plain per-cell policy head.
+    bf_stem_channels: int = 64
+    bf_stem_blocks: int = 2
+    bf_embed_dim: int = 192
+    bf_num_layers: int = 6
+    bf_num_heads: int = 8
+    bf_ffn_mult: float = 2.0
+    bf_gab: bool = True
+    bf_remat: bool = True
     # selfplay params
     selfplay_batch_size: int = 1024
     num_simulations: int = 32
@@ -194,6 +205,11 @@ class Config(BaseModel):
     def _check_gess_architectures(self):
         if self.symmetry_augmentation and self.env_id != "gess":
             raise ValueError(f"symmetry_augmentation requires env_id=gess, got {self.env_id!r}.")
+        if self.architecture == "boardformer" and self.bf_embed_dim % self.bf_num_heads != 0:
+            raise ValueError(
+                f"bf_embed_dim ({self.bf_embed_dim}) must be divisible by "
+                f"bf_num_heads ({self.bf_num_heads})."
+            )
         if self.architecture in ("gessformer", "rayformer") and self.env_id != "gess":
             raise ValueError(
                 f"architecture={self.architecture} requires env_id=gess, got {self.env_id!r}."

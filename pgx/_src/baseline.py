@@ -9,6 +9,7 @@ from pgx._src.utils import _download
 
 BaselineModelId = Literal[
     "animal_shogi_v0",
+    "epaminondas_v0",
     "domineering_v0",
     "g_hex_v0",
     "g_hex2_v0",
@@ -65,6 +66,15 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
             "resnet_v2": True,
           },
           shape = (1, 4, 7, 4 + 2*11))
+    elif model_id == "epaminondas_v0":
+        return _make_untrained_baseline_model(
+           model_args = {
+            "num_actions": 14 * 12,
+            "num_channels": 128,
+            "num_layers": 6,
+            "resnet_v2": True,
+          },
+          shape = (1, 12, 14, 7))
     elif model_id == "gess_v0":
         return _make_untrained_baseline_model(
            model_args = {

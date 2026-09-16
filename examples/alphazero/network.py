@@ -371,6 +371,86 @@ class GessFormer(hk.Module):
 
         return _gess_policy_head(f, is_stage1, src_footprint), _gess_value_head(tok)
 
+# ─── BoardFormer ─────────────────────────────────────────────────────────────
+#
+# GessFormer's architecture generalised to any square-grid game whose action
+# space is one action per board cell (e.g. Epaminondas: a 12x14 board, 168
+# actions, three actions per move). Same shape as GessFormer - conv stem, 2x2
+# patch merge, pre-LN transformer with Geometric Attention Bias, upsample with a
+# stem skip - but with a plain per-cell policy head, since the stage and any
+# selection markers are already planes of the observation.
+
+
+class BoardFormer(hk.Module):
+    """Conv stem + GAB transformer with one policy logit per board cell."""
+
+    def __init__(
+        self,
+        num_actions: int,
+        stem_channels: int = 64,
+        stem_blocks: int = 2,
+        embed_dim: int = 192,
+        num_layers: int = 6,
+        num_heads: int = 8,
+        ffn_mult: float = 2.0,
+        use_gab: bool = True,
+        remat: bool = True,
+        name="board_former",
+    ):
+        super().__init__(name=name)
+        assert embed_dim % num_heads == 0
+        self.num_actions = num_actions
+        self.stem_channels = stem_channels
+        self.stem_blocks = stem_blocks
+        self.embed_dim = embed_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.ffn_mult = ffn_mult
+        self.use_gab = use_gab
+        self.remat = remat
+
+    def __call__(self, x, is_training=False, test_local_stats=False):
+        del is_training, test_local_stats  # no BatchNorm
+        x = _to_floating(x)
+        b, h, w, _ = x.shape
+        assert h % 2 == 0 and w % 2 == 0, "BoardFormer needs an even-sized board"
+        assert self.num_actions == h * w, "BoardFormer expects one action per cell"
+        c, d = self.stem_channels, self.embed_dim
+        th, tw = h // 2, w // 2
+        num_tokens = th * tw
+
+        # Conv stem at full resolution.
+        s = hk.Conv2D(c, kernel_shape=3, name="stem_conv")(x)
+        for i in range(self.stem_blocks):
+            s = ConvBlock(c, name=f"stem_block_{i}")(s)
+
+        # Patch merge to (h/2, w/2) tokens.
+        tok = hk.Conv2D(d, kernel_shape=2, stride=2, padding="VALID", name="patch_merge")(s)
+        tok = tok.reshape(b, num_tokens, d)
+        tok = tok + hk.get_parameter("pos_emb", (num_tokens, d), init=_TF_INIT)
+
+        gab_w = hk.get_parameter("gab_shared_w", (_GAB_D3, num_tokens**2), init=_TF_INIT)
+        gab_b = hk.get_parameter("gab_shared_b", (num_tokens**2,), init=jnp.zeros)
+        out_init = hk.initializers.TruncatedNormal(stddev=0.02 / math.sqrt(2.0 * self.num_layers))
+        for i in range(self.num_layers):
+            block = TransformerBlock(
+                self.num_heads, self.ffn_mult, self.use_gab, out_init, name=f"block_{i}"
+            )
+            tok = (hk.remat(block) if self.remat else block)(tok, gab_w, gab_b)
+        tok = _layer_norm("final_ln")(tok)
+
+        # Decoder: back to full resolution with the stem skip.
+        f = tok.reshape(b, th, tw, d)
+        f = jnp.repeat(jnp.repeat(f, 2, axis=1), 2, axis=2)
+        f = hk.Linear(c, name="upsample_proj")(f) + s
+        f = ConvBlock(c, name="decoder_block")(f)
+        f = jax.nn.gelu(_layer_norm("decoder_ln")(f))
+
+        logits = hk.Linear(c, name="policy_hidden")(f)
+        logits = hk.Linear(1, name="policy_out")(jax.nn.gelu(logits)).reshape(b, h * w)
+        return logits, _gess_value_head(tok)
+
+
 # ─── RayFormer ───────────────────────────────────────────────────────────────
 #
 # A full-resolution transformer for Gess whose attention follows piece moves:
@@ -590,7 +670,19 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
 
     def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
         x = x.astype(dtype)
-        if config.architecture == "rayformer":
+        if config.architecture == "boardformer":
+            net = BoardFormer(
+                num_actions=num_actions,
+                stem_channels=config.bf_stem_channels,
+                stem_blocks=config.bf_stem_blocks,
+                embed_dim=config.bf_embed_dim,
+                num_layers=config.bf_num_layers,
+                num_heads=config.bf_num_heads,
+                ffn_mult=config.bf_ffn_mult,
+                use_gab=config.bf_gab,
+                remat=config.bf_remat,
+            )
+        elif config.architecture == "rayformer":
             net = RayFormer(
                 num_actions=num_actions,
                 embed_dim=config.rf_embed_dim,
