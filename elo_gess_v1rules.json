@@ -1,0 +1,42 @@
+{
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 93.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 97.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 78.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260916165614/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 103.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 54.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 7.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260916165614/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 84.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 3.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260916165614/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 81.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260916165614/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 3, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 124.5,
+  "games": 128
+ }
+}

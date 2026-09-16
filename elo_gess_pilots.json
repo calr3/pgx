@@ -1,0 +1,602 @@
+{
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 117.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 116.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 104.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 116.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 113.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 116.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 13.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 11.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 14.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 11.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 30.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 28.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 97.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 39.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 104.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 110.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 95.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 105.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 19.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 95.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 114.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 117.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 18.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 92.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 115.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 84.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 113.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 51.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 103.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 91.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 11.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 11.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 14.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 17.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 26.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 21.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 17.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 15.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 20.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 17.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 14.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 11.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 15.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 15.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 60.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 106.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 106.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 11.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 13.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 30.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 30.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 48.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 53.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 21.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 19.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 40.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 33.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 13.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 14.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 14.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 17.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 85.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 92.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 87.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 84.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 66.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 87.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 84.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 13.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 15.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 17.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 20.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 13.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 14.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 13.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 19.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 14.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 56.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 61.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 71.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 67.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 28.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 20.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 29.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 23.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 63.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 91.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 11.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 16.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 17.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914161042/000040.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 14.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914210805/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914235054/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 56.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000096.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 57.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000130.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 32.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915055020/000140.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 28.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000140.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 54.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 61.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 128.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 127.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 111.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 122.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 113.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 92.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 95.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 109.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260604081951/000125.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 75.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 3.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 0.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 0.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 0.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 1.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 0.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 0.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914051848/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 0.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 20.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 33.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 4.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 4.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 5.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 4.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914031715/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 0.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 102.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 18.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 6.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 21.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914190157/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 1.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 9.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 9.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 3.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 5.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260914071958/000060.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 0.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 63.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 53.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 68.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915035816/000090.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 12.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 61.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 67.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915173622/000147.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 7.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 71.0,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915200817/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 2.5,
+  "games": 128
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000036.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/gess_20260915232736/000072.ckpt\", {\"batch_size\": 128, \"env_id\": \"gess\", \"game_version\": 2, \"games_per_pair\": 128, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 5.5,
+  "games": 128
+ }
+}
