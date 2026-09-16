@@ -50,7 +50,7 @@ class Domineering(core.Env):
         self._game = Game()
 
     def _init(self, key: PRNGKey) -> State:
-        current_player = jnp.int32(jax.random.bernoulli(key) * 0)
+        current_player = jnp.int32(jax.random.bernoulli(key))
         return State(current_player=current_player, _x=self._game.init())  # type:ignore
 
     def _step(self, state: core.State, action: Array, key) -> State:

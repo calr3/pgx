@@ -555,6 +555,23 @@ class Visualizer:
                 self.config["COLOR_SET"] = ColorSet(
                     "white", "black", "black", "black", "white", "black", ""
                 )
+        elif _state.env_id == "heckmeck":
+            from pgx._src.dwg.heckmeck import _make_heckmeck_dwg
+
+            self.config["GRID_SIZE"] = 30
+            self.config["BOARD_WIDTH"] = 11
+            self.config["BOARD_HEIGHT"] = 9
+            self._make_dwg_group = _make_heckmeck_dwg  # type:ignore
+            if (self.config["COLOR_THEME"] is None and self.config["COLOR_THEME"] == "dark") or self.config[
+                "COLOR_THEME"
+            ] == "dark":
+                self.config["COLOR_SET"] = ColorSet(
+                    "gray", "black", "black", "dimgray", "#1e1e1e", "gainsboro", "gainsboro"
+                )
+            else:
+                self.config["COLOR_SET"] = ColorSet(
+                    "white", "black", "lightgray", "white", "white", "black", "black"
+                )
         elif _state.env_id == "gess":
             from pgx._src.dwg.gess import _make_gess_dwg
 
