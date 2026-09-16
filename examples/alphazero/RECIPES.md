@@ -10,6 +10,9 @@ cost per iteration, and most of the gain arrives late as the cosine schedule
 decays). Gess comparisons are Elo ladders from `elo_ladder.py`; pig is scored
 directly against exact optimal play by `pig_optimal.py`.
 
+Sections whose heading says **PROPOSAL** are untested design sketches. Don't
+quote them as if they were results.
+
 ## Defaults that transfer between games
 
 These won on Gess and have no game-specific content, so start any new game with
@@ -125,6 +128,71 @@ for its seat-balanced win rate: optimal 0.500, hold-at-20 0.461, always-roll
 0.000; the best model so far is 0.298 from its policy head and 0.448 when its
 value head is played by one-ply expectimax.
 
+## Backgammon - PROPOSAL, NOTHING RUN YET
+
+Nothing below has been trained or measured. It is a design sketch from reading
+`pgx/backgammon.py` and from what pig taught us about stochastic games; treat
+every claim as a hypothesis to test, not a recommendation.
+
+What the env gives you: a 156-wide action space (`6 * 26`, encoded
+`src * 6 + die`, `pgx/backgammon.py:37`), a 34-int observation (28 signed board
+entries - 24 points, bar and off for each side - plus a 6-vector of playable dice
+counts), **one die per step**, so a turn is 2-4 stages like Gess and
+Epaminondas, and rewards of **±1 / ±2 / ±3** for normal, gammon and backgammon
+wins (`_calc_win_score`, `pgx/backgammon.py:469`).
+
+### Two blockers to clear before any architecture work
+
+1. **The value head cannot represent a gammon.** Every architecture here ends in
+   `tanh` (range ±1, `network.py:160,236,350`) while `value_tgt` would be up to
+   ±3, and the l2 loss (`train.py:294`) would hold it saturated on exactly the
+   positions that decide matches. Either scale the head (`3 * tanh`) or give it
+   the outcome distribution strong bots use - win / gammon / backgammon for each
+   side, trained with cross-entropy, with the expectation passed to the search.
+   This is a real limitation for **any** env whose rewards leave [-1, 1], not
+   just backgammon.
+2. **Chance handling, which is pig's problem with 21 outcomes per turn instead
+   of 6.** The search keeps one sampled successor per edge forever. The classical
+   fix is to evaluate **afterstates** - the position after your move but before
+   the opponent's roll, which is how TD-Gammon got away with a tiny network - so
+   the node the network scores should be the end-of-turn position, with the roll
+   as an explicit chance node. Also expect to need
+   `qtransform=completed_unscaled`: few actions are legal per die, which is the
+   regime where the default rescaling destroys the signal.
+
+### Sketch: a TD-Gammon-style MLP first
+
+`architecture=mlp` plus a thermometer encoding (a signed-count sibling of
+`mlp_onehot_bins`: per point, own checkers as 1/2/3/4+, the same for the
+opponent, and blot / made-point / spare flags), two hidden layers of 256. Signed
+integer counts are a poor network input; thermometers make "blot vs point vs
+prime" linearly available. This is roughly the 1992 design that first played
+backgammon well, it is an hour's work, and it gives the token model below
+something to beat.
+
+### Sketch: "GammonFormer", the Gess machinery on a 1-D track
+
+- ~30 tokens: 24 points, bar and off per side, and a dice token. Full attention
+  over 30 tokens is free, so none of the 2x2 patch merging GessFormer needed;
+  a plain pre-LN transformer, 4-6 layers x 128-192.
+- **Relative-distance attention bias** bucketed by signed pip distance: ±1-6 is a
+  direct shot, 7-12 indirect. This is the Geometric Attention Bias idea reduced
+  to a cheap learned 1-D table, and it is where backgammon's structure lives.
+- A 1-D conv stem, kernel 13 (±6), so priming and shot patterns are available
+  without attention having to discover them.
+- **Policy head scored on (source, destination) pairs** rather than src x die:
+  the destination is determined by `src + die`, and what matters about a move is
+  where the checker lands - hitting a blot, making a point, breaking an anchor.
+  This is GessFormer's source->destination head, which should transfer directly.
+
+Later refinement, if it matters: GNU Backgammon uses **separate networks per game
+phase** (contact / race / crashed), a pure race being a different function
+altogether. The cheap version is a phase feature and a phase-conditioned head
+rather than three networks.
+
+Expectation to test, stated up front so it can be wrong: the value-head fix and
+the afterstate handling should be worth more than any amount of trunk capacity.
+
 ## Choosing settings for a new game
 
 1. **Architecture.** A board with one action per cell -> `boardformer`. A flat
@@ -140,7 +208,10 @@ value head is played by one-ply expectimax.
 4. **Randomness.** Stochastic envs work without special flags, but a search that
    samples one successor per edge keeps that sample's variance forever. See the
    pig log before trusting search quality in a stochastic game.
-5. **A baseline to evaluate against.** `train.py` needs
+5. **Reward scale.** Every value head ends in `tanh`, so an env whose rewards
+   leave [-1, 1] (backgammon's gammons, for instance) needs the head rescaled or
+   replaced by an outcome distribution, or it trains saturated.
+6. **A baseline to evaluate against.** `train.py` needs
    `pgx.make_baseline_model("<env>_v0")`. A scripted opponent of known strength
    (pig's hold-at-20) is far more informative than an untrained network.
-6. Then run equal-time pilots and record them in a `<GAME>_EXPERIMENTS.md`.
+7. Then run equal-time pilots and record them in a `<GAME>_EXPERIMENTS.md`.
