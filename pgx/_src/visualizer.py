@@ -550,8 +550,27 @@ class Visualizer:
                     "gray", "black", "white", "white", "#1e1e1e", "silver", ""
                 )
             else:
+                # Both outlines are dark: a white stone with a white outline is
+                # invisible on the white background.
                 self.config["COLOR_SET"] = ColorSet(
-                    "white", "black", "white", "black", "white", "black", ""
+                    "white", "black", "black", "black", "white", "black", ""
+                )
+        elif _state.env_id == "gess":
+            from pgx._src.dwg.gess import _make_gess_dwg
+
+            self.config["GRID_SIZE"] = 25
+            self.config["BOARD_WIDTH"] = 20
+            self.config["BOARD_HEIGHT"] = 20
+            self._make_dwg_group = _make_gess_dwg  # type:ignore
+            if (self.config["COLOR_THEME"] is None and self.config["COLOR_THEME"] == "dark") or self.config[
+                "COLOR_THEME"
+            ] == "dark":
+                self.config["COLOR_SET"] = ColorSet(
+                    "gray", "black", "white", "white", "#1e1e1e", "silver", ""
+                )
+            else:
+                self.config["COLOR_SET"] = ColorSet(
+                    "black", "white", "black", "black", "white", "black", ""
                 )
         elif _state.env_id == "pig":
             from pgx._src.dwg.pig import _make_pig_dwg

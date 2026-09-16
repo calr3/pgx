@@ -1,6 +1,18 @@
 from pgx.epaminondas import State as EpaminondasState
 
 
+def _phalanx_cells(lead, rear, board_width):
+    """The cells from rear to lead inclusive; they always lie on one line."""
+    lr, lc = lead // board_width, lead % board_width
+    rr, rc = rear // board_width, rear % board_width
+    steps = max(abs(lr - rr), abs(lc - rc))
+    if steps == 0:
+        return [lead]
+    dr = (lr - rr) // steps
+    dc = (lc - rc) // steps
+    return [(rr + dr * s) * board_width + (rc + dc * s) for s in range(steps + 1)]
+
+
 def _make_epaminondas_dwg(dwg, state: EpaminondasState, config):
     GRID_SIZE = config["GRID_SIZE"]
     BOARD_WIDTH = config["BOARD_WIDTH"]
@@ -56,6 +68,14 @@ def _make_epaminondas_dwg(dwg, state: EpaminondasState, config):
             )
         )
 
+    # A move takes three steps, so mark what has been chosen so far: the lead
+    # piece in stages 1 and 2, and the whole selected phalanx in stage 2.
+    stage = int(state._x.stage)
+
+    def cell_xy(i):
+        row, col = int(i) // BOARD_WIDTH, int(i) % BOARD_WIDTH
+        return col * GRID_SIZE, (BOARD_HEIGHT - 1 - row) * GRID_SIZE
+
     # pieces: row 0 (white's back rank) is drawn at the bottom
     board = state._x.board
     for i, stone in enumerate(board):
@@ -72,6 +92,32 @@ def _make_epaminondas_dwg(dwg, state: EpaminondasState, config):
                 r=GRID_SIZE / 2.4,
                 stroke=outline,
                 fill=color,
+            )
+        )
+
+    # The selection goes on top of the pieces, which otherwise cover it: the
+    # whole phalanx is outlined, and the lead - what it moves towards, and
+    # otherwise indistinguishable from the rear - carries a dot.
+    if stage >= 1:
+        lead, rear = int(state._x.lead), int(state._x.rear)
+        selected = _phalanx_cells(lead, rear, BOARD_WIDTH) if stage == 2 else [lead]
+        for i in selected:
+            x, y = cell_xy(i)
+            board_g.add(
+                dwg.rect(
+                    (x + 1, y + 1),
+                    (GRID_SIZE - 2, GRID_SIZE - 2),
+                    fill="none",
+                    stroke="crimson",
+                    stroke_width="2px",
+                )
+            )
+        x, y = cell_xy(lead)
+        board_g.add(
+            dwg.circle(
+                center=(x + GRID_SIZE / 2, y + GRID_SIZE / 2),
+                r=GRID_SIZE / 8,
+                fill="crimson",
             )
         )
 
