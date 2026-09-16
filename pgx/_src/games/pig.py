@@ -58,13 +58,21 @@ class Game:
                                      state.totals),
             turn_total = jax.lax.select(action == 0, next_roll, state.turn_total + next_roll),
             last_roll = next_roll,
-            winner = jax.lax.select((action == 0) & (state.totals[state.color] + state.turn_total >= TARGET), state.color, state.winner),
+            # Only a banked turn can win: rolling a 1 forfeits turn_total, so
+            # the same `last_roll > 1` condition as the banking line applies.
+            winner = jax.lax.select(
+                (action == 0) & (state.last_roll > 1) & (state.totals[state.color] + state.turn_total >= TARGET),
+                state.color, state.winner),
         )
 
 
-    def observe(self, state: GameState) -> Array:
+    def observe(self, state: GameState, color: Optional[Array] = None) -> Array:
+        """Totals as seen by `color` (the player to move by default), then the
+        current turn total and last roll."""
+        if color is None:
+            color = state.color
         return jnp.hstack([
-            jnp.roll(state.totals, -state.color),
+            jnp.roll(state.totals, -color),
             jnp.tile(state.turn_total, PLAYER_COUNT),
             jnp.tile(state.last_roll, PLAYER_COUNT),
         ])

@@ -14,7 +14,7 @@
 
 import jax
 import jax.numpy as jnp
-from pgx.pig import Pig, PLAYER_COUNT, TARGET
+from pgx.pig import Pig, PLAYER_COUNT, State, TARGET
 from pgx._src.games.pig import Game, GameState
 
 env = Pig()
@@ -138,6 +138,61 @@ def test_win():
     assert x2.winner == -1, "winner should not be set when banked total is below TARGET"
 
 
+def test_pig_out_cannot_win():
+    # Rolling a 1 forfeits the turn, so the forced stop must not win the game
+    # even when the lost turn total would have reached TARGET.
+    x = make_x(color=0, totals=[90, 10], turn_total=10, last_roll=1)
+    x2 = game.step(x, ACTION_STOP, step_key)
+    assert x2.totals[0] == 90, "a pig out banks nothing"
+    assert x2.winner == -1, "a pig out cannot win, even at TARGET or beyond"
+    assert not game.is_terminal(x2)
+
+    # The same position without the pig out does win.
+    x = make_x(color=0, totals=[90, 10], turn_total=10, last_roll=4)
+    assert game.step(x, ACTION_STOP, step_key).winner == 0
+
+
+def test_env_rewards_match_the_winner():
+    # Through the env, not the bare game: rewards are indexed by player id, and
+    # the winning stop switches the current player, which a rotation would get
+    # backwards.
+    for winner, totals in ((0, [95, 10]), (1, [10, 95])):
+        x = make_x(color=winner, totals=totals, turn_total=5, last_roll=4)
+        state = State(current_player=jnp.int32(winner), _x=x,
+                      observation=game.observe(x))  # type: ignore
+        out = step(state, ACTION_STOP, step_key)
+        assert bool(out.terminated), "banking to TARGET should end the episode"
+        assert int(out._x.winner) == winner
+        assert out.rewards[winner] == 1.0, f"player {winner} won and should be rewarded"
+        assert out.rewards[1 - winner] == -1.0
+
+
+def test_env_playthrough_rewards_are_consistent():
+    # Play games out with a simple policy and check the reported rewards always
+    # agree with the winner, for both seats.
+    key = jax.random.PRNGKey(7)
+    winners = set()
+    for game_i in range(12):
+        key, k = jax.random.split(key)
+        state = init(k)
+        while not bool(state.terminated):
+            key, k = jax.random.split(key)
+            roll_again = bool(state.legal_action_mask[1]) and int(state._x.turn_total) < 15 + 5 * game_i % 3
+            state = step(state, ACTION_CONTINUE if roll_again else ACTION_STOP, k)
+        winner = int(state._x.winner)
+        winners.add(winner)
+        assert state.rewards[winner] == 1.0 and state.rewards[1 - winner] == -1.0
+        assert int(state._x.totals[winner]) >= TARGET, "the winner must have reached TARGET"
+    assert winners == {0, 1}, "both players should win some games"
+
+
+def test_observe_is_from_the_requested_players_view():
+    x = make_x(color=1, totals=[30, 50], turn_total=7, last_roll=4)
+    state = State(current_player=jnp.int32(1), _x=x, observation=game.observe(x))  # type: ignore
+    assert observe(state, jnp.int32(1))[0] == 50, "player 1 sees their own total first"
+    assert observe(state, jnp.int32(0))[0] == 30, "player 0 sees their own total first"
+
+
 def test_rewards():
     assert (game.rewards(make_x(winner=-1)) == jnp.float32([0.0, 0.0])).all()
     r0 = game.rewards(make_x(winner=0))
@@ -165,5 +220,4 @@ def test_observe():
 def test_api():
     import pgx
     environment = pgx.make("pig")
-    # pgx.api_test(environment, 3, use_key=False)  # TODO
-    # pgx.api_test(environment, 3, use_key=True)   # TODO
+    pgx.api_test(environment, 3, use_key=True)

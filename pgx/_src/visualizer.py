@@ -553,6 +553,23 @@ class Visualizer:
                 self.config["COLOR_SET"] = ColorSet(
                     "white", "black", "white", "black", "white", "black", ""
                 )
+        elif _state.env_id == "pig":
+            from pgx._src.dwg.pig import _make_pig_dwg
+
+            self.config["GRID_SIZE"] = 30
+            self.config["BOARD_WIDTH"] = 7
+            self.config["BOARD_HEIGHT"] = 6
+            self._make_dwg_group = _make_pig_dwg  # type:ignore
+            if (self.config["COLOR_THEME"] is None and self.config["COLOR_THEME"] == "dark") or self.config[
+                "COLOR_THEME"
+            ] == "dark":
+                self.config["COLOR_SET"] = ColorSet(
+                    "gray", "black", "black", "dimgray", "#1e1e1e", "gainsboro", "gainsboro"
+                )
+            else:
+                self.config["COLOR_SET"] = ColorSet(
+                    "white", "black", "lightgray", "white", "white", "black", "black"
+                )
         elif _state.env_id == "othello":
             from pgx._src.dwg.othello import _make_othello_dwg
 

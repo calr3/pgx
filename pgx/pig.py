@@ -28,7 +28,7 @@ class State(core.State):
     rewards: Array = jnp.zeros(PLAYER_COUNT, jnp.float32)
     terminated: Array = jnp.bool_(False)
     truncated: Array = jnp.bool_(False)
-    observation: Array = jnp.ones((PLAYER_COUNT, 2), dtype=jnp.int32)
+    observation: Array = jnp.zeros(3 * PLAYER_COUNT, dtype=jnp.int32)
     legal_action_mask: Array = jnp.ones(2, dtype=jnp.bool_)
     _step_count: Array = jnp.int32(0)
     _x: GameState = GameState()
@@ -63,8 +63,9 @@ class Pig(core.Env):
         assert isinstance(state, State)
         legal_action_mask = self._game.legal_action_mask(state._x)
         terminated = self._game.is_terminal(state._x)
+        # `rewards` is indexed by player, and this env keeps player ids equal to
+        # the game's colors, so it needs no rotation.
         rewards = self._game.rewards(state._x)
-        rewards = jnp.roll(rewards, -state.current_player)
         rewards = jax.lax.select(terminated, rewards, jnp.zeros(PLAYER_COUNT, jnp.float32))
         return state.replace(  # type: ignore
             legal_action_mask=legal_action_mask,
@@ -74,7 +75,7 @@ class Pig(core.Env):
 
     def _observe(self, state: core.State, player_id: Array) -> Array:
         assert isinstance(state, State)
-        return self._game.observe(state._x)
+        return self._game.observe(state._x, player_id)
 
     @property
     def id(self) -> core.EnvId:
