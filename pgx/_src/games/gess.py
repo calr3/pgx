@@ -40,8 +40,10 @@ EMPTY = 0                  # empty cell
 BLACK = 1                  # black stone (player 0, moves first)
 WHITE = 2                  # white stone (player 1)
 
-# The game is drawn once this many consecutive turns (full moves) pass without
-# a capture of any kind (opponent captures and self-captures both count).
+# Once this many consecutive turns (full moves) pass without a capture of any
+# kind (opponent captures and self-captures both count), the game ends and is
+# decided on material: the player with more stones on the playing area wins,
+# and only an exact tie is a draw.
 DRAW_NO_CAPTURE_TURNS = 20
 
 # Eight compass directions as a JAX array (8, 2) of (dr, dc) pairs.
@@ -92,15 +94,18 @@ class Game:
         return jnp.where(state.stage == 0, src_mask, dst_mask)
 
     def is_terminal(self, state: GameState) -> Array:
-        # A win, or a draw from too many consecutive captureless turns. A win
-        # always destroys a ring (hence captures), so it resets no_capture_turns;
-        # the two conditions therefore never collide.
+        # A win, or too many consecutive captureless turns (then decided on
+        # material, see rewards). A win always destroys a ring (hence captures),
+        # so it resets no_capture_turns; the two never collide.
         return (state.winner >= 0) | (state.no_capture_turns >= DRAW_NO_CAPTURE_TURNS)
 
     def rewards(self, state: GameState) -> Array:
+        # A captureless stalemate goes to whoever has more stones left; an exact
+        # tie (rare) is the only draw.
+        winner = jax.lax.select(state.winner >= 0, state.winner, _material_winner(state.board))
         return jax.lax.select(
-            state.winner >= 0,
-            jnp.float32([-1.0, -1.0]).at[state.winner].set(1.0),
+            winner >= 0,
+            jnp.float32([-1.0, -1.0]).at[jnp.clip(winner, 0, 1)].set(1.0),
             jnp.zeros(2, jnp.float32),
         )
 
@@ -289,6 +294,13 @@ def _legal_dest_mask(state: GameState, source: Array) -> Array:
     return (jnp.zeros(N, dtype=jnp.int32)
             .at[safe_dest_8.flatten()]
             .add(is_valid_8.flatten())) > 0
+
+
+def _material_winner(board: Array) -> Array:
+    """Player with more stones on the playing area: 0 black, 1 white, -1 tied."""
+    b = board.reshape(BOARD_SIZE, BOARD_SIZE)[MIN_IDX: MAX_IDX + 1, MIN_IDX: MAX_IDX + 1]
+    black, white = (b == BLACK).sum(), (b == WHITE).sum()
+    return jnp.where(black > white, jnp.int32(0), jnp.where(white > black, jnp.int32(1), jnp.int32(-1)))
 
 
 # ─── Ring detection ──────────────────────────────────────────────────────────

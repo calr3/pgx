@@ -158,7 +158,8 @@ def main() -> None:
     # Bump when game generation changes, so older cached results are replayed.
     # 2: random openings avoid multi-stage choices whose every follow-up ends the
     #    game (previously ~13% of Gess games ended in the opening).
-    settings["game_version"] = 2
+    # 3: Gess v1 rules - a captureless stalemate is decided on stone count.
+    settings["game_version"] = 3
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:
