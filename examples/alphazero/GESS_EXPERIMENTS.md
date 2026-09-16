@@ -364,7 +364,7 @@ captures for 20 turns" is an extra strategy to learn.
 scale it costs ~90 Elo. One seed at one scale; a longer run might close the gap.
 Not adopted for now (see plan).
 
-## E13. Full-size run under v1 rules, ~8 h (running)
+## E13. Full-size run under v1 rules, ~8 h
 
 **Question.** E12 showed the v1 stalemate rule removes draws but cost ~90 Elo
 at pilot scale. Adopted anyway (user decision: the rule is the game we want).
@@ -377,7 +377,20 @@ replay 4, bf16, playout cap 0.25/8, augmentation, cosine, warmup 500,
 `train_micro_batches=2` from the start (E11 needed it to resume). Started
 12:05. Run `zfnfbzor`.
 
-**Result.** Pending.
+**Result.** 72 iterations, 7.16 h, no errors. Final MCTS score vs. E10 **0.816**
+(E11, v0 rules: 0.879) and raw-policy win rate vs. the old baseline **52.1%**
+(E11: 48.6%). Draws stayed low all run (0.4-7.5%, ending 6.4%) where E11 reached
+24%; games still lengthened to ~185 steps. Value loss settled ~0.31 (E11: 0.26),
+as expected when outcomes hinge on material rather than an easy draw. Progress
+was slower than E11 until the last third (0.0 at iteration 21, 0.19 at 31, 0.39
+at 51, 0.68 at 61, 0.82 at the end). Checkpoint
+`checkpoints/gess_20260916200542`.
+
+**Conclusion.** Under v1 the recipe reaches roughly E11's level at full size
+(slightly behind on the MCTS metric, slightly ahead on raw policy), while nearly
+eliminating draws. The pilot-scale ~90 Elo cost of the rule change (E12) does
+not obviously persist at full size; a v1-rules ladder of E11 vs. E13 would settle
+it.
 
 ---
 
