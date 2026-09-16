@@ -217,6 +217,23 @@ def test_observe():
     assert obs[1] == 30
 
 
+def test_hold_at_20_baseline():
+    """The pig_v0 baseline should follow hold-at-20, and never roll after a 1."""
+    import pgx
+
+    baseline = pgx.make_baseline_model("pig_v0")
+
+    def chosen_action(totals, turn_total, last_roll):
+        obs = game.observe(make_x(color=0, totals=totals, turn_total=turn_total, last_roll=last_roll))
+        logits, _ = baseline(obs.reshape(1, -1))
+        return int(jnp.argmax(logits[0]))
+
+    assert chosen_action([0, 0], 19, 5) == 1, "under 20, it should roll"
+    assert chosen_action([0, 0], 20, 5) == 0, "at 20, it should hold"
+    assert chosen_action([85, 0], 15, 5) == 0, "it should hold on a winning total"
+    assert chosen_action([0, 0], 5, 1) == 0, "rolling is illegal after a 1"
+
+
 def test_api():
     import pgx
     environment = pgx.make("pig")

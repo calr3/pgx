@@ -37,7 +37,14 @@ class Config(BaseModel):
     # "resnet" is AZNet (above fields). "gessformer" is the hybrid conv-stem +
     # Chessformer-style transformer for Gess (network.GessFormer), configured by
     # the gf_* fields below, which the resnet ignores.
-    architecture: Literal["resnet", "gessformer", "rayformer", "boardformer"] = "resnet"
+    architecture: Literal["resnet", "gessformer", "rayformer", "boardformer", "mlp"] = "resnet"
+    # "mlp" (network.MLPNet) is for games whose observation is a flat vector of
+    # counters rather than a board, e.g. pig. mlp_onehot_bins > 0 additionally
+    # one-hot encodes each feature over [0, bins) (101 suits pig's 0..100
+    # scores); 0 feeds the raw values only.
+    mlp_width: int = 256
+    mlp_layers: int = 3
+    mlp_onehot_bins: int = 0
     gf_stem_channels: int = 64
     gf_stem_blocks: int = 2
     gf_embed_dim: int = 192

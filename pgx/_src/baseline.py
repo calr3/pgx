@@ -19,6 +19,7 @@ BaselineModelId = Literal[
     "heckmeck_v0",
     "hex_v0",
     "othello_v0",
+    "pig_v0",
     "minatar-asterix_v0",
     "minatar-breakout_v0",
     "minatar-freeway_v0",
@@ -66,6 +67,8 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
             "resnet_v2": True,
           },
           shape = (1, 4, 7, 4 + 2*11))
+    elif model_id == "pig_v0":
+        return _make_pig_hold_at_20_model()
     elif model_id == "epaminondas_v0":
         return _make_untrained_baseline_model(
            model_args = {
@@ -143,6 +146,28 @@ def _make_untrained_baseline_model(model_args, shape):
         return logits, value
 
     return apply
+
+def _make_pig_hold_at_20_model():
+    """The classic "hold at 20" pig benchmark policy, as a baseline model.
+
+    An untrained network is a poor yardstick for a two-action game, whereas
+    hold-at-20 is the standard simple strategy (and close to optimal away from
+    the end of the game), so a win rate against it is directly meaningful.
+
+    The observation is `[own_total, opp_total, turn_total, turn_total,
+    last_roll, last_roll]` from the mover's point of view; action 0 holds and
+    action 1 rolls. Rolling is illegal after a 1, so that case holds too.
+    """
+
+    def apply(obs):
+        obs = obs.reshape((obs.shape[0], -1)).astype(jnp.float32)
+        own_total, turn_total, last_roll = obs[:, 0], obs[:, 2], obs[:, 4]
+        hold = (turn_total >= 20) | (own_total + turn_total >= 100) | (last_roll <= 1)
+        logits = jnp.stack([jnp.where(hold, 10.0, -10.0), jnp.where(hold, -10.0, 10.0)], axis=-1)
+        return logits, jnp.zeros(obs.shape[0], dtype=jnp.float32)
+
+    return apply
+
 
 def _make_minatar_baseline_model(model_id: BaselineModelId, download_dir: str = "baselines"):
     import haiku as hk

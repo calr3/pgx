@@ -190,6 +190,52 @@ def _layer_norm(name=None):
     return hk.LayerNorm(axis=-1, create_scale=True, create_offset=True, name=name)
 
 
+class MLPNet(hk.Module):
+    """A small residual MLP for flat (non-grid) observations, e.g. pig's (6,).
+
+    Games whose observation is a handful of counters have no spatial structure
+    for a conv net to exploit, but their value function is very non-linear in
+    those counters (in pig, "can I reach 100 this turn?" flips behaviour). So
+    when `onehot_bins` > 0 each integer feature is one-hot encoded over
+    [0, onehot_bins) - clipped, so anything above the top bin lands in it - and
+    concatenated with the same features scaled to roughly [0, 1]. That gives
+    the trunk a near-tabular input while keeping a smooth signal for
+    extrapolation.
+    """
+
+    def __init__(self, num_actions, width=256, num_layers=3, onehot_bins=0, name="MLPNet"):
+        super().__init__(name=name)
+        self.num_actions = num_actions
+        self.width = width
+        self.num_layers = num_layers
+        self.onehot_bins = onehot_bins
+
+    def __call__(self, x, is_training=True, test_local_stats=False):
+        del is_training, test_local_stats
+        dtype = x.dtype
+        x = x.reshape((x.shape[0], -1))
+        feats = [x / max(self.onehot_bins - 1, 1) if self.onehot_bins > 0 else x]
+        if self.onehot_bins > 0:
+            idx = jnp.clip(jnp.round(x.astype(jnp.float32)), 0, self.onehot_bins - 1).astype(jnp.int32)
+            feats.append(jax.nn.one_hot(idx, self.onehot_bins, dtype=dtype).reshape((x.shape[0], -1)))
+        h = hk.Linear(self.width, w_init=_TF_INIT)(jnp.concatenate(feats, axis=-1))
+        for _ in range(self.num_layers):
+            r = _layer_norm()(h)
+            r = jax.nn.gelu(r)
+            r = hk.Linear(self.width, w_init=_TF_INIT)(r)
+            r = jax.nn.gelu(r)
+            r = hk.Linear(self.width, w_init=_TF_INIT)(r)
+            h = h + r
+        h = _layer_norm()(h)
+        h = jax.nn.gelu(h)
+
+        logits = hk.Linear(self.num_actions, w_init=_TF_INIT)(h)
+        v = hk.Linear(self.width // 2, w_init=_TF_INIT)(h)
+        v = jax.nn.gelu(v)
+        v = hk.Linear(1, w_init=_TF_INIT)(v)
+        return logits, jnp.tanh(v).reshape((-1,))
+
+
 class ConvBlock(hk.Module):
     """Pre-LN residual block: [LN -> GELU -> 3x3 conv] x 2."""
 
@@ -670,7 +716,14 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
 
     def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
         x = x.astype(dtype)
-        if config.architecture == "boardformer":
+        if config.architecture == "mlp":
+            net = MLPNet(
+                num_actions=num_actions,
+                width=config.mlp_width,
+                num_layers=config.mlp_layers,
+                onehot_bins=config.mlp_onehot_bins,
+            )
+        elif config.architecture == "boardformer":
             net = BoardFormer(
                 num_actions=num_actions,
                 stem_channels=config.bf_stem_channels,

@@ -114,11 +114,13 @@ def recurrent_fn(
 ) -> tuple[mctx.RecurrentFnOutput, pgx.State]:
     # model: params
     # state: embedding
-    del rng_key
     model_params, model_state = model
 
     current_player = state.current_player
-    state = jax.vmap(env.step)(state, action)
+    # Stochastic envs (e.g. pig) consume the key to resolve chance events, so
+    # every node of the search tree samples its own outcome. Deterministic envs
+    # ignore it.
+    state = jax.vmap(env.step)(state, action, jax.random.split(rng_key, action.shape[0]))
 
     (logits, value), _ = selfplay_forward.apply(model_params, model_state, state.observation, is_eval=True)
     # mask invalid actions
@@ -330,6 +332,10 @@ def evaluate(rng_key: jnp.ndarray, my_model: Model) -> tuple[jnp.ndarray, jnp.nd
         opp_logits, _ = baseline(state.observation)
         is_my_turn = state.current_player == my_player
         logits = jnp.where(is_my_turn.reshape((-1, 1)), my_logits, opp_logits)
+        # Sampling unmasked would pick illegal actions, which pgx scores as an
+        # immediate loss for the mover. Harmless for envs where nearly every
+        # action is legal, fatal for ones like pig where it is common.
+        logits = jnp.where(state.legal_action_mask, logits, jnp.finfo(logits.dtype).min)
 
         # The value head predicts the outcome for the player to move. The true
         # target is that player's final reward = s * R, where R is my_player's
@@ -343,9 +349,9 @@ def evaluate(rng_key: jnp.ndarray, my_model: Model) -> tuple[jnp.ndarray, jnp.nd
         sum_sv = sum_sv + alive * s * my_value
         n = n + alive
 
-        key, subkey = jax.random.split(key)
+        key, subkey, step_key = jax.random.split(key, 3)
         action = jax.random.categorical(subkey, logits, axis=-1)
-        state = jax.vmap(env.step)(state, action)
+        state = jax.vmap(env.step)(state, action, jax.random.split(step_key, batch_size))
         R = R + state.rewards[jnp.arange(batch_size), my_player]
         return (key, state, R, sum_v2, sum_sv, n)
 

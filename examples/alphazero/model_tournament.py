@@ -134,11 +134,11 @@ def make_recurrent_fn(env: pgx.Env, forward: hk.TransformedWithState) -> mctx.Re
     def recurrent_fn(
         model: Model, rng_key: jnp.ndarray, action: jnp.ndarray, state: pgx.State
     ) -> tuple[mctx.RecurrentFnOutput, pgx.State]:
-        del rng_key
         model_params, model_state = model
 
         current_player = state.current_player
-        state = jax.vmap(env.step)(state, action)
+        # Keys let stochastic envs resolve chance events inside the search tree.
+        state = jax.vmap(env.step)(state, action, jax.random.split(rng_key, action.shape[0]))
 
         (logits, value), _ = forward.apply(model_params, model_state, state.observation, is_eval=True)
         logits = jnp.where(state.legal_action_mask, logits, jnp.finfo(logits.dtype).min)

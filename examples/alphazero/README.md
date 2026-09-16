@@ -35,6 +35,25 @@ $ python3 train.py env_id=gess architecture=gessformer learning_rate=5e-4 \
     weight_decay=1e-4 warmup_steps=500 grad_clip_norm=1.0
 ```
 
+### MLP (flat observations) and games with randomness
+
+`architecture=mlp` is for games whose observation is a short vector of counters
+rather than a board, such as `pig`. It is a residual MLP; `mlp_onehot_bins=N`
+one-hot encodes each feature over `[0, N)` alongside the scaled raw values,
+which matters when the value function is sharply non-linear in those counters
+(in pig, whether banking now reaches 100).
+
+Stochastic environments are supported: `train.py` gives every `env.step` a
+random key, so each MCTS simulation samples its own chance outcome and the
+search averages over them. `pgx.make_baseline_model("pig_v0")` is the classic
+hold-at-20 policy, so `eval/vs_baseline/win_rate` is directly meaningful.
+
+```sh
+$ python3 train.py env_id=pig architecture=mlp mlp_onehot_bins=101 \
+    selfplay_batch_size=1024 num_simulations=32 max_num_steps=256 \
+    training_batch_size=4096 replay_buffer_iters=4
+```
+
 ### Training data options
 
 All default to the original behaviour; see `config.py` for details.
