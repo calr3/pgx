@@ -90,7 +90,34 @@ against hold-at-20's 0.461 and optimal's 0.500. The value head has learned the
 game (its threshold of 18 is close to the true 21); the policy head, trained on
 those quantised sign-only targets, throws that away.
 
-The lesson generalises beyond pig: **for a stochastic game, search should expand
+## E3: qtransform=completed_unscaled, 60 iterations (~21 min)
+
+E1's recipe with one change: `qtransform_completed_by_mix_value` with
+`rescale_values=False`, which keeps Gumbel's completion of unvisited actions but
+drops the per-node rescaling, so the size of an advantage - not just its sign -
+reaches the policy target.
+
+The oracle search predicted this: with rescaling it gets the probe wrong at turn
+totals 30, 35 and 45 and returns quantised weights; without it, every probe is
+right (rolls below 21, holds above). The rescaling was amplifying a
+noise-sized Q difference into a large logit shift that overrode a correct prior.
+
+| | agree | played | v_rmse | vs optimal |
+|---|---|---|---|---|
+| E1 iteration 60 | 0.560 | 0.715 | 0.298 | 0.100 |
+| **E3 iteration 60** | **0.725** | **0.754** | **0.242** | **0.298** |
+| E3, value head + expectimax | | 0.885 | | 0.448 |
+
+Three times the score against optimal play at slightly less wall clock, and the
+policy loss finally moves (0.595 -> 0.285, against E1's 0.57 -> 0.51 and E2's
+flat 0.555). The value head improved too (0.428 -> 0.448 played by expectimax),
+since better play makes better targets.
+
+The policy head still trails its own value head (0.298 vs 0.448), so there is
+more to get here - more iterations, and `chance_samples` is worth retesting now
+that its failure mode (a sign-only target) is gone.
+
+**For a stochastic game, search should expand
 chance nodes rather than sample one successor per edge**, and a two-action game
 needs a q-transform that preserves the magnitude of the advantage (e.g.
 `qtransform_by_min_max` over a fixed [-1, 1]) rather than one that rescales it

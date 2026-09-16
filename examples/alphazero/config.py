@@ -95,6 +95,19 @@ class Config(BaseModel):
     # stochastic envs (e.g. pig), and it assumes every outcome of an action
     # leaves the same player to move.
     chance_samples: int = 1
+    # How search Q values are scaled before they enter the improved policy that
+    # becomes the training target.
+    #   "completed_by_mix_value" - mctx's default; rescales Q to the range seen
+    #     across the node's actions. With only two actions that range *is* the
+    #     gap between them, so only the sign of the advantage survives.
+    #   "completed_unscaled" - the same completion without that rescaling, so the
+    #     size of the advantage reaches the target. Better for small action
+    #     spaces (pig).
+    #   "by_min_max" - rescale by a fixed [-1, 1] instead, with no completion of
+    #     unvisited actions.
+    qtransform: Literal["completed_by_mix_value", "completed_unscaled", "by_min_max"] = (
+        "completed_by_mix_value"
+    )
     # Run the self-play network in bfloat16 (weights cast per call; training and
     # evaluation stay float32). ~2x faster inference for gessformer.
     selfplay_bf16: bool = False

@@ -109,6 +109,15 @@ selfplay_forward = make_forward(env.num_actions, config, dtype=selfplay_dtype)
 optimizer = make_optimizer(config)
 
 
+qtransform = {
+    "completed_by_mix_value": mctx.qtransform_completed_by_mix_value,
+    # Keep the completion but not the per-node rescaling, so the magnitude of an
+    # action's advantage - not just its sign - reaches the policy target.
+    "completed_unscaled": partial(mctx.qtransform_completed_by_mix_value, rescale_values=False),
+    "by_min_max": partial(mctx.qtransform_by_min_max, min_value=-1.0, max_value=1.0),
+}[config.qtransform]
+
+
 def recurrent_fn(
     model: Model, rng_key: jnp.ndarray, action: jnp.ndarray, state: pgx.State
 ) -> tuple[mctx.RecurrentFnOutput, pgx.State]:
@@ -215,7 +224,7 @@ def selfplay(
                 recurrent_fn=recurrent_fn,
                 num_simulations=sims,
                 invalid_actions=~state.legal_action_mask,
-                qtransform=mctx.qtransform_completed_by_mix_value,
+                qtransform=qtransform,
                 gumbel_scale=1.0,  # 0.0 for perfect information games
             )
             return policy_output.action, policy_output.action_weights
