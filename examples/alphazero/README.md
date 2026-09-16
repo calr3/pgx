@@ -76,6 +76,19 @@ $ python3 elo_ladder.py env_id=gess games_per_pair=256 num_simulations=32 \
     models=a=checkpoints/run_a/000060.ckpt,b=checkpoints/run_b/000060.ckpt,c=checkpoints/run_c/000040.ckpt
 ```
 
+### Running a trained model elsewhere (ONNX)
+
+`export_onnx.py` converts a checkpoint's policy/value network to ONNX, for
+`onnxruntime-web` (WebGPU or WebAssembly) or any other ONNX runtime. It exports
+the network only — the game rules and MCTS still have to exist on the target
+platform. See the header of the script for the three commands (`dump`,
+`convert`, `verify`); conversion needs `jax2onnx` in a throwaway virtualenv.
+
+Measured on a GessFormer checkpoint (7.2M parameters): 29 MB at opset 20, 2073
+nodes of standard operators, outputs within 0.012 of JAX on logits of scale 35
+(value within 1e-4) and the same best move on every test position, at ~9 ms per
+position on one CPU core.
+
 ## Reference
 
 - [[Silver+18](https://www.science.org/doi/10.1126/science.aar6404)] "A general reinforcement learning algorithm that masters
