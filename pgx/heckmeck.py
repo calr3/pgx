@@ -31,7 +31,7 @@ class State(core.State):
     terminated: Array = jnp.bool_(False)
     truncated: Array = jnp.bool_(False)
     observation: Array = jnp.ones((3, _TILE_COUNT, _TILE_COUNT + 13), dtype=jnp.int32)
-    legal_action_mask: Array = jnp.ones(13, dtype=jnp.bool_)
+    legal_action_mask: Array = jnp.ones(19, dtype=jnp.bool_)
     _step_count: Array = jnp.int32(0)
     _x: GameState = GameState()
 

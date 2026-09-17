@@ -12,6 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Heckmeck am Bratwurmeck (Pickomino), Reiner Knizia / Zoch 2005.
+
+Deviations from the published rules, all deliberate:
+
+- **A reduced game.** 4 dice and 8 tiles valued 11-18, with 1,1,2,2,3,3,4,4
+  worms, against the published 8 dice and 16 tiles valued 21-36 with
+  1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4 worms. The full-size constants are kept
+  commented out below. The reduced worm ladder is steeper than a scaled-down
+  version of the original.
+- **Exactly 3 players**, where the published game takes 2 to 7.
+
+The rest follows the rulebook, including the two cases it spells out that are
+easy to get wrong: a player who busts with nothing to return turns no tile
+over, and a returned tile that is the highest on the grill means no tile is
+turned over either.
+
+An action is one of 6 "set aside this face and roll on", 6 "set aside this face
+and claim from the grill", a bust, and 6 "set aside this face and snatch an
+opponent's topmost tile". Snatching needs an exact match, and tile values are
+unique, so the face alone identifies which opponent is robbed.
+"""
+
 from typing import NamedTuple, Optional
 import functools
 import jax
@@ -68,7 +90,10 @@ class GameState(NamedTuple):
     """Internal state for the game Heckmeck."""
 
     color: Array = jnp.int32(0)
-    grill: Array = jnp.ones_like(_TILE_VALS, jnp.bool_)  # True (available), False (taken)
+    # True (available), False (taken or turned over). Index 0 is not a tile - it
+    # is the "no tile" slot that _TILE_VALS and _WORM_VALS pad with a zero - so
+    # it is never available, or the game could not end while it stood open.
+    grill: Array = jnp.ones_like(_TILE_VALS, jnp.bool_).at[0].set(False)
     stacks: Array = jnp.zeros((_PLAYER_COUNT, len(_TILE_VALS) - 1), jnp.int32)
     dice_rolled: Array = jnp.zeros(6, jnp.int32)
     dice_taken: Array = jnp.zeros(6, jnp.int32)
@@ -104,7 +129,13 @@ class Game:
              functools.partial(_step_take_and_stop, 5),
              # Action 12: Bust
              _step_bust,
-             # TODO: Steal from 1 and 2.
+             # Actions 13 - 18: Take and snatch an opponent's topmost tile
+             functools.partial(_step_take_and_steal, 0),
+             functools.partial(_step_take_and_steal, 1),
+             functools.partial(_step_take_and_steal, 2),
+             functools.partial(_step_take_and_steal, 3),
+             functools.partial(_step_take_and_steal, 4),
+             functools.partial(_step_take_and_steal, 5),
           ],
           state, action, key,
         )
@@ -133,35 +164,33 @@ class Game:
         has_worm_already = state.dice_taken[0] > 0
         dice_taken_already = state.dice_taken.sum()
         total_already = (_DICE_VALS * state.dice_taken).sum()
-        picks_taken = (state.dice_taken > 0).sum()
 
-        can_take_0 = (state.dice_taken[0] == 0) & (state.dice_rolled[0] > 0)
-        can_take_1 = (state.dice_taken[1] == 0) & (state.dice_rolled[1] > 0)
-        can_take_2 = (state.dice_taken[2] == 0) & (state.dice_rolled[2] > 0)
-        can_take_3 = (state.dice_taken[3] == 0) & (state.dice_rolled[3] > 0)
-        can_take_4 = (state.dice_taken[4] == 0) & (state.dice_rolled[4] > 0)
-        can_take_5 = (state.dice_taken[5] == 0) & (state.dice_rolled[5] > 0)
+        # A face may only be set aside if it was just rolled and has not been
+        # set aside already; taking it takes every die showing it.
+        can_take = (state.dice_taken == 0) & (state.dice_rolled > 0)
+        total_after = total_already + _DICE_VALS * state.dice_rolled
+        # Any claim needs a worm among the dice set aside - taking the worms
+        # themselves supplies one.
+        would_have_worm = has_worm_already | (jnp.arange(6) == 0)
 
         grill_values = state.grill * _TILE_VALS
         smallest_grill_value = jnp.min(jnp.where(grill_values == 0, 999, grill_values))
 
-        legal_moves = jnp.bool_([
-            can_take_0 & (dice_taken_already + state.dice_rolled[0] < _DICE_COUNT) & (picks_taken < 6),
-            can_take_1 & (dice_taken_already + state.dice_rolled[1] < _DICE_COUNT) & (picks_taken < 6),
-            can_take_2 & (dice_taken_already + state.dice_rolled[2] < _DICE_COUNT) & (picks_taken < 6),
-            can_take_3 & (dice_taken_already + state.dice_rolled[3] < _DICE_COUNT) & (picks_taken < 6),
-            can_take_4 & (dice_taken_already + state.dice_rolled[4] < _DICE_COUNT) & (picks_taken < 6),
-            can_take_5 & (dice_taken_already + state.dice_rolled[5] < _DICE_COUNT) & (picks_taken < 6),
-            can_take_0 & (total_already + state.dice_rolled[0] * 5 >= smallest_grill_value),
-            can_take_1 & (total_already + state.dice_rolled[0] * 1 >= smallest_grill_value) & has_worm_already,
-            can_take_2 & (total_already + state.dice_rolled[0] * 2 >= smallest_grill_value) & has_worm_already,
-            can_take_3 & (total_already + state.dice_rolled[0] * 3 >= smallest_grill_value) & has_worm_already,
-            can_take_4 & (total_already + state.dice_rolled[0] * 4 >= smallest_grill_value) & has_worm_already,
-            can_take_5 & (total_already + state.dice_rolled[0] * 5 >= smallest_grill_value) & has_worm_already,
-        ])
+        # A tile can also be snatched off the top of an opponent's stack, but
+        # only on an exact match. Tile values are unique, so a total matches at
+        # most one opponent, and only their topmost tile is exposed.
+        tops = state.stacks[:, 0]
+        exposed = (tops > 0) & (jnp.arange(_PLAYER_COUNT) != state.color)
+        can_steal = (exposed[:, None] & (_TILE_VALS[tops][:, None] == total_after[None, :])).any(axis=0)
+
+        # Rolling on needs a die left to roll.
+        take_and_roll = can_take & (dice_taken_already + state.dice_rolled < _DICE_COUNT)
+        take_and_stop = can_take & would_have_worm & (total_after >= smallest_grill_value)
+        take_and_steal = can_take & would_have_worm & can_steal
 
         # Busting is legal exactly when all other moves are illegal.
-        return jnp.hstack([legal_moves, (~legal_moves).all()])
+        any_legal = jnp.concatenate([take_and_roll, take_and_stop, take_and_steal]).any()
+        return jnp.hstack([take_and_roll, take_and_stop, ~any_legal, take_and_steal])
 
 
     def is_terminal(self, state: GameState) -> Array:
@@ -226,17 +255,48 @@ def _step_take_and_stop(die, state: GameState, action: Array, key: PRNGKey) -> G
     )
 
 
+def _step_take_and_steal(die, state: GameState, action: Array, key: PRNGKey) -> GameState:
+    dice_taken = state.dice_taken.at[die].set(state.dice_rolled[die])
+    total_made = (_DICE_VALS * dice_taken).sum()
+
+    # Legality has already established that exactly one opponent's topmost tile
+    # matches the total, so the match identifies the victim.
+    tops = state.stacks[:, 0]
+    victim = jnp.argmax(
+        (tops > 0) & (jnp.arange(_PLAYER_COUNT) != state.color) & (_TILE_VALS[tops] == total_made)
+    )
+    tile_index_taken = state.stacks[victim, 0]
+
+    new_stacks = state.stacks.at[victim].set(jnp.pad(state.stacks[victim][1:], (0, 1)))
+    new_stacks = new_stacks.at[state.color].set(
+        jnp.roll(new_stacks[state.color], 1).at[0].set(tile_index_taken))
+    fresh_dice_taken = jnp.zeros(6, dtype=jnp.int32)
+
+    # The grill is untouched: the tile moves from one stack to another.
+    return state._replace(
+        color = (state.color + 1) % _PLAYER_COUNT,
+        stacks = new_stacks,
+        dice_rolled = _roll(fresh_dice_taken, key),
+        dice_taken = fresh_dice_taken,
+        winner = _winner(state.grill, new_stacks),
+    )
+
+
 def _step_bust(state: GameState, action: Array, key: PRNGKey) -> GameState:
     assert isinstance(key, Array)
 
     returned_tile = state.stacks[state.color][0]
 
-    # Apply the flip first, then return the tile.
-    # TODO: this is wrong in the case where the returned tile is the new highest.
-    grill_with_flip = state.grill.at[len(state.grill) - 1 - jnp.argmax(state.grill[::-1])].set(False)
-    new_grill = jax.lax.select(returned_tile == 0,
-                               state.grill,
-                               grill_with_flip.at[returned_tile].set(True))
+    # The tile goes back on the grill first, and only then is the highest tile
+    # still on the grill turned over. So if the returned tile is itself the
+    # highest, nothing is turned over - and a player with no tile to return
+    # turns nothing over either.
+    has_tile = returned_tile > 0
+    grill_returned = jax.lax.select(has_tile, state.grill.at[returned_tile].set(True), state.grill)
+    highest = len(_TILE_VALS) - 1 - jnp.argmax(grill_returned[::-1])
+    new_grill = jax.lax.select(has_tile & (highest != returned_tile),
+                               grill_returned.at[highest].set(False),
+                               grill_returned)
     new_stacks = state.stacks.at[state.color].set(jnp.pad(state.stacks[state.color][1:], (0,1)))
     fresh_dice_taken = jnp.zeros(6, jnp.int32)
 
