@@ -35,6 +35,12 @@ class RenderConfig(BaseModel):
     env_id: pgx.EnvId = "epaminondas"
     model: str = ""
     out_dir: str = "game"
+    # One engine per seat, comma separated: "model" or "negamax". The default
+    # is self-play, which is what this script originally did.
+    players: str = "model,model"
+    # Per-action budget for a 'negamax' seat, and its depth ceiling.
+    negamax_time_s: float = 0.5
+    negamax_depth: int = 64
     seed: int = 0
     num_simulations: int = 32
     max_num_considered_actions: int = 16
@@ -51,9 +57,53 @@ class RenderConfig(BaseModel):
         extra = "forbid"
 
 
-def play(cfg: RenderConfig):
-    """Play one self-play game, returning a State per completed turn."""
-    env = pgx.make(cfg.env_id)
+def build_choosers(cfg: RenderConfig, env: pgx.Env):
+    """One action-chooser per seat, from the `players` spec.
+
+    Each returns a batch-of-one action array, so the caller does not care which
+    kind of engine is behind it.
+    """
+    kinds = [k.strip().lower() for k in cfg.players.split(",") if k.strip()]
+    if len(kinds) != env.num_players:
+        raise ValueError(
+            f"players={cfg.players!r} gives {len(kinds)} seats, "
+            f"but {env.id} has {env.num_players}"
+        )
+
+    choosers, names = [], []
+    model_search = None
+    for kind in kinds:
+        if kind == "model":
+            if model_search is None:
+                model_search = make_model_search(cfg, env)
+            choosers.append(model_search)
+            names.append(f"{os.path.basename(os.path.dirname(cfg.model))} "
+                         f"({cfg.num_simulations} sims)")
+        elif kind in ("negamax", "alphabeta", "ab"):
+            from negamax import NegamaxEngine, make_evaluator
+
+            engine = NegamaxEngine(
+                env,
+                make_evaluator(env.id),
+                max_depth=cfg.negamax_depth,
+                time_limit_s=cfg.negamax_time_s or None,
+            )
+
+            def negamax_chooser(key, state, _engine=engine):
+                del key
+                unbatched = jax.tree_util.tree_map(lambda x: x[0], state)
+                action, _ = _engine.select_action(unbatched)
+                return jnp.int32([action])
+
+            choosers.append(negamax_chooser)
+            names.append(f"alpha-beta ({cfg.negamax_time_s}s per action)")
+        else:
+            raise ValueError(f"Unknown player {kind!r}; use 'model' or 'negamax'.")
+    return choosers, names
+
+
+def make_model_search(cfg: RenderConfig, env: pgx.Env):
+    """The MCTS chooser for a 'model' seat."""
     model_cfg, model = load_from_checkpoint(cfg.model)
     forward = make_forward(env.num_actions, model_cfg)
     recurrent_fn = make_recurrent_fn(env, forward)
@@ -75,7 +125,14 @@ def play(cfg: RenderConfig):
         )
         return out.action
 
-    search = jax.jit(search)
+    return jax.jit(search)
+
+
+def play(cfg: RenderConfig):
+    """Play one game, returning a State per completed turn."""
+    env = pgx.make(cfg.env_id)
+    choosers, names = build_choosers(cfg, env)
+
     step = jax.jit(jax.vmap(env.step))
     key = jax.random.PRNGKey(cfg.seed)
     key, subkey = jax.random.split(key)
@@ -91,13 +148,14 @@ def play(cfg: RenderConfig):
         if bool(state.terminated[0]):
             break
         key, key_search, key_step = jax.random.split(key, 3)
-        action = search(key_search, state)
+        # The seat to move picks the engine, so the two sides can differ.
+        action = choosers[int(state.current_player[0])](key_search, state)
         state = step(state, action, jax.random.split(key_step, 1))
         # One frame per completed turn: current_player changing is the boundary.
         if int(state.current_player[0]) != mover or bool(state.terminated[0]):
             frames.append(unbatch(state))
             mover = int(state.current_player[0])
-    return env, frames
+    return env, frames, names
 
 
 def write_png(cfg: RenderConfig, svg_path: str, png_path: str) -> bool:
@@ -174,7 +232,8 @@ def main():
         sys.exit("model=<checkpoint> is required")
     os.makedirs(os.path.join(cfg.out_dir, "frames"), exist_ok=True)
 
-    env, frames = play(cfg)
+    # `names` below is the list of frame files; keep the seat labels separate.
+    env, frames, player_names = play(cfg)
     print(f"{len(frames) - 1} turns")
 
     names = []
@@ -194,13 +253,13 @@ def main():
     elif rewards[0] == rewards[1]:
         outcome = "drawn"
     else:
-        outcome = f"player {0 if rewards[0] > rewards[1] else 1} won"
-    meta = (
-        f"{env.id} {env.version}, {len(frames) - 1} turns, {outcome}. "
-        f"Self-play from {os.path.basename(os.path.dirname(cfg.model))}, "
-        f"{cfg.num_simulations} simulations per move."
+        winner = 0 if rewards[0] > rewards[1] else 1
+        outcome = f"{player_names[winner]} won as player {winner}"
+    seats = " vs ".join(f"player {i}: {n}" for i, n in enumerate(player_names))
+    meta = f"{env.id} {env.version}, {len(frames) - 1} turns, {outcome}. {seats}."
+    title = cfg.title or (
+        f"{env.id} {env.version}: " + " vs ".join(dict.fromkeys(player_names))
     )
-    title = cfg.title or f"{env.id} {env.version}: one self-play game"
 
     with open(os.path.join(cfg.out_dir, "index.html"), "w") as f:
         f.write(PAGE.format(
