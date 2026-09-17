@@ -55,7 +55,12 @@ EMPTY = 0
 WHITE = 1  # player 0, moves first, back rank is row 0
 BLACK = 2  # player 1, back rank is row HEIGHT - 1
 
-# Drawn once this many full moves have been played without a win.
+# The game ends once this many full moves have been played without a win, and is
+# then decided on material: the player with more pieces left wins, and only an
+# exact tie is a draw. This deviates from the published rules, which have no move
+# limit; a plain draw at the cap made stalling a safe equilibrium (a player who
+# never commits scores 0 rather than -1), and self-play converged on it. Gess
+# resolves its captureless stalemate the same way.
 MAX_MOVES = 300
 
 # The eight directions, and the index of each one's opposite.
@@ -136,14 +141,23 @@ class Game:
         return (state.winner >= 0) | (state.moves >= MAX_MOVES)
 
     def rewards(self, state: GameState) -> Array:
+        # Reaching the move cap goes to whoever has more pieces left; an exact
+        # tie is the only draw.
+        winner = jax.lax.select(state.winner >= 0, state.winner, _material_winner(state.board))
         return jax.lax.select(
-            state.winner >= 0,
-            jnp.float32([-1.0, -1.0]).at[jnp.clip(state.winner, 0, 1)].set(1.0),
+            winner >= 0,
+            jnp.float32([-1.0, -1.0]).at[jnp.clip(winner, 0, 1)].set(1.0),
             jnp.zeros(2, jnp.float32),
         )
 
 
 # ─── Board helpers ───────────────────────────────────────────────────────────
+
+
+def _material_winner(board: Array) -> Array:
+    """Player with more pieces left: 0 white, 1 black, -1 tied."""
+    white, black = (board == WHITE).sum(), (board == BLACK).sum()
+    return jnp.where(white > black, jnp.int32(0), jnp.where(black > white, jnp.int32(1), jnp.int32(-1)))
 
 
 def _init_board() -> Array:

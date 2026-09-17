@@ -221,11 +221,28 @@ def test_symmetry_rule_forbids_a_mirrored_back_rank():
     assert (11, 3) in legal_squares(state)
 
 
-def test_draw_cap():
-    state = make_state(white=[(5, 5)], black=[(7, 7)], color=0, moves=jnp.int32(MAX_MOVES - 1))
-    state = play(state, (5, 5), (5, 5), (4, 5))
-    assert int(state.moves) == MAX_MOVES
-    assert bool(game.is_terminal(state)) and np.asarray(game.rewards(state)).tolist() == [0.0, 0.0]
+def test_move_cap_is_decided_on_material():
+    # Reaching the cap is not a draw: it goes to whoever has more pieces left.
+    # A plain draw there made stalling a safe equilibrium - a player who never
+    # commits scores 0 rather than -1 - and self-play converged on it.
+    def capped(white, black):
+        state = make_state(white=white, black=black, color=0, moves=jnp.int32(MAX_MOVES - 1))
+        state = play(state, white[0], white[0], (white[0][0] - 1, white[0][1]))
+        assert int(state.moves) == MAX_MOVES and bool(game.is_terminal(state))
+        return np.asarray(game.rewards(state)).tolist()
+
+    assert capped([(5, 5), (9, 1), (9, 3)], [(7, 7)]) == [1.0, -1.0]  # white up 3-1
+    assert capped([(5, 5)], [(7, 7), (2, 9), (2, 11)]) == [-1.0, 1.0]  # black up 3-1
+    assert capped([(5, 5), (9, 1)], [(7, 7), (2, 9)]) == [0.0, 0.0]  # level: the only draw
+
+
+def test_a_win_beats_material_at_the_cap():
+    # Material only decides when nobody has won. A player who wins on the same
+    # move that reaches the cap still wins, even a piece down.
+    state = make_state(white=[(5, 5)], black=[(7, 7), (2, 9)], color=0)
+    state = state._replace(moves=jnp.int32(MAX_MOVES), winner=jnp.int32(0))
+    assert bool(game.is_terminal(state))
+    assert np.asarray(game.rewards(state)).tolist() == [1.0, -1.0]
 
 
 # ─── env wiring ──────────────────────────────────────────────────────────────

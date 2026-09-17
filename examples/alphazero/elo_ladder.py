@@ -159,7 +159,8 @@ def main() -> None:
     # 2: random openings avoid multi-stage choices whose every follow-up ends the
     #    game (previously ~13% of Gess games ended in the opening).
     # 3: Gess v1 rules - a captureless stalemate is decided on stone count.
-    settings["game_version"] = 3
+    # 4: Epaminondas v1 rules - reaching the move cap is decided on piece count.
+    settings["game_version"] = 4
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:

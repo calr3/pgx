@@ -659,6 +659,14 @@ if __name__ == "__main__":
         wandb.log(log)
 
         if iteration >= config.max_num_iters:
+            # Keep the final model. The evaluation branch above only saves on
+            # eval_interval multiples, so a run that completes normally with,
+            # say, eval_interval=100 and max_num_iters=160 would otherwise end
+            # with its iteration-100 checkpoint as the newest - throwing away
+            # the low-LR tail of the cosine schedule, where most of the strength
+            # arrives. Skip it only when this iteration was just saved.
+            if iteration % config.eval_interval != 0 or iteration == resumed_iteration:
+                save_checkpoint(iteration, rng_key, model, opt_state, frames, hours, evaluated=False)
             break
 
         iteration += 1
