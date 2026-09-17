@@ -56,7 +56,7 @@ class GHex2(core.Env):
         self._game = Game()
 
     def _init(self, key: PRNGKey) -> State:
-        current_player = jnp.int32(jax.random.bernoulli(key) * 0)
+        current_player = jnp.int32(jax.random.bernoulli(key))
         return State(current_player=current_player, _x=self._game.init())  # type:ignore
 
     def pretty_game(self, state: core.State):

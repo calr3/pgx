@@ -26,12 +26,29 @@ observe = jax.jit(env.observe)
 def test_init():
     key = jax.random.PRNGKey(1)
     state = init(key=key)
-    assert state.current_player == 0
+    # Which seat moves first is drawn from the key, so this is the value for
+    # PRNGKey(1) specifically, not a fixed property of the initial position.
+    assert state.current_player == 1
     assert (state.rewards == jnp.array([0.0, 0.0])).all()
     assert not state.terminated
     assert not state.truncated
     assert (state._x.tiles[0] == jnp.ones(10)).all()
     assert (state._x.tiles[1] == jnp.ones(10)).all()
+
+
+def test_init_randomises_the_starting_seat():
+    """Both seats must get to move first, over a spread of keys.
+
+    This regressed once already: _init read `bernoulli(key) * 0`, which pins
+    current_player to 0 forever, so one seat always moved first and self-play
+    never saw the other arrangement. Nothing else fails when that happens, so
+    assert the distribution directly.
+    """
+    keys = jax.random.split(jax.random.PRNGKey(0), 200)
+    starters = jax.vmap(lambda k: init(key=k).current_player)(keys)
+    assert set(int(p) for p in starters) == {0, 1}
+    # Roughly balanced, not merely non-constant.
+    assert 0.3 < float((starters == 0).mean()) < 0.7
 
 
 def test_legal_action():
