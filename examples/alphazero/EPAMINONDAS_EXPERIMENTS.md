@@ -441,3 +441,48 @@ have corrupted the result:
 raw prior - which dominates the cost of a cheap search, so per-ply timings taken
 with `verbose=true` measure the debug view rather than the search. Timing now
 blocks on the result, since JAX dispatch is async.
+
+## An alpha-beta opponent
+
+`negamax.py` adds a conventional engine - hand-written evaluation, full-width
+alpha-beta, no network - so a model can be measured against something whose
+behaviour is understood. Its evaluation is the six LEONIDAS heuristics from King
+and Peterson, *Epaminondas: Exploring Combat Tactics*, ICGA Journal 37(3); the
+weights are ours, because the paper defines the terms but never publishes the
+coefficients and calls its own function unrefined.
+
+**6-0 against random** at a 0.5 s per-action budget, three games from each seat.
+Over those 442 searches: depth 1 reached on 371, depth 2 on 29, 33 were forced
+single-legal-move positions, and 9 ran out of clock before finishing depth 1
+(those fall back to the best child by static evaluation, not to an arbitrary
+move). Throughput was 632 nodes/second.
+
+Beating random is not evidence of much - E7 does it on raw policy argmax with no
+search - it only shows the engine plays legally and coherently. The point of it
+is as a *fixed* reference: unlike a checkpoint, it does not move when the model
+moves, so "model beats negamax at equal time" means the same thing next month as
+it does today.
+
+### What it costs to do a tree search over a JAX env
+
+Worth knowing before anyone tries to make this deeper:
+
+- **~800 nodes/second on CPU**, which buys depth 1 (in full moves) from the
+  opening in 2 s and needs ~8 s for depth 2. Epaminondas averages a branching
+  factor of 283, so depth 2 is ~80k moves; alpha-beta with good ordering is what
+  makes even that borderline reachable.
+- **The GPU is ~4x slower** - ~250-450 nodes per 2 s against ~1600 on CPU. The
+  batches are a few dozen states, so the search is dispatch-bound, and none of
+  the GPU's throughput is reachable. Run negamax-only tournaments under
+  `JAX_PLATFORMS=cpu`.
+- **The cost is `env.step`**, ~0.23 ms per child, mostly recomputing legal
+  moves - not the evaluation, which is ~0.17 ms per board and was already halved
+  by sharing run tables between the two sides.
+- **jit recompiles per input shape.** The legal-move count differs at nearly
+  every node, so exactly-sized `vmap(step)` batches cost one full XLA
+  compilation *per node*: ~5 nodes/second, essentially all compilation. Batches
+  are bucketed to powers of two and all buckets compiled up front.
+
+The honest summary is that a JAX env is a poor fit for sequential tree search.
+The search is correct and the engine is a useful fixed reference, but it is a
+weak one, which is roughly what the paper reports for its own novice agent.
