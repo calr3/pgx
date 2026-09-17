@@ -91,7 +91,9 @@ class TourneyConfig(BaseModel):
     # to add Gumbel exploration noise to move selection.
     gumbel_scale: float = 0.0
     # Uniformly-random legal actions played before the models take over, giving
-    # each game pair a distinct starting position.
+    # each game pair a distinct starting position. Rounded up to a whole number
+    # of moves for games whose turn takes several actions (Gess 2, Epaminondas
+    # 3), so play never starts part-way through a turn.
     random_opening_plies: int = 2
     # Hard cap on total plies per game (including the opening); games still
     # running at the cap are truncated and scored as draws.
@@ -163,6 +165,25 @@ def make_recurrent_fn(env: pgx.Env, forward: hk.TransformedWithState) -> mctx.Re
 _OPENING_CANDIDATES = 8
 
 
+def plies_per_move(env: pgx.Env) -> int:
+    """Actions that make up one turn: 1 for most games, 2 for Gess, 3 for
+    Epaminondas.
+
+    Measured by stepping the initial position until `current_player` changes.
+    Envs whose turn length varies (backgammon's dice) report their first move's
+    length, which is the best available guess; it only affects how long the
+    random opening runs.
+    """
+    state = env.init(jax.random.PRNGKey(0))
+    mover = state.current_player
+    for plies in range(1, 9):
+        action = jnp.argmax(state.legal_action_mask).astype(jnp.int32)
+        state = env.step(state, action, jax.random.PRNGKey(plies))
+        if bool(state.terminated) or int(state.current_player) != int(mover):
+            return plies
+    return 1
+
+
 def build_round_runner(
     env: pgx.Env,
     forward_a: hk.TransformedWithState,
@@ -185,6 +206,20 @@ def build_round_runner(
 
     recurrent_a = make_recurrent_fn(env, forward_a)
     recurrent_b = make_recurrent_fn(env, forward_b)
+
+    # A random opening that stops part-way through a turn hands the models a
+    # position no player would ever choose to be in - in Epaminondas, between
+    # picking the lead piece and the rear of the phalanx - so round it up to a
+    # whole number of moves. Single-stage games, and Gess with the default 2,
+    # are unaffected.
+    stages = plies_per_move(env)
+    opening_plies = tcfg.random_opening_plies
+    if opening_plies % stages:
+        opening_plies += stages - (opening_plies % stages)
+        print(
+            f"random_opening_plies {tcfg.random_opening_plies} -> {opening_plies} "
+            f"({stages} plies per move in {env.id})"
+        )
 
     def search(
         model: Model,
@@ -272,10 +307,10 @@ def build_round_runner(
             R = R + state.rewards[jnp.arange(bs), a_seat]
             return (state, R), None
 
-        if tcfg.random_opening_plies > 0:
+        if opening_plies > 0:
             (state, R), _ = jax.lax.scan(
                 opening_ply, (state, R),
-                jax.random.split(key_open, tcfg.random_opening_plies),
+                jax.random.split(key_open, opening_plies),
             )
 
         # ── Main loop: full MCTS for every live game, until all finish ─────

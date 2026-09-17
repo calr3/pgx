@@ -43,7 +43,11 @@ class LadderConfig(BaseModel):
     num_simulations: int = 32
     max_num_considered_actions: int = 16
     gumbel_scale: float = 0.0
+    # Rounded up to a whole number of moves by the round runner for games whose
+    # turn takes several actions (Gess 2, Epaminondas 3).
     random_opening_plies: int = 2
+    # Games still running at this many plies are truncated and scored as draws,
+    # so it must comfortably exceed a full game. Epaminondas needs ~900.
     max_num_steps: int = 256
     # JSON cache of pair results; empty = no cache.
     results_file: str = "elo_results.json"
