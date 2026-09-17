@@ -30,6 +30,7 @@ import pgx.heckmeck as Heckmeck
 from omegaconf import OmegaConf
 from pgx.g_hex import black
 from pgx.g_hex2 import black2
+from pgx._src.games.epaminondas import MAX_MOVES as _EPAM_MAX_MOVES
 from pydantic import BaseModel
 from config import Config
 from network import make_forward
@@ -63,6 +64,14 @@ class TourneyConfig(BaseModel):
     # They are applied round-robin: the n-th model seat uses paths[n % len(paths)],
     # so one path is shared by all models, two paths alternate, etc.
     models: str = ""
+    # Search budget for every 'model' seat.
+    num_simulations: int = 6144
+    max_num_considered_actions: int = 16
+    # Print the board and the policy heatmap every ply. Useful when watching a
+    # game, but it also forces an extra unjitted forward pass per ply (to show
+    # the raw prior), which dominates the cost of a cheap search -- so leave it
+    # off when measuring time per ply or running many games.
+    verbose: bool = True
 
 
 class MctsConfig(NamedTuple):
@@ -387,10 +396,90 @@ class PigCli(Cli):
 #        return f"took action {action[0]}: {_HECKMECK_ACTION_NAMES[action[0]]}"
 
 
+_EPAM_WIDTH = 14
+_EPAM_HEIGHT = 12
+_EPAM_COLS = "abcdefghijklmn"
+
+
+class EpaminondasCli(Cli):
+    """Board view for Epaminondas.
+
+    Squares are named <col><row> with column a-n left to right and row 1-12
+    bottom to top, so row 1 is white's home rank and row 12 is black's. The
+    board is stored row-major with row index 0 == row label 12 at the top of
+    the printout, matching how it is drawn.
+
+    A move takes three actions (lead, rear, destination), all sharing the same
+    one-action-per-square space, so describe_action can only name the square;
+    which of the three stages it belongs to is shown by the board itself.
+    """
+
+    def get_action_id(self) -> int | None:
+        m = re.fullmatch(r"([a-n])(1[0-2]|[1-9])", input("Move: ").strip().lower())
+        if m is None:
+            return None
+        col = ord(m.group(1)) - ord("a")
+        row_idx = _EPAM_HEIGHT - int(m.group(2))
+        return row_idx * _EPAM_WIDTH + col
+
+    def display(self, state: pgx.State) -> None:
+        x = state._x
+        board = np.asarray(x.board[0]).reshape(_EPAM_HEIGHT, _EPAM_WIDTH)
+        stage = int(x.stage[0])
+        # Highlight the partially-built move: the lead once chosen, and the
+        # whole phalanx once the rear is chosen too.
+        marked: set[int] = set()
+        if stage >= 1:
+            lead, rear = int(x.lead[0]), int(x.rear[0])
+            marked = {lead} if stage == 1 else set(_epam_phalanx_cells(lead, rear))
+
+        print("   " + " ".join(_EPAM_COLS))
+        for row_idx in range(_EPAM_HEIGHT):
+            cells = []
+            for col in range(_EPAM_WIDTH):
+                idx = row_idx * _EPAM_WIDTH + col
+                glyph = {0: "·", 1: "W", 2: "B"}[int(board[row_idx, col])]
+                cells.append(f"{_GREEN}{glyph}{_RESET}" if idx in marked else glyph)
+            print(f"{_EPAM_HEIGHT - row_idx:2} " + " ".join(cells))
+        stage_name = ["pick lead", "pick rear", "pick destination"][stage]
+        mover = "White" if int(x.color[0]) == 0 else "Black"
+        print(f"   move {int(x.moves[0])}/{_EPAM_MAX_MOVES}  {mover} to {stage_name}\n")
+
+    def describe_action(self, action: jnp.ndarray) -> str:
+        return f"chose {_epam_idx_to_label(int(action[0]))}"
+
+    def display_action_weights(self, action_weights: jnp.ndarray) -> None:
+        weights = np.asarray(action_weights).reshape(_EPAM_HEIGHT, _EPAM_WIDTH)
+        for row_idx in range(_EPAM_HEIGHT):
+            row = "".join(
+                f"{100 * w:5.1f}" if w > 0.0005 else "    ." for w in weights[row_idx]
+            )
+            print(f"{_EPAM_HEIGHT - row_idx:2} {row}")
+        print("")
+
+
+def _epam_idx_to_label(idx: int) -> str:
+    return f"{_EPAM_COLS[idx % _EPAM_WIDTH]}{_EPAM_HEIGHT - idx // _EPAM_WIDTH}"
+
+
+def _epam_phalanx_cells(lead: int, rear: int) -> list[int]:
+    """Every square from rear to lead inclusive, along their shared line."""
+    lr, lc = divmod(lead, _EPAM_WIDTH)
+    rr, rc = divmod(rear, _EPAM_WIDTH)
+    steps = max(abs(lr - rr), abs(lc - rc))
+    if steps == 0:
+        return [lead]
+    dr = (lr - rr) // steps
+    dc = (lc - rc) // steps
+    return [(rr + i * dr) * _EPAM_WIDTH + (rc + i * dc) for i in range(steps + 1)]
+
+
 def get_cli(env_id: pgx.EnvId) -> Cli:
     match env_id:
         case "gess":
             return GessCli()
+        case "epaminondas":
+            return EpaminondasCli()
         case "domineering":
             return DomineeringCli()
         case "g_hex":
@@ -458,6 +547,7 @@ class ModelAgent(Agent):
         config: Config,
         model: Model,
         cli: Cli,
+        verbose: bool = True,
     ) -> None:
         forward = make_forward(env.num_actions, config)
 
@@ -495,6 +585,7 @@ class ModelAgent(Agent):
 
         self.name_prefix = name_prefix
         self.cli = cli
+        self.verbose = verbose
         self.mcts_config = mcts_config
         self.mcts = partial(ModelAgent._run_mcts, forward, recurrent_fn, mcts_config, model, self.cli) # Unjitted, for debugging.
         self.mcts_jit = jax.jit(self.mcts)
@@ -504,21 +595,29 @@ class ModelAgent(Agent):
 
     def get_action(self, key: jnp.ndarray, state: pgx.State) -> jnp.ndarray:
         if int(state.legal_action_mask.sum()) == 1:
-            print("[short-circuit] Only one legal move; skipping search")
-            return jnp.argmax(state.legal_action_mask)   # the sole legal action
+            if self.verbose:
+                print("[short-circuit] Only one legal move; skipping search")
+            # Keep the leading batch dimension: everything downstream (the
+            # vmapped step, describe_action) expects shape (1,), and a bare
+            # argmax over the (1, num_actions) mask returns a 0-d scalar.
+            return jnp.argmax(state.legal_action_mask, axis=-1)   # the sole legal action
 
         # Debug view into the policy evaluation: (slow)
-        self.mcts(key, state, print_debug_info=True)
+        if self.verbose:
+            self.mcts(key, state, print_debug_info=True)
 
         start_time = time.perf_counter()
         policy_output, value = self.mcts_jit(key, state)
+        action = policy_output.action
+        action.block_until_ready()  # the search is async; time it, don't time the dispatch
         print(f"Thought for {time.perf_counter() - start_time:.1f} seconds.")
 
-        print(_GREY, end="")
-        self.cli.display_action_weights(policy_output.action_weights)
-        print(f"value={value}{_RESET}")
+        if self.verbose:
+            print(_GREY, end="")
+            self.cli.display_action_weights(policy_output.action_weights)
+            print(f"value={value}{_RESET}")
 
-        return policy_output.action
+        return action
 
     @staticmethod  # Static for JITting.
     def _run_mcts(
@@ -600,12 +699,20 @@ _HECKMECK_ACTION_NAMES = [
 ]
 
 
-def _load_model_based_agent(model_index: int, path: str, cli: Cli) -> ModelAgent:
+def _load_model_based_agent(
+    model_index: int, path: str, cli: Cli, mcts_config: MctsConfig, verbose: bool
+) -> ModelAgent:
     config, model = load_from_checkpoint(path)
-    return ModelAgent(f"m{model_index}:ckpt={path}", MctsConfig(), config, model, cli)
+    return ModelAgent(f"m{model_index}:ckpt={path}", mcts_config, config, model, cli, verbose)
 
 
-def build_agents(players: str, model_paths: list[str], cli: Cli) -> list[Agent]:
+def build_agents(
+    players: str,
+    model_paths: list[str],
+    cli: Cli,
+    mcts_config: MctsConfig,
+    verbose: bool,
+) -> list[Agent]:
     """Parse a players spec like "random,me,model,model" into a list of agents.
 
     Each successive 'model' token is given the next integer index and a
@@ -627,7 +734,9 @@ def build_agents(players: str, model_paths: list[str], cli: Cli) -> list[Agent]:
                     "Pass models=<path1>[,<path2>,...]."
                 )
             path = model_paths[model_index % len(model_paths)]
-            agents.append(_load_model_based_agent(model_index, path, cli))
+            agents.append(
+                _load_model_based_agent(model_index, path, cli, mcts_config, verbose)
+            )
             model_index += 1
         else:
             raise ValueError(
@@ -672,11 +781,18 @@ if __name__ == "__main__":
 
         turn_num = 1 + start_depth
         while True:
-            cli.display(state)
+            if tourney_config.verbose:
+                cli.display(state)
 
             if state.terminated.all():
                 print(f"{_ORANGE}Game over! winner={state._x.winner} rewards={state.rewards}{_RESET}")
-                return state._x.winner
+                # Score from rewards, not _x.winner. Some games decide a
+                # terminal position without ever setting a winner field:
+                # Epaminondas at its move cap leaves winner == -1 and resolves
+                # the result in rewards() by advancement, and -1 would then be
+                # credited to seat (-1 + rotation) % num_agents -- a win handed
+                # to an arbitrary player. rewards is the authoritative outcome.
+                return jnp.argmax(state.rewards[0])
 
             agent = agents[state.current_player[0]]
             print(f"{_ORANGE}Game {game_num}, turn {turn_num}, player={state.current_player[0]}: {agent.get_name()} to select action...{_RESET}", flush=True)
@@ -689,7 +805,17 @@ if __name__ == "__main__":
 
 
     model_paths = [p.strip() for p in tourney_config.models.split(",") if p.strip()]
-    agents = build_agents(tourney_config.players, model_paths, cli)
+    mcts_config = MctsConfig(
+        num_simulations=tourney_config.num_simulations,
+        max_num_considered_actions=tourney_config.max_num_considered_actions,
+    )
+    agents = build_agents(
+        tourney_config.players,
+        model_paths,
+        cli,
+        mcts_config,
+        tourney_config.verbose,
+    )
     wins = np.zeros_like(agents)
     for game_num in range(0, tourney_config.games):
         rotation_pos = game_num % len(agents)

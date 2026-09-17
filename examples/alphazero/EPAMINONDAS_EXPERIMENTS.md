@@ -409,3 +409,35 @@ which cost a fifth run to correct.
 
 Change one variable per comparison, even when the second change seems obviously
 right.
+
+## Sanity check: E7 vs random at 2 s/ply
+
+`interactive_tournament.py` with `num_simulations=704`, which measured 2.18 s/ply
+on this GPU (512 -> 1.3 s, 640 -> 1.8 s, 1024 -> 3.2 s; the first ply of a run is
+~16 s of compilation and is excluded). Seats alternate every game.
+
+**7-0 to E7**, stopped early once the point was made. This confirms the search
+path end to end; it is not a strength measurement, because the same checkpoint
+already scores 0.906 against random on raw policy argmax with *no* search, so a
+random opponent has almost no resolution left at this level. Rank models against
+each other, not against random.
+
+Three bugs in the tournament script had to be fixed first, all of which would
+have corrupted the result:
+
+- **Scoring read `state._x.winner`.** Epaminondas at the 300-move cap leaves
+  `winner == -1` and resolves the game in `rewards()` by advancement, so a capped
+  game credited seat `(-1 + rotation) % 2` - a win awarded by parity rather than
+  by who won. Now scored from `rewards`, which is authoritative for every
+  termination path. Any game with a decided-but-unset winner hits this, so it is
+  worth checking before trusting this script on a new env.
+- **The single-legal-move short-circuit returned a 0-d array**, crashing on the
+  first forced move. Epaminondas hits this constantly: a one-piece phalanx has
+  exactly one legal rear.
+- **No Epaminondas CLI existed**, so `get_cli` raised immediately.
+
+`num_simulations` was also hardcoded at 6144 with no way to set it, and
+`get_action` ran an extra *unjitted* forward pass every ply purely to print the
+raw prior - which dominates the cost of a cheap search, so per-ply timings taken
+with `verbose=true` measure the debug view rather than the search. Timing now
+blocks on the result, since JAX dispatch is async.
