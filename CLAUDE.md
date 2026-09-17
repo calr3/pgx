@@ -8,6 +8,7 @@ added here). What follows is what was learned the hard way.
   Keep it current: when an experiment changes what you would recommend, update
   that file, not just the experiment log.
 - Experiment history: `examples/alphazero/GESS_EXPERIMENTS.md`,
+  `examples/alphazero/EPAMINONDAS_EXPERIMENTS.md`,
   `examples/alphazero/PIG_EXPERIMENTS.md`. The forward plan for the TPU rental
   is `examples/alphazero/GESS_TPU_PLAN.md`.
 
