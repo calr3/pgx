@@ -43,7 +43,8 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
     elif model_id == "heckmeck_v0":
         return _make_untrained_baseline_model(
            model_args = {
-            "num_actions": 13,
+            # 6 take-and-roll, 6 take-and-claim, bust, 6 take-and-snatch.
+            "num_actions": 19,
             "num_channels": 128,
             "num_layers": 6,
             "resnet_v2": True,
@@ -70,14 +71,12 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
     elif model_id == "pig_v0":
         return _make_pig_hold_at_20_model()
     elif model_id == "epaminondas_v0":
-        return _make_untrained_baseline_model(
-           model_args = {
-            "num_actions": 14 * 12,
-            "num_channels": 128,
-            "num_layers": 6,
-            "resnet_v2": True,
-          },
-          shape = (1, 12, 14, 7))
+        # E7: boardformer, 160 iterations under v5 rules, the strongest measured
+        # (EPAMINONDAS_EXPERIMENTS.md). An untrained net was a meaningless
+        # opponent, so eval/vs_baseline/* said nothing.
+        return _make_trained_baseline_model(
+            "checkpoints/epaminondas_20260918013629/000160.ckpt", 14 * 12
+        )
     elif model_id == "gess_v0":
         return _make_untrained_baseline_model(
            model_args = {
@@ -126,6 +125,36 @@ def _make_az_baseline_model(model_id: BaselineModelId, download_dir: str = "base
         return logits, value
 
     return apply
+
+def _make_trained_baseline_model(ckpt_path: str, num_actions: int):
+    """A baseline from a checkpoint trained by `examples/alphazero/train.py`.
+
+    Unlike `_make_az_baseline_model`, which always rebuilds the original ResNet,
+    this reconstructs whatever architecture the run used (gessformer,
+    boardformer, mlp, ...) from the config stored in the checkpoint. That means
+    importing the example's `network`/`config` modules, which is why the path is
+    added here; those modules are the definition of what the checkpoint holds.
+    """
+    import sys
+
+    az_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "examples", "alphazero")
+    )
+    if az_dir not in sys.path:
+        sys.path.insert(0, az_dir)
+    from network import make_forward  # type: ignore
+
+    with open(ckpt_path, "rb") as f:
+        ckpt = pickle.load(f)
+    forward = make_forward(num_actions, ckpt["config"])
+    params, state = ckpt["model"]
+
+    def apply(obs):
+        (logits, value), _ = forward.apply(params, state, obs, is_eval=True)
+        return logits, value
+
+    return apply
+
 
 def _make_untrained_baseline_model(model_args, shape):
     import haiku as hk
