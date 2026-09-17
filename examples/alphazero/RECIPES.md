@@ -10,6 +10,12 @@ cost per iteration, and most of the gain arrives late as the cosine schedule
 decays). Gess comparisons are Elo ladders from `elo_ladder.py`; pig is scored
 directly against exact optimal play by `pig_optimal.py`.
 
+**A head-to-head, never the training curves.** Self-play statistics describe the
+data a run generates, not how well it plays. Two Epaminondas arms here finished
+with lower policy loss, shorter games and fewer draws than the arm they were
+measured against, and lost by 575 and 95 Elo respectively. If a change is only
+supported by its curves, it is not supported.
+
 Sections whose heading says **PROPOSAL** are untested design sketches. Don't
 quote them as if they were results.
 

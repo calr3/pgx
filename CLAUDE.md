@@ -70,6 +70,18 @@ added here). What follows is what was learned the hard way.
 
 ## Measuring strength
 
+- **Self-play statistics are not strength.** Draw rate, `policy_loss`,
+  `value_loss` and game length describe the data a run is generating, not how
+  well it plays, and a run can look healthier on every one of them while being
+  far weaker. The Epaminondas `completed_unscaled` arm ended with *lower* policy
+  loss and shorter, more decisive games than the arm it lost to **119-0**
+  (Elo -575); the v2 capture-clock arm likewise had zero draws, lower policy
+  loss and a higher value loss than the rules it lost to by 95 Elo. Both looked
+  like progress. Only a head-to-head decides, so never adopt a change on the
+  curves alone.
+- A collapsing `value_loss` usually means the value targets have gone constant
+  (in a game with draws, everything drawn), not that the value head is good.
+  Check `selfplay/draw_rate` and `selfplay/games_finished` before celebrating.
 - `eval/vs_baseline/*` in wandb (raw policy sampling) is far too noisy to rank
   runs; use it only as a coarse trend.
 - Real comparisons: `model_tournament.py` for two checkpoints,
