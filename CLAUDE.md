@@ -27,6 +27,10 @@ added here). What follows is what was learned the hard way.
 
 - Run from the repo root: `python -u examples/alphazero/train.py env_id=... k=v`.
   Without `-u`, output is block-buffered and progress looks stalled.
+- **Run the rules tests on CPU while a training run has the GPU**:
+  `JAX_PLATFORMS=cpu python -m pytest -p no:xdist -q tests/test_<game>.py`.
+  They are small enough that CPU is *faster* (44 s vs ~4 min for Epaminondas)
+  and they no longer get killed by the low-memory guard or slow the run down.
 - Config lives in `examples/alphazero/config.py`; every field is a CLI key.
   Checkpoints land in `checkpoints/<env>_<timestamp>/`.
 - Long runs: launch detached (`nohup setsid ... &`), record the PID, and watch

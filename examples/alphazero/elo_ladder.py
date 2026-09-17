@@ -166,7 +166,8 @@ def main() -> None:
     # 4: Epaminondas v1 rules - reaching the move cap is decided on piece count.
     # 5: Epaminondas v2 rules - that cap counts moves since the last capture.
     # 6: Epaminondas v3 rules - the cap is decided on advancement, rank by rank.
-    settings["game_version"] = 6
+    # 7: Epaminondas v4 rules - mirrors fall back to the last capture; no draws.
+    settings["game_version"] = 7
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:

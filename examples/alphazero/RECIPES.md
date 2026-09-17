@@ -105,8 +105,13 @@ are the winning arm; the two decisions behind them:
   counts rank by rank from the opponent's home rank inwards. Material was the
   wrong quantity - the game is won by getting up the board, not by hoarding
   pieces - and, since equal material is common and equal advancement is not, it
-  also made draws common: 256 random games gave **0 draws** under v3 against
-  ~98% under v2. Untested in training as of writing.
+  also made draws common. This removed v2's cost entirely: no degenerate early
+  phase, draws at 0.000 from iteration 5, where v2 drew 99% of games for 40
+  iterations.
+- **v4 makes draws impossible**: an exact rank-for-rank mirror falls back to
+  whoever captured last, then to black for moving second. A draw is the one
+  outcome a stalling player can aim at without being better, so removing it
+  closes the loop that v0 opened.
 - Do not compare checkpoints trained under different rule versions as if the
   rules were fixed; `env.version` records which is which.
 

@@ -58,8 +58,10 @@ BLACK = 2  # player 1, back rank is row HEIGHT - 1
 # The game ends once this many full moves have passed without a capture, and is
 # then decided on advancement: piece counts are compared rank by rank starting
 # from the opponent's home rank, and the first rank that differs wins it (see
-# _advancement_winner). This deviates from the published rules, which have no
-# move limit at all; the cap exists only to bound self-play.
+# _advancement_winner). An exact rank-for-rank mirror falls back to whoever
+# captured last, and then to black, who moves second - so no game is ever drawn.
+# This deviates from the published rules, which have no move limit at all; the
+# cap exists only to bound self-play.
 #
 # Counting since the last capture, rather than from the start of the game,
 # matters once the cap is decided on material: an absolute cap pays a player who
@@ -119,6 +121,7 @@ class GameState(NamedTuple):
     winner: Array = jnp.int32(-1)  # -1 = ongoing, else the winning player
     moves: Array = jnp.int32(0)  # completed full moves, for the absolute backstop
     moves_since_capture: Array = jnp.int32(0)  # reset by any capture; the real cap
+    last_capturer: Array = jnp.int32(-1)  # who captured most recently; -1 = nobody has
 
 
 class Game:
@@ -158,14 +161,16 @@ class Game:
         )
 
     def rewards(self, state: GameState) -> Array:
-        # Reaching the move cap goes to whoever has come further up the board,
-        # compared rank by rank; only a rank-for-rank mirror is a draw.
-        winner = jax.lax.select(state.winner >= 0, state.winner, _advancement_winner(state.board))
-        return jax.lax.select(
-            winner >= 0,
-            jnp.float32([-1.0, -1.0]).at[jnp.clip(winner, 0, 1)].set(1.0),
-            jnp.zeros(2, jnp.float32),
-        )
+        # Reaching the cap goes to whoever has come further up the board,
+        # compared rank by rank. If the two are exact mirrors it goes to
+        # whoever captured most recently, and failing that to black, who
+        # compensates for moving second. Every game therefore has a winner:
+        # there are no draws.
+        tiebreak = jax.lax.select(state.last_capturer >= 0, state.last_capturer, jnp.int32(1))
+        advantage = _advancement_winner(state.board)
+        winner = jax.lax.select(advantage >= 0, advantage, tiebreak)
+        winner = jax.lax.select(state.winner >= 0, state.winner, winner)
+        return jnp.float32([-1.0, -1.0]).at[winner].set(1.0)
 
 
 # ─── Board helpers ───────────────────────────────────────────────────────────
@@ -308,6 +313,7 @@ def _apply_move(state: GameState, dest: Array) -> GameState:
     # the piece count alone says whether this move captured.
     captured = (board != EMPTY).sum() < (state.board != EMPTY).sum()
     moves_since_capture = jnp.where(captured, jnp.int32(0), state.moves_since_capture + 1)
+    last_capturer = jnp.where(captured, state.color, state.last_capturer)
     # The player about to move wins if they have more pieces on the opponent's
     # back rank than the opponent has on theirs.
     winner = jax.lax.select(_wins_at_turn_start(board, color), color, jnp.int32(-1))
@@ -318,6 +324,7 @@ def _apply_move(state: GameState, dest: Array) -> GameState:
     return GameState(
         color=color, board=board, stage=jnp.int32(0), lead=jnp.int32(0), rear=jnp.int32(0),
         winner=winner, moves=moves, moves_since_capture=moves_since_capture,
+        last_capturer=last_capturer,
     )
 
 

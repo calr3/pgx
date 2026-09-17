@@ -283,4 +283,43 @@ show E5's early collapse, and should beat both E5 (v2) and E3 (v1)**. If the
 early draw rate at iteration 20 is still near 1.0, the diagnosis above is wrong
 and the capture clock itself is the problem.
 
-Status: rules implemented and tested; training run to follow.
+### v4: no draws at all
+
+The one position advancement cannot separate is an exact rank-for-rank mirror.
+v4 resolves it by giving the game to **whoever captured most recently**, and if
+neither player ever has, to **black** - compensation for moving second, in the
+spirit of komi. `rewards` no longer has a zero branch: every terminal position
+has a winner, so a draw is not representable.
+
+That matters beyond tidiness. A draw is the one outcome a stalling player can
+aim at without having to be better, and every rule change here has been chasing
+that: v0 paid 0 for it, v1 and v2 paid it only on exact material ties, v3 made
+it rare, v4 removes it. `train/value_loss` can no longer be driven down by
+manufacturing zero targets.
+
+Measured over 256 random games: 0 draws, 111 white wins, 145 black.
+
+### E6, under v3, confirmed the diagnosis
+
+E6 is E3 and E5's settings with only the rules changed. Draw rate by iteration:
+
+| iteration | 5 | 10 | 20 | 40 |
+|---|---|---|---|---|
+| E6 (v3) | **0.000** | **0.000** | 0.012 | 0.007 |
+| E5 (v2) | 0.996 | 0.972 | 0.979 | 0.029 |
+| E3 (v1) | 0.155 | 0.161 | 0.029 | 0.000 |
+
+v3 has **no degenerate phase at all**, and is cleaner from iteration 5 than v1
+ever was. Its value loss stays at 0.44-0.50 rather than collapsing to 0.016, so
+the value head has real targets from the start.
+
+That confirms the prediction made above: E5's -95 Elo came from **ties**, not
+from the capture clock. Equal material is common in quiet early play; equal
+advancement is not. v3 keeps v2's anti-stalling property and drops its cost.
+
+Note E6 trained under v3 while v4 is now current. The two differ only on exact
+mirrors, which random play produced zero times in 256 games, so the difference
+is unlikely to matter - but it is a rules difference, and head-to-heads
+involving E6 are played under v4.
+
+Status: E6 training; head-to-heads against E3 and E5 to follow.

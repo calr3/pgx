@@ -269,9 +269,38 @@ def test_move_cap_is_decided_on_advancement():
     # Level at the second-to-home rank, so the next rank back decides it.
     assert capped([(10, 3), (9, 2)], [(1, 5)]) == [1.0, -1.0]
 
-    # Only a rank-for-rank mirror draws, which is why draws are near-impossible.
-    assert capped([(1, 3), (2, 5)], [(10, 3), (9, 5)]) == [0.0, 0.0]
+    # A rank-for-rank mirror is the only position advancement cannot separate;
+    # test_mirror_falls_back_to_the_last_capture covers what happens then.
     assert capped([(1, 3), (3, 5)], [(10, 3), (9, 5)]) == [1.0, -1.0]  # white a rank deeper
+
+
+def test_mirror_falls_back_to_the_last_capture():
+    # Advancement ties only on an exact mirror. It then goes to whoever captured
+    # most recently, and if nobody ever has, to black - who moves second. No
+    # game is ever drawn.
+    mirror = dict(white=[(1, 3), (2, 5)], black=[(10, 3), (9, 5)])
+
+    def capped(**kwargs):
+        state = make_state(color=0, moves_since_capture=jnp.int32(MAX_MOVES_SINCE_CAPTURE),
+                           **mirror, **kwargs)
+        assert bool(game.is_terminal(state))
+        return np.asarray(game.rewards(state)).tolist()
+
+    assert capped(last_capturer=jnp.int32(0)) == [1.0, -1.0]
+    assert capped(last_capturer=jnp.int32(1)) == [-1.0, 1.0]
+    assert capped() == [-1.0, 1.0]  # no capture all game: black, for moving second
+
+
+def test_capturing_records_the_capturer():
+    state = make_state(white=[(5, 4), (5, 5)], black=[(5, 6)], color=0)
+    assert int(state.last_capturer) == -1
+    state = play(state, (5, 5), (5, 4), (5, 6))
+    assert int(state.last_capturer) == 0  # white took the piece
+
+    # A quiet move leaves it alone.
+    quiet = make_state(white=[(5, 5)], black=[(7, 7)], color=0, last_capturer=jnp.int32(1))
+    quiet = play(quiet, (5, 5), (5, 5), (4, 5))
+    assert int(quiet.last_capturer) == 1
 
 
 def test_a_win_beats_the_cap_tiebreak():
