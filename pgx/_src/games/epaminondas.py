@@ -55,27 +55,26 @@ EMPTY = 0
 WHITE = 1  # player 0, moves first, back rank is row 0
 BLACK = 2  # player 1, back rank is row HEIGHT - 1
 
-# The game ends once this many full moves have passed without a capture, and is
-# then decided on advancement: piece counts are compared rank by rank starting
-# from the opponent's home rank, and the first rank that differs wins it (see
+# The game ends once this many full moves have been played, and is then decided
+# on advancement: piece counts are compared rank by rank starting from the
+# opponent's home rank, and the first rank that differs wins it (see
 # _advancement_winner). An exact rank-for-rank mirror falls back to whoever
 # captured last, and then to black, who moves second - so no game is ever drawn.
 # This deviates from the published rules, which have no move limit at all; the
 # cap exists only to bound self-play.
 #
-# Counting since the last capture, rather than from the start of the game,
-# matters once the cap is decided on material: an absolute cap pays a player who
-# is ahead to run the clock out, and truncates games that are still being
-# fought. Captures are a sound progress measure here because pieces are only ever
-# removed. Gess uses the same structure (DRAW_NO_CAPTURE_TURNS), with a shorter
-# window; Epaminondas gets a longer one because its buildup phase is slow, and
-# ending a live game early on material is the failure this is meant to avoid.
-MAX_MOVES_SINCE_CAPTURE = 60
-
-# A loose absolute backstop, so worst-case game length stays predictable for
-# sizing max_num_steps. Termination does not depend on it: at most 56 captures
-# can occur, so the capture clock alone bounds a game.
-MAX_MOVES = 600
+# A capture clock was tried instead - ending the game 60 moves after the last
+# capture - on the reasoning that an absolute cap pays a player who is ahead to
+# run the clock out. It cost ~100 Elo twice (EPAMINONDAS_EXPERIMENTS.md, E5 and
+# E6): Epaminondas has long manoeuvring phases with no captures, and cutting
+# them short stops the model seeing a full strategic arc.
+#
+# The incentive it was meant to fix is much weaker under the advancement
+# tiebreak than it was under the material one it was designed against. Material
+# only changes through captures, so a leader could sit on it; advancement is
+# contestable, and a stalling leader is overtaken by an opponent who simply
+# pushes pieces up the board.
+MAX_MOVES = 300
 
 # The eight directions, and the index of each one's opposite.
 _DIRS = np.array(
@@ -120,7 +119,6 @@ class GameState(NamedTuple):
     rear: Array = jnp.int32(0)  # chosen in stage 1 (== lead for a single piece)
     winner: Array = jnp.int32(-1)  # -1 = ongoing, else the winning player
     moves: Array = jnp.int32(0)  # completed full moves, for the absolute backstop
-    moves_since_capture: Array = jnp.int32(0)  # reset by any capture; the real cap
     last_capturer: Array = jnp.int32(-1)  # who captured most recently; -1 = nobody has
 
 
@@ -154,11 +152,7 @@ class Game:
         )
 
     def is_terminal(self, state: GameState) -> Array:
-        return (
-            (state.winner >= 0)
-            | (state.moves_since_capture >= MAX_MOVES_SINCE_CAPTURE)
-            | (state.moves >= MAX_MOVES)
-        )
+        return (state.winner >= 0) | (state.moves >= MAX_MOVES)
 
     def rewards(self, state: GameState) -> Array:
         # Reaching the cap goes to whoever has come further up the board,
@@ -312,7 +306,6 @@ def _apply_move(state: GameState, dest: Array) -> GameState:
     # A move never adds a piece, and a capture always removes at least one, so
     # the piece count alone says whether this move captured.
     captured = (board != EMPTY).sum() < (state.board != EMPTY).sum()
-    moves_since_capture = jnp.where(captured, jnp.int32(0), state.moves_since_capture + 1)
     last_capturer = jnp.where(captured, state.color, state.last_capturer)
     # The player about to move wins if they have more pieces on the opponent's
     # back rank than the opponent has on theirs.
@@ -323,8 +316,7 @@ def _apply_move(state: GameState, dest: Array) -> GameState:
     winner = jax.lax.select((winner < 0) & stuck, 1 - color, winner)
     return GameState(
         color=color, board=board, stage=jnp.int32(0), lead=jnp.int32(0), rear=jnp.int32(0),
-        winner=winner, moves=moves, moves_since_capture=moves_since_capture,
-        last_capturer=last_capturer,
+        winner=winner, moves=moves, last_capturer=last_capturer,
     )
 
 

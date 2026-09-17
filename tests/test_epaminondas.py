@@ -19,7 +19,7 @@ import numpy as np
 import pgx
 from pgx.epaminondas import Epaminondas, State
 from pgx._src.games.epaminondas import (
-    BLACK, EMPTY, HEIGHT, MAX_MOVES, MAX_MOVES_SINCE_CAPTURE, N, WHITE, WIDTH, Game, GameState,
+    BLACK, EMPTY, HEIGHT, MAX_MOVES, N, WHITE, WIDTH, Game, GameState,
 )
 
 env = Epaminondas()
@@ -221,28 +221,12 @@ def test_symmetry_rule_forbids_a_mirrored_back_rank():
     assert (11, 3) in legal_squares(state)
 
 
-def test_capture_resets_the_clock():
-    # The cap counts moves since the last capture, not moves since the start:
-    # an absolute cap decided on material pays a player who is ahead to run the
-    # clock out, and truncates games that are still being fought.
-    state = make_state(white=[(5, 4), (5, 5)], black=[(5, 6)], color=0,
-                       moves_since_capture=jnp.int32(30))
-    state = play(state, (5, 5), (5, 4), (5, 6))  # phalanx of two takes a lone piece
-    assert int((np.asarray(state.board) != EMPTY).sum()) == 2  # a piece came off
-    assert int(state.moves_since_capture) == 0
-
-    # A quiet move advances it instead.
-    state = make_state(white=[(5, 5)], black=[(7, 7)], color=0, moves_since_capture=jnp.int32(10))
-    state = play(state, (5, 5), (5, 5), (4, 5))
-    assert int(state.moves_since_capture) == 11
-
-
-def test_capture_clock_ends_the_game_on_advancement():
+def test_the_move_cap_ends_the_game():
     state = make_state(white=[(5, 5), (9, 1)], black=[(7, 7)], color=0,
-                       moves_since_capture=jnp.int32(MAX_MOVES_SINCE_CAPTURE - 1))
+                       moves=jnp.int32(MAX_MOVES - 1))
+    assert not bool(game.is_terminal(state))
     state = play(state, (5, 5), (5, 5), (4, 5))
-    assert int(state.moves_since_capture) == MAX_MOVES_SINCE_CAPTURE
-    assert bool(game.is_terminal(state))
+    assert int(state.moves) == MAX_MOVES and bool(game.is_terminal(state))
     # White's piece on row 9 is two ranks from black's home; black's best is
     # seven from white's, so white is further up the board.
     assert np.asarray(game.rewards(state)).tolist() == [1.0, -1.0]
@@ -255,7 +239,7 @@ def test_move_cap_is_decided_on_advancement():
     # commits scores 0 rather than -1 - and self-play converged on it.
     def capped(white, black):
         state = make_state(white=white, black=black, color=0,
-                           moves_since_capture=jnp.int32(MAX_MOVES_SINCE_CAPTURE))
+                           moves=jnp.int32(MAX_MOVES))
         assert bool(game.is_terminal(state))
         return np.asarray(game.rewards(state)).tolist()
 
@@ -281,7 +265,7 @@ def test_mirror_falls_back_to_the_last_capture():
     mirror = dict(white=[(1, 3), (2, 5)], black=[(10, 3), (9, 5)])
 
     def capped(**kwargs):
-        state = make_state(color=0, moves_since_capture=jnp.int32(MAX_MOVES_SINCE_CAPTURE),
+        state = make_state(color=0, moves=jnp.int32(MAX_MOVES),
                            **mirror, **kwargs)
         assert bool(game.is_terminal(state))
         return np.asarray(game.rewards(state)).tolist()
