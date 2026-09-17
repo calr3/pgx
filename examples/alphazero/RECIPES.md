@@ -104,9 +104,14 @@ are the winning arm; the two decisions behind them:
   used to be a draw, which made stalling safe; deciding it on material (v1) took
   draws from 83% at iteration 40 to zero by iteration 20, and raised completed
   games per iteration from ~120-300 to ~1,400.
-- **v2 counts that cap from the last capture**, so a model ahead on material is
-  not paid to stop playing. Measured at -95 Elo against v1 at pilot scale, which
-  was a deliberate trade at the time; the cost came from ties, see below.
+- **The 60-move capture clock (v2 onwards) costs ~100 Elo** and is currently the
+  biggest known problem with these rules. It lost to v1's absolute 300-move cap
+  twice: -95 Elo with a material tiebreak, -112 with the advancement tiebreak
+  that removed every symptom people would have blamed. Epaminondas has long
+  manoeuvring phases with no captures, and cutting them off at 60 appears to
+  stop the model ever seeing a full strategic arc. **If you are starting a run
+  now, raising `MAX_MOVES_SINCE_CAPTURE` (or restoring the absolute cap) is the
+  first thing to try.**
 - **v3 decides the cap on advancement instead of material**, comparing piece
   counts rank by rank from the opponent's home rank inwards. Material was the
   wrong quantity - the game is won by getting up the board, not by hoarding

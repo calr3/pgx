@@ -322,4 +322,51 @@ mirrors, which random play produced zero times in 256 games, so the difference
 is unlikely to matter - but it is a rules difference, and head-to-heads
 involving E6 are played under v4.
 
-Status: E6 training; head-to-heads against E3 and E5 to follow.
+### Result: the prediction was wrong. The capture clock is the problem
+
+All 128-game matches, 32 simulations, played under v4 rules:
+
+| match | A's score | Elo |
+|---|---|---|
+| E6 (v3) vs **E3 (v1)** | 0.344 ± 0.042 | **-112** |
+| E6 (v3) vs E5 (v2) | 0.445 ± 0.044 | -38 |
+| E5 (v2) vs **E3 (v1)** | 0.367 ± 0.011 | **-95** |
+
+E6 lost to v1 by *more* than E5 did, with no degenerate phase at all. The
+E6-E5 difference is ~1.25 standard errors and not significant; E6-E3 is 3.7
+and is.
+
+The prediction above - that removing the ties would remove the cost - is
+**falsified**. Removing the ties removed every symptom (draws 0.000 from
+iteration 5, value loss steady at 0.44) and made the model slightly worse. So
+the cost was never the ties: it is the **60-move capture clock**, which both
+E5 and E6 share and E3 does not.
+
+Note what the models were measured under: all three played the tournament under
+v4 rules, i.e. under the capture clock. E3 was trained without it and still wins
+by 112 Elo **on the other rules' own terms**, which rules out "E3 is merely
+better at the game it was trained on".
+
+The likeliest explanation is the training horizon. Epaminondas has long
+manoeuvring phases with no captures - building and repositioning phalanxes - and
+a 60-move quiet limit cuts them off, so the model never sees a full strategic
+arc. Game lengths line up: E3 599 steps per game, E6 449, E5 202, ranked exactly
+as the models are.
+
+### Where this leaves the rules
+
+The evidence supports **v1's trigger** (an absolute cap, long horizon) and says
+nothing against **v4's tiebreak cascade** (advancement, then last capture, then
+black), which was never tested apart from the capture clock. They are
+independent choices and the experiments confounded them.
+
+The obvious next configuration, untested: **the absolute 300-move cap with the
+v4 tiebreak** - the long horizon that wins, with draws still impossible. Failing
+that, the capture clock with a much longer window (~150) would test the horizon
+explanation directly.
+
+What is now established:
+
+- v1's trigger beats the 60-move capture clock by ~100 Elo, twice over.
+- The tiebreak below it (material vs advancement vs no-draws) has never been
+  measured on its own.
