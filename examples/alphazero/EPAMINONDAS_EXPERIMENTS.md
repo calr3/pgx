@@ -106,3 +106,25 @@ difference once it does - E2's failure mode is gone, so the comparison is fair
 for the first time.
 
 Status: running. Results to follow.
+
+## Queued: v2, a capture clock instead of an absolute cap
+
+v1 fixed what the cap *pays* but not when it *fires*. `moves` counts from the
+start of the game and never resets, where Gess resets `no_capture_turns` on any
+capture, so Gess's cap only fires once a position has stopped progressing.
+
+Two consequences, neither of which binds today (E3's games average ~27 moves,
+nowhere near 300) but both of which matter in long games between strong models:
+
+- a player ahead on material now has a reason to run the clock out, since
+  reaching the cap pays them - an incentive v0 did not have, because it paid
+  nothing;
+- a game still being fought at move 300 is truncated and scored on material.
+
+v2 will end the game after a fixed number of moves **without a capture**, with
+material still deciding, and keep an absolute cap only as a loose backstop.
+Captures are a sound progress measure here because pieces are only ever removed,
+so at most 56 can occur and the capture clock alone bounds game length.
+
+To be tested against v1 as its own equal-time comparison rather than assumed
+better - v1 is already a large improvement over v0.
