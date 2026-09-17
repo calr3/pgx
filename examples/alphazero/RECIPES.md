@@ -33,9 +33,15 @@ Two things are **not** general defaults:
   actually be symmetric - verify with a check across all 8 symmetries (legal
   masks, observations and resulting boards) before trusting it. **+246 Elo** on
   Gess.
-- `qtransform=completed_unscaled` matters when **few actions are legal** - see
-  pig below. The default rescales Q to the range across a node's actions, which
-  is fine with hundreds of actions and destructive with two.
+- `qtransform=completed_unscaled` matters when a node offers **few actions whose
+  Q difference is itself the quantity of interest** - see pig below. It is not a
+  rule about small action spaces as such: on Epaminondas, whose stage-1 and
+  stage-2 nodes have a median of 3 and 2 legal actions, it lost a head-to-head
+  **119-0 (Elo -575)** and drove self-play to drawing 96% of its games. Pig's two
+  actions are hold and roll, and the unscaled gap between them is a real
+  difference in win probability; Epaminondas's are continuations of one move,
+  where the spread is noise and only the rank carries signal. Check which case
+  you are in before changing it.
 
 ## Gess
 
@@ -72,25 +78,41 @@ run needs `train_micro_batches=2`.
 python3 -u examples/alphazero/train.py env_id=epaminondas architecture=boardformer \
   selfplay_bf16=true num_simulations=32 playout_cap_prob=0.25 \
   fast_num_simulations=8 continue_games=true \
-  selfplay_batch_size=256 max_num_steps=192 training_batch_size=2048 \
+  selfplay_batch_size=256 max_num_steps=384 training_batch_size=2048 \
   num_updates_per_iter=32 replay_buffer_iters=4 \
   learning_rate=5e-4 weight_decay=1e-4 warmup_steps=100 grad_clip_norm=1.0 \
-  lr_schedule=cosine max_num_iters=35
+  lr_schedule=cosine eval_interval=40 max_num_iters=160
 ```
 
 **Architecture: `boardformer`**, GessFormer generalised to any even-sized board
 with one action per cell. It transfers to Epaminondas's 14x12 board and 168
 actions without change.
 
-Status: one ~15 min pilot only, so these are **starting settings, not a
-validated recipe**. Two things to fix before a real run:
+Status: four runs of ~1.3 h each (`EPAMINONDAS_EXPERIMENTS.md`). These settings
+are the winning arm; the two decisions behind them:
 
-- `max_num_steps=192` was too short - games rarely finished inside the window, so
-  value targets were starved. A move costs three steps here (lead, rear,
-  destination), so the step budget must be ~3x the intended move count.
-- Estimate iteration cost from **steady state**, not from the first iterations:
-  iteration 3 took 94 s against 26 s steady, and sizing off it made a planned
-  1-hour pilot run 15 minutes.
+- **Keep the default `qtransform`.** `completed_unscaled` lost 119-0. See the
+  note above - this is the one place a plausible reading of the pig result would
+  send you wrong.
+- **The game rules mattered more than any hyperparameter.** Reaching the move cap
+  used to be a draw, which made stalling safe; deciding it on material (v1) took
+  draws from 83% at iteration 40 to zero by iteration 20, and raised completed
+  games per iteration from ~120-300 to ~1,400. v2 counts that cap from the last
+  capture rather than the start of the game.
+
+Sizing notes that cost time to learn:
+
+- `max_num_steps` is in **steps, not moves**: a move costs three here (lead,
+  rear, destination). 192 covered a fifth of a game. Watch
+  `train/value_target_fraction` - it should sit at 1.00.
+- Estimate iteration cost from **steady state**: iterations 1-3 took 55/122/49 s
+  against 25.4 s steady, and sizing off them made a planned 1-hour pilot run 15
+  minutes.
+- `eval_interval` gates **checkpointing**, not just evaluation. Keep it a divisor
+  of `max_num_iters` if you want intermediate checkpoints at round numbers.
+- For tournaments here, pass `max_num_steps=900` (games run long) and
+  `random_opening_plies` in multiples of 3, so a random opening ends on a move
+  boundary instead of mid-move.
 
 Symmetry augmentation is not wired up for this env (the board is not square, so
 only the horizontal reflection applies).
@@ -199,8 +221,12 @@ the afterstate handling should be worth more than any amount of trunk capacity.
    vector of counters -> `mlp` (add `mlp_onehot_bins` if the values are small
    integers with sharp thresholds). Anything else -> `resnet` first, as a
    baseline to beat.
-2. **Action space.** Fewer than roughly a dozen legal actions ->
-   `qtransform=completed_unscaled`.
+2. **Action space.** A small action space is *not* on its own a reason for
+   `qtransform=completed_unscaled` - it helped pig and lost 119-0 on
+   Epaminondas. Ask whether the Q difference between a node's actions is the
+   real quantity being decided (pig: hold vs roll) or an artefact of how one
+   move resolves (Epaminondas: which rear, which destination). Test it; do not
+   assume it.
 3. **Step budget.** `max_num_steps` must comfortably exceed a full game in
    *steps*, which is moves x stages for multi-stage turns. Check
    `selfplay/steps_per_game` and `train/value_target_fraction` in the first

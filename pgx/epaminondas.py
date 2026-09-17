@@ -96,7 +96,8 @@ class Epaminondas(core.Env):
     @property
     def version(self) -> str:
         # v1: reaching the move cap is decided on piece count (v0: a draw).
-        return "v1"
+        # v2: the cap counts moves since the last capture, not since the start.
+        return "v2"
 
     @property
     def num_players(self) -> int:

@@ -160,7 +160,8 @@ def main() -> None:
     #    game (previously ~13% of Gess games ended in the opening).
     # 3: Gess v1 rules - a captureless stalemate is decided on stone count.
     # 4: Epaminondas v1 rules - reaching the move cap is decided on piece count.
-    settings["game_version"] = 4
+    # 5: Epaminondas v2 rules - that cap counts moves since the last capture.
+    settings["game_version"] = 5
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:

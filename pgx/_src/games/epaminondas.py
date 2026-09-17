@@ -55,13 +55,24 @@ EMPTY = 0
 WHITE = 1  # player 0, moves first, back rank is row 0
 BLACK = 2  # player 1, back rank is row HEIGHT - 1
 
-# The game ends once this many full moves have been played without a win, and is
+# The game ends once this many full moves have passed without a capture, and is
 # then decided on material: the player with more pieces left wins, and only an
 # exact tie is a draw. This deviates from the published rules, which have no move
-# limit; a plain draw at the cap made stalling a safe equilibrium (a player who
-# never commits scores 0 rather than -1), and self-play converged on it. Gess
-# resolves its captureless stalemate the same way.
-MAX_MOVES = 300
+# limit at all; the cap exists only to bound self-play.
+#
+# Counting since the last capture, rather than from the start of the game,
+# matters once the cap is decided on material: an absolute cap pays a player who
+# is ahead to run the clock out, and truncates games that are still being
+# fought. Captures are a sound progress measure here because pieces are only ever
+# removed. Gess uses the same structure (DRAW_NO_CAPTURE_TURNS), with a shorter
+# window; Epaminondas gets a longer one because its buildup phase is slow, and
+# ending a live game early on material is the failure this is meant to avoid.
+MAX_MOVES_SINCE_CAPTURE = 60
+
+# A loose absolute backstop, so worst-case game length stays predictable for
+# sizing max_num_steps. Termination does not depend on it: at most 56 captures
+# can occur, so the capture clock alone bounds a game.
+MAX_MOVES = 600
 
 # The eight directions, and the index of each one's opposite.
 _DIRS = np.array(
@@ -105,7 +116,8 @@ class GameState(NamedTuple):
     lead: Array = jnp.int32(0)  # chosen in stage 0
     rear: Array = jnp.int32(0)  # chosen in stage 1 (== lead for a single piece)
     winner: Array = jnp.int32(-1)  # -1 = ongoing, else the winning player
-    moves: Array = jnp.int32(0)  # completed full moves, for the draw cap
+    moves: Array = jnp.int32(0)  # completed full moves, for the absolute backstop
+    moves_since_capture: Array = jnp.int32(0)  # reset by any capture; the real cap
 
 
 class Game:
@@ -138,7 +150,11 @@ class Game:
         )
 
     def is_terminal(self, state: GameState) -> Array:
-        return (state.winner >= 0) | (state.moves >= MAX_MOVES)
+        return (
+            (state.winner >= 0)
+            | (state.moves_since_capture >= MAX_MOVES_SINCE_CAPTURE)
+            | (state.moves >= MAX_MOVES)
+        )
 
     def rewards(self, state: GameState) -> Array:
         # Reaching the move cap goes to whoever has more pieces left; an exact
@@ -262,6 +278,10 @@ def _apply_move(state: GameState, dest: Array) -> GameState:
     board = _do_move(state.board, state.color, state.lead, state.rear, dest)
     color = 1 - state.color
     moves = state.moves + 1
+    # A move never adds a piece, and a capture always removes at least one, so
+    # the piece count alone says whether this move captured.
+    captured = (board != EMPTY).sum() < (state.board != EMPTY).sum()
+    moves_since_capture = jnp.where(captured, jnp.int32(0), state.moves_since_capture + 1)
     # The player about to move wins if they have more pieces on the opponent's
     # back rank than the opponent has on theirs.
     winner = jax.lax.select(_wins_at_turn_start(board, color), color, jnp.int32(-1))
@@ -271,7 +291,7 @@ def _apply_move(state: GameState, dest: Array) -> GameState:
     winner = jax.lax.select((winner < 0) & stuck, 1 - color, winner)
     return GameState(
         color=color, board=board, stage=jnp.int32(0), lead=jnp.int32(0), rear=jnp.int32(0),
-        winner=winner, moves=moves,
+        winner=winner, moves=moves, moves_since_capture=moves_since_capture,
     )
 
 

@@ -105,9 +105,62 @@ material rule stops the stalling, and whether the q-transform makes any
 difference once it does - E2's failure mode is gone, so the comparison is fair
 for the first time.
 
-Status: running. Results to follow.
+### Result: the rule change worked, and the q-transform question is settled
 
-## Queued: v2, a capture clock instead of an absolute cap
+The material rule transformed the baseline arm. E3 against E1, same settings but
+for the rules:
+
+| iteration | 5 | 10 | 20 | 40 | 160 |
+|---|---|---|---|---|---|
+| E1 draw rate (v0) | 0.93 | 0.44 | 0.71 | 0.83 | 0.000 |
+| **E3 draw rate (v1)** | 0.155 | 0.161 | 0.029 | **0.000** | 0.018 |
+| E3 games finished | 219 | 168 | 138 | **1235** | 164 |
+
+Draws are gone by iteration 20 where E1 was still drawing 83% of games at 40 and
+did not escape until ~80. The knock-on effect is larger than the draw rate
+itself: games stopped running to the cap, so the same 384-step budget completed
+**~1,400 games an iteration instead of ~120-300** - an order of magnitude more
+real value targets per unit of compute. The v0 cap was not only permitting a
+degenerate policy, it was starving the data pipeline.
+
+E4 repeated E2's failure, more slowly:
+
+| iteration | 5 | 20 | 40 | 60 | 80 | 100 | 160 |
+|---|---|---|---|---|---|---|---|
+| E4 draw rate | 0.199 | 0.632 | 0.617 | 0.350 | 0.743 | 0.852 | **0.960** |
+| E4 value loss | 0.420 | 0.191 | 0.180 | 0.162 | 0.094 | 0.052 | **0.029** |
+
+Head to head at iteration 160, 128 games, 32 simulations, `max_num_steps=900`,
+`random_opening_plies=3` (a multiple of the three plies per move, so openings
+end on a move boundary):
+
+```
+A = E3 (default), B = E4 (completed_unscaled)
+A wins 119 (93.0%) | B wins 0 (0.0%) | draws 9 (truncated: 0)
+A score 0.965 ± 0.011   Elo diff A-B: +575
+A as P0 0.953 | A as P1 0.977 | avg game length 324 plies
+```
+
+**`completed_unscaled` is actively harmful here**, shown under two rule sets and
+confirmed by a 119-0 head-to-head. Caveats worth keeping: E4 ran 160 iterations
+in 1.12 h against E3's 1.30 h (drawn games complete fewer games per iteration,
+so there is less data to train on), making this equal-iteration rather than
+equal-time - but the shortfall runs against the arm that already lost, so it
+cannot explain the result.
+
+### Why pig does not transfer
+
+Pig's two actions are *hold* and *roll*, and the unscaled Q gap between them is
+the real difference in win probability - exactly the quantity the policy target
+should carry. Epaminondas's two or three actions at stages 1 and 2 are
+structural continuations of one move (which rear, which destination), where the
+raw Q spread is dominated by how the move happens to resolve rather than by how
+much better one continuation is. Rank survives that; magnitude does not.
+
+So the rule in `RECIPES.md` needed narrowing: a small *decision* space where the
+Q difference means something, not merely a small action space.
+
+## v2: a capture clock instead of an absolute cap
 
 v1 fixed what the cap *pays* but not when it *fires*. `moves` counts from the
 start of the game and never resets, where Gess resets `no_capture_turns` on any
@@ -121,10 +174,17 @@ nowhere near 300) but both of which matter in long games between strong models:
   nothing;
 - a game still being fought at move 300 is truncated and scored on material.
 
-v2 will end the game after a fixed number of moves **without a capture**, with
-material still deciding, and keep an absolute cap only as a loose backstop.
-Captures are a sound progress measure here because pieces are only ever removed,
-so at most 56 can occur and the capture clock alone bounds game length.
+v2 ends the game after **60 moves without a capture**, material still deciding,
+and keeps `MAX_MOVES = 600` only as a loose backstop. Captures are a sound
+progress measure here because pieces are only ever removed, so at most 56 can
+occur and the capture clock alone bounds game length; the backstop exists so
+worst-case length stays predictable for sizing `max_num_steps`.
 
-To be tested against v1 as its own equal-time comparison rather than assumed
-better - v1 is already a large improvement over v0.
+The window is deliberately generous - Gess uses 20 turns, but Epaminondas has a
+14x12 board and a slow buildup, and cutting a live game short on material is the
+failure this is meant to avoid. E3's games averaged 324 plies (108 moves) in the
+tournament, so a 60-move quiet window should rarely bind.
+
+Still to do: an equal-time comparison against v1 rather than assuming v2 is
+better. v1 already fixed the large problem, and a quiet window that binds too
+early would reintroduce a milder version of the same truncation.
