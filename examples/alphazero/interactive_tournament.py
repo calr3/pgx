@@ -67,6 +67,12 @@ class TourneyConfig(BaseModel):
     # Search budget for every 'model' seat.
     num_simulations: int = 6144
     max_num_considered_actions: int = 16
+    # Budget for every 'negamax' seat: seconds per move, and a hard ceiling on
+    # iterative-deepening depth (in full moves). With a time limit set, depth is
+    # whatever fits; set negamax_time_s=0 to search to negamax_depth regardless
+    # of how long that takes.
+    negamax_time_s: float = 2.0
+    negamax_depth: int = 64
     # Print the board and the policy heatmap every ply. Useful when watching a
     # game, but it also forces an extra unjitted forward pass per ply (to show
     # the raw prior), which dominates the cost of a cheap search -- so leave it
@@ -494,6 +500,11 @@ def get_cli(env_id: pgx.EnvId) -> Cli:
             raise ValueError(f"No CLI support for {env_id}")
 
 
+def unbatch(state: pgx.State) -> pgx.State:
+    """Drop the leading batch axis of 1 that the tournament carries everywhere."""
+    return jax.tree_util.tree_map(lambda x: x[0], state)
+
+
 class Agent(ABC):
     @abstractmethod
     def get_name(self) -> str:
@@ -537,6 +548,49 @@ class RandomAgent(Agent):
         print(f"  Picking randomly! Selected action index {action_i} for no particular reason.")
         return jnp.int32([action_i])
 
+
+
+class NegamaxAgent(Agent):
+    """A hand-written alpha-beta opponent, for calibration against a model.
+
+    The engine itself lives in negamax.py and knows nothing about tournaments;
+    this is only the Agent adapter. Note the asymmetry with ModelAgent: that one
+    is given a fixed simulation count, this one a fixed wall-clock budget, so
+    "equal thinking time" is the thing the two share rather than equal work.
+    """
+
+    def __init__(
+        self,
+        env_id: str,
+        time_limit_s: float,
+        max_depth: int,
+        verbose: bool = True,
+    ) -> None:
+        from negamax import NegamaxEngine, make_evaluator
+
+        self.verbose = verbose
+        self.time_limit_s = time_limit_s
+        # Compiling every batch shape up front takes a few seconds but keeps it
+        # out of the per-move budget, so reported think times mean something.
+        self.engine = NegamaxEngine(
+            env,
+            make_evaluator(env_id),
+            max_depth=max_depth,
+            time_limit_s=time_limit_s if time_limit_s > 0 else None,
+        )
+
+    def get_name(self) -> str:
+        budget = f"{self.time_limit_s}s" if self.time_limit_s > 0 else f"d{self.engine.max_depth}"
+        return f"Negamax[{budget}]"
+
+    def get_action(self, key: jnp.ndarray, state: pgx.State) -> jnp.ndarray:
+        del key
+        action, stats = self.engine.select_action(unbatch(state))
+        print(
+            f"Thought for {stats.elapsed:.1f} seconds. "
+            f"(depth {stats.depth_reached}, {stats.nodes} nodes, score {stats.score:+.1f})"
+        )
+        return jnp.int32([action])
 
 
 class ModelAgent(Agent):
@@ -712,8 +766,10 @@ def build_agents(
     cli: Cli,
     mcts_config: MctsConfig,
     verbose: bool,
+    negamax_time_s: float = 2.0,
+    negamax_depth: int = 64,
 ) -> list[Agent]:
-    """Parse a players spec like "random,me,model,model" into a list of agents.
+    """Parse a players spec like "random,me,model,negamax" into a list of agents.
 
     Each successive 'model' token is given the next integer index and a
     checkpoint path chosen round-robin from model_paths, so one path is shared
@@ -725,6 +781,10 @@ def build_agents(
         kind = token.strip().lower()
         if kind in ("random", "rando", "rand"):
             agents.append(RandomAgent())
+        elif kind in ("negamax", "alphabeta", "ab"):
+            agents.append(
+                NegamaxAgent(env.id, negamax_time_s, negamax_depth, verbose)
+            )
         elif kind in ("me", "human", "keyboard", "kb"):
             agents.append(KeyboardAgent(cli))
         elif kind in ("model", "ai", "nn"):
@@ -741,7 +801,7 @@ def build_agents(
         else:
             raise ValueError(
                 f"Unknown player type {token!r} in players={players!r}. "
-                "Valid types are: random, me, model."
+                "Valid types are: random, me, model, negamax."
             )
     if len(agents) < 2:
         raise ValueError(
@@ -815,6 +875,8 @@ if __name__ == "__main__":
         cli,
         mcts_config,
         tourney_config.verbose,
+        tourney_config.negamax_time_s,
+        tourney_config.negamax_depth,
     )
     wins = np.zeros_like(agents)
     for game_num in range(0, tourney_config.games):

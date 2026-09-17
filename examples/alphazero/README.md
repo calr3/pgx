@@ -100,6 +100,48 @@ $ python3 elo_ladder.py env_id=gess games_per_pair=256 num_simulations=32 \
     models=a=checkpoints/run_a/000060.ckpt,b=checkpoints/run_b/000060.ckpt,c=checkpoints/run_c/000040.ckpt
 ```
 
+### Playing against an alpha-beta engine
+
+`negamax.py` is a conventional alpha-beta search with a hand-written evaluation
+function — no network, no rollouts. `interactive_tournament.py` takes it as the
+player type `negamax`, alongside `random`, `me` and `model`:
+
+```sh
+$ python3 interactive_tournament.py env_id=epaminondas players=negamax,model \
+    models=checkpoints/epaminondas_20260918013629/000160.ckpt \
+    games=20 negamax_time_s=2 num_simulations=704 verbose=false
+```
+
+Only Epaminondas has an evaluation function so far; `negamax.make_evaluator` is
+where another game's would be registered. The Epaminondas one implements the six
+heuristics of the LEONIDAS agent in King and Peterson, *Epaminondas: Exploring
+Combat Tactics*, ICGA Journal 37(3): mobility, material dominance, crossings,
+center of mass, home row defense and territory. **The weights combining them are
+not from the paper** — it defines the six terms but never publishes the
+coefficients, and calls its own function unrefined — so they are set in
+`EpaminondasWeights` and are the obvious thing to tune.
+
+Two things worth knowing before reading results from it:
+
+- **It is shallow.** The budget is per pgx action, matching how the MCTS agent
+  is called, and one Epaminondas move is three actions. Measured on this
+  machine: ~800 nodes/second on CPU, which reaches depth 1 (in full moves) from
+  the opening in a 2 s budget and needs ~8 s for depth 2. The cost is
+  `env.step` — about 0.23 ms per child, mostly recomputing legal moves — not
+  the evaluation. A JAX env is a poor fit for a sequential tree search; the
+  search is correct, but it is not a strong opponent, which is roughly what the
+  paper reports for its own novice Alpha-Beta agent.
+- **Run it on CPU.** The batches here are a few dozen states, so the search is
+  dispatch-bound rather than compute-bound and the GPU is about *four times
+  slower*: the same 2 s budget bought ~250-450 nodes on the GPU against ~1600 on
+  the CPU. For a negamax-only tournament prefix the command with
+  `JAX_PLATFORMS=cpu`. (A `negamax,model` tournament still wants the GPU for the
+  model, so it pays the slower engine — worth knowing when reading think times.)
+- **Construction compiles for several seconds.** `vmap(step)` is recompiled for
+  every distinct batch shape, so the engine buckets batches to powers of two and
+  compiles all of them up front (~14 s). Without that, compilation lands inside
+  the per-move budget and the search gets ~5 nodes/second.
+
 ### Running a trained model elsewhere (ONNX)
 
 `export_onnx.py` converts a checkpoint's policy/value network to ONNX, for

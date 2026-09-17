@@ -138,6 +138,13 @@ JAX pitfalls hit while writing envs:
 - Don't build per-square 4-D legality arrays: compute "can this square move at
   all?" from line lengths, and full legality only for the square actually
   chosen. That was a ~20x cost difference in Epaminondas.
+- **A jitted function is recompiled for every distinct input shape.** Anything
+  that calls `vmap(env.step)` on a variable-sized batch — a tree search over the
+  legal moves of each node, say — pays a full XLA compilation per node, which
+  for Epaminondas is seconds. `negamax.py` measured ~5 nodes/second before
+  bucketing batches to powers of two and compiling every bucket up front; the
+  same search then ran at ~800. Pad to a fixed set of shapes, and warm them all
+  outside whatever you are timing, or compilation lands inside the measurement.
 
 ## Architectures (`examples/alphazero/network.py`)
 
