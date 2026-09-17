@@ -27,6 +27,13 @@ added here). What follows is what was learned the hard way.
 
 - Run from the repo root: `python -u examples/alphazero/train.py env_id=... k=v`.
   Without `-u`, output is block-buffered and progress looks stalled.
+- **The MinAtar envs are a git submodule** (`pgx/minatar` ->
+  `sotetsuk/pgx-minatar`) and are not needed for any of the board games. Their
+  five test files used to abort collection for the *whole* `tests/` directory
+  when it was uninitialised, so a bare `pytest tests/` ran nothing at all; they
+  now skip instead. To actually run them:
+  `git submodule update --init pgx/minatar` (the reference `minatar` pip package
+  is also required, and is already installed here).
 - **Run the rules tests on CPU while a training run has the GPU**:
   `JAX_PLATFORMS=cpu python -m pytest -p no:xdist -q tests/test_<game>.py`.
   They are small enough that CPU is *faster* (44 s vs ~4 min for Epaminondas)

@@ -1,3 +1,11 @@
+import pytest
+
+# MinAtar needs the pgx/minatar submodule and the reference `minatar` package,
+# neither of which the board games use. Skip when they are absent rather than
+# fail collection, which aborts the whole tests/ run. See CLAUDE.md to enable.
+pytest.importorskip("pgx.minatar.space_invaders", reason="pgx/minatar submodule not initialised")
+pytest.importorskip("minatar", reason="reference minatar package not installed")
+
 import jax
 import random
 
