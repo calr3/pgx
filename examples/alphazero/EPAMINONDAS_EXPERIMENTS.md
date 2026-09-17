@@ -486,3 +486,67 @@ Worth knowing before anyone tries to make this deeper:
 The honest summary is that a JAX env is a poor fit for sequential tree search.
 The search is correct and the engine is a useful fixed reference, but it is a
 weak one, which is roughly what the paper reports for its own novice agent.
+
+## E8: 64 simulations, at equal wall clock
+
+**Question.** `num_simulations=32` was inherited from Gess and never tested here.
+An Epaminondas move costs *three* network evaluations - lead, rear, destination -
+so 32 simulations buy roughly a third of the per-move lookahead they buy in a
+one-action game. Is 64 better at equal time?
+
+**Setup.** E7's settings with `num_simulations=64` and nothing else changed.
+A 3-iteration probe measured the new rate before launching, so that
+`max_num_iters` could be sized for the cosine schedule to *complete* inside the
+budget - an unfinished schedule would have confounded the comparison with a
+truncated LR tail. 72 iterations, 1.034 h. Checkpoint
+`checkpoints/epaminondas_20260918062619`.
+
+The probe under-estimated: iteration 3 took 62 s, but steady state was 54 s, so
+the run landed at 1.034 h against E7's 1.301 h. Rather than restart, the result
+was **bracketed** against the two E7 checkpoints either side of it.
+
+| comparison | E8's time vs opponent | E8 score | Elo |
+|---|---|---|---|
+| E8 vs E7 it120 (0.980 h) | **+5%** | 0.430 ± 0.044 | **-49** |
+| E8 vs E7 it160 (1.301 h) | -21% | 0.258 ± 0.039 | **-184** |
+
+128 games each, 32 simulations for both sides, `max_num_steps=900`, no draws and
+no truncations.
+
+**Conclusion. 64 simulations is worse at equal time; keep 32.** E8 loses even to
+the checkpoint it out-spent by 5%, so the handicap does not explain it. Doubling
+the search does not pay for halving the games: E8 saw 7.1M positions to E7's
+15.7M.
+
+This is the same shape as the Gess result that halving to 16 simulations cost
+103 Elo. Both games are worse off either side of 32, so 32 looks like a genuine
+optimum for this recipe rather than a Gess-specific accident - which is worth
+knowing before scaling, since simulation count is exactly the sort of parameter
+one is tempted to raise when given more hardware.
+
+The bracket is the method to reuse: when a run misses its time budget, compare
+it against checkpoints on **both** sides rather than restarting. Losing to the
+favourable end settles it at no extra cost.
+
+### A seat asymmetry worth following up
+
+Both matches show the same thing, and so did the earlier baseline-vs-random
+check (0.812 as player 0, 1.000 as player 1):
+
+| | as player 0 | as player 1 |
+|---|---|---|
+| E8 vs E7 it120 | 0.391 | 0.469 |
+| E8 vs E7 it160 | 0.203 | 0.312 |
+
+Because the matches are seat-balanced, this says both sides do better as player
+1: if E8 scores 0.391 as player 0, E7 scored 0.609 as player 1 in those games.
+So **player 1 (black) appears to hold an advantage of roughly +0.08** in score.
+
+It is probably *not* the v5 tiebreak, which hands black the last word only when
+the 300-move cap is reached: these games averaged 153-190 plies, i.e. 51-63
+moves, so the cap almost never fired. That points at move order itself - and
+Epaminondas does give the second player a move to answer a crossing, so an
+advantage there is not implausible.
+
+Untested, and it matters for reading every result here: seat-balanced scores
+cancel it, but any unbalanced measurement inherits it.

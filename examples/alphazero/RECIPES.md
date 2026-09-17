@@ -94,8 +94,15 @@ python3 -u examples/alphazero/train.py env_id=epaminondas architecture=boardform
 with one action per cell. It transfers to Epaminondas's 14x12 board and 168
 actions without change.
 
-Status: four runs of ~1.3 h each (`EPAMINONDAS_EXPERIMENTS.md`). These settings
-are the winning arm; the two decisions behind them:
+Status: eight runs of ~1.3 h each (`EPAMINONDAS_EXPERIMENTS.md`). These settings
+are the winning arm; the decisions behind them:
+
+- **`num_simulations=32` is tested here, not just inherited.** 64 lost at equal
+  time - -49 Elo even against the E7 checkpoint it out-spent by 5%, and -184
+  against the one at matched time (E8). Gess separately found 16 costs 103 Elo.
+  Both games are worse either side of 32, so treat it as a real optimum and
+  resist raising it when given more hardware: doubling the search halves the
+  games, and the games win.
 
 - **Keep the default `qtransform`.** `completed_unscaled` lost 119-0. See the
   note above - this is the one place a plausible reading of the pig result would
