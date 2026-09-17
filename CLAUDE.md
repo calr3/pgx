@@ -47,6 +47,14 @@ added here). What follows is what was learned the hard way.
   `kill -0 $PID`. Note `nohup setsid cmd &` gives the PID of `setsid`, which
   exits immediately — capture the real one with `pgrep -af` once, or have the
   launcher script record it. To stop something, `kill` that PID.
+
+  When looking the PID up afterwards, match the **script or python command**,
+  not the launcher, and check what you matched: `ps -eo pid,args | grep
+  "[r]un_foo.sh"` can return several PIDs, and the first is often the `setsid`
+  that is about to exit. Watching that one reports "finished" seconds after
+  launch, while the run carries on unwatched. `ps -eo pid,etime,args` shows
+  which is which. (The `[r]` bracket stops grep matching its own argv, the same
+  self-match that makes `pgrep -f` unsafe here.)
 - Resume with `resume_from=<ckpt>`; add `save_data_state=true` to also restore
   the replay buffer, held-back steps and in-progress games (verified
   bit-identical to an uninterrupted run). On the 16 GB GPU a resumed full-size
