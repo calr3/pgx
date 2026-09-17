@@ -185,6 +185,70 @@ The window is deliberately generous - Gess uses 20 turns, but Epaminondas has a
 failure this is meant to avoid. E3's games averaged 324 plies (108 moves) in the
 tournament, so a 60-move quiet window should rarely bind.
 
-Still to do: an equal-time comparison against v1 rather than assuming v2 is
-better. v1 already fixed the large problem, and a quiet window that binds too
-early would reintroduce a milder version of the same truncation.
+### Result: v2 is worse than v1, and the window is why
+
+E5 is E3 with only the rules changed, at 1.27 h against 1.30 h - a genuine
+equal-time comparison.
+
+| | E3 (v1) | E5 (v2) |
+|---|---|---|
+| final draw rate | 0.018 | 0.000 |
+| final policy loss | 1.218 | 0.863 |
+| final value loss | 0.261 | 0.399 |
+| final steps/game | 599 | 202 |
+
+```
+A = E5 (v2), B = E3 (v1), 128 games, 32 sims, played under v2 rules
+A wins 45 (35.2%) | B wins 79 (61.7%) | draws 4 (truncated: 0)
+A score 0.367 ± 0.042   Elo diff A-B: -95
+```
+
+**v2 lost by ~95 Elo**, despite the games being played under v2's own rules,
+and despite its training curves looking *better* on every metric that usually
+signals progress - shorter decisive games, lower policy loss, no draws.
+
+The cause shows up early. E5 spent its first ~40 iterations degenerate:
+
+| iteration | 20 | 40 | 60 |
+|---|---|---|---|
+| E5 draw rate | **0.979** | 0.029 | 0.002 |
+| E5 value loss | 0.016 | 0.316 | 0.363 |
+| E3 draw rate | 0.029 | 0.000 | 0.000 |
+
+A draw needs *exactly* equal material, and untrained play is quiet: early on
+neither side captures, so the 60-move capture clock fires while both players
+still hold all 28 pieces, and the game is scored a tie. v1's 300-move absolute
+cap ran long enough that captures happened first. So the capture clock does not
+only end stalled games - it ends *unskilled* ones, and roughly a quarter of the
+160-iteration budget went to recovering from that.
+
+The lesson is about how the window was chosen, not about capture clocks: 60 was
+picked as "deliberately generous" against E3's 108-move average game length,
+which is a **trained** statistic and the wrong reference for iteration 20. A cap
+that depends on skill has to be sized for the *worst* play in the run, not the
+best.
+
+The incentive problem that motivated v2 is still real - under v1 a player ahead
+on material can run the clock out - but it does not bite at this strength, and
+the measured cost of fixing it does.
+
+### Decision: v2 is kept, with the cost on the record
+
+**v2 stays**, deliberately and against the head-to-head. The reasoning is that
+v1's flaw is structural and gets worse exactly where it matters - a model strong
+enough to hold a material lead is paid to stop playing - while v2's cost is a
+one-off early-training tax that the run recovers from by iteration 40. Trading
+95 Elo at pilot scale for a rule that does not reward stalling at full scale is
+a judgement about where this is going, not a claim that v2 is stronger today.
+
+What that means when reading results here:
+
+- **The -95 Elo is a known, accepted cost, not a mystery.** Do not go looking
+  for a regression to explain it, and do not compare v1-trained and v2-trained
+  checkpoints as though the rules were held constant.
+- The obvious lever if it becomes a problem is the window, not the mechanism:
+  raise `MAX_MOVES_SINCE_CAPTURE` from 60 to ~150 so it cannot fire during early
+  unskilled play, and re-run this comparison. Untested.
+- E3 (v1) remains the strongest Epaminondas checkpoint measured so far, at
+  `checkpoints/epaminondas_20260917191121/000160.ckpt`. E5 is the strongest
+  under current rules.

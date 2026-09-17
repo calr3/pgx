@@ -97,8 +97,14 @@ are the winning arm; the two decisions behind them:
 - **The game rules mattered more than any hyperparameter.** Reaching the move cap
   used to be a draw, which made stalling safe; deciding it on material (v1) took
   draws from 83% at iteration 40 to zero by iteration 20, and raised completed
-  games per iteration from ~120-300 to ~1,400. v2 counts that cap from the last
-  capture rather than the start of the game.
+  games per iteration from ~120-300 to ~1,400.
+- **v2 counts that cap from the last capture, and costs ~95 Elo at this scale.**
+  That is a deliberate trade, not a regression to hunt: v1 pays a model that is
+  ahead on material to run the clock out, which gets worse as models get
+  stronger, while v2's cost is an early-training tax it recovers from by
+  iteration 40. Expect a degenerate first ~40 iterations (draw rate near 1.0,
+  value loss near 0) while play is too quiet to capture, and do not compare
+  v1-trained checkpoints against v2-trained ones as if the rules were fixed.
 
 Sizing notes that cost time to learn:
 
