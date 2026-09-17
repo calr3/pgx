@@ -370,3 +370,42 @@ What is now established:
 - v1's trigger beats the 60-move capture clock by ~100 Elo, twice over.
 - The tiebreak below it (material vs advancement vs no-draws) has never been
   measured on its own.
+
+## E7 (v5): the two variables, finally separated
+
+v5 is v1's trigger - an absolute 300-move cap - carrying v4's tiebreak
+(advancement rank by rank, then the last capture, then black; no draws). E7 is
+E3 and E6's settings with only the rules changed, 160 iterations in 1.30 h.
+
+| comparison | what it isolates | A's score | Elo |
+|---|---|---|---|
+| E7 (v5) vs E3 (v1) | **the tiebreak**, horizon held fixed | 0.523 ± 0.044 | **+16** |
+| E7 (v5) vs E6 (v3) | **the horizon**, tiebreak held fixed | 0.633 ± 0.043 | **+95** |
+
+- **The tiebreak is free.** +16 Elo is half a standard error from parity, so
+  advancement scoring and the removal of draws cost nothing in strength. They
+  were adopted because they are the better rules, and the measurement says
+  nothing stands in the way of that.
+- **The capture clock was the whole cost.** +95 Elo at 3.1 standard errors,
+  matching the -95 and -112 measured against it earlier. The three figures agree
+  on a single quantity: ending games 60 quiet moves after the last capture costs
+  about 100 Elo, because Epaminondas's manoeuvring phases are longer than that.
+
+E7's self-play was clean throughout: draws 0.000 from iteration 1 (E3 drew 15%
+early), value loss steady at 0.38-0.50, and early game lengths tracking E3's long
+ones (945 steps at iteration 10) rather than E6's truncated ones (245).
+
+**E7 is the strongest Epaminondas model measured**, at
+`checkpoints/epaminondas_20260918013629/000160.ckpt`, and it plays the rules we
+want to keep.
+
+### What the sequence cost, and why
+
+Four training runs (E4-E7, ~5.5 h) went into a question that two would have
+answered, because v2 changed *when the cap fires* and v3/v4 changed *how it is
+scored* without either being measured alone. The confound then produced a wrong
+diagnosis - E5's loss was blamed on ties, E6 removed the ties and lost by more -
+which cost a fifth run to correct.
+
+Change one variable per comparison, even when the second change seems obviously
+right.
