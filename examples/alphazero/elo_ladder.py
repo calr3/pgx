@@ -165,7 +165,8 @@ def main() -> None:
     # 3: Gess v1 rules - a captureless stalemate is decided on stone count.
     # 4: Epaminondas v1 rules - reaching the move cap is decided on piece count.
     # 5: Epaminondas v2 rules - that cap counts moves since the last capture.
-    settings["game_version"] = 5
+    # 6: Epaminondas v3 rules - the cap is decided on advancement, rank by rank.
+    settings["game_version"] = 6
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:

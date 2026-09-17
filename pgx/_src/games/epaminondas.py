@@ -56,9 +56,10 @@ WHITE = 1  # player 0, moves first, back rank is row 0
 BLACK = 2  # player 1, back rank is row HEIGHT - 1
 
 # The game ends once this many full moves have passed without a capture, and is
-# then decided on material: the player with more pieces left wins, and only an
-# exact tie is a draw. This deviates from the published rules, which have no move
-# limit at all; the cap exists only to bound self-play.
+# then decided on advancement: piece counts are compared rank by rank starting
+# from the opponent's home rank, and the first rank that differs wins it (see
+# _advancement_winner). This deviates from the published rules, which have no
+# move limit at all; the cap exists only to bound self-play.
 #
 # Counting since the last capture, rather than from the start of the game,
 # matters once the cap is decided on material: an absolute cap pays a player who
@@ -157,9 +158,9 @@ class Game:
         )
 
     def rewards(self, state: GameState) -> Array:
-        # Reaching the move cap goes to whoever has more pieces left; an exact
-        # tie is the only draw.
-        winner = jax.lax.select(state.winner >= 0, state.winner, _material_winner(state.board))
+        # Reaching the move cap goes to whoever has come further up the board,
+        # compared rank by rank; only a rank-for-rank mirror is a draw.
+        winner = jax.lax.select(state.winner >= 0, state.winner, _advancement_winner(state.board))
         return jax.lax.select(
             winner >= 0,
             jnp.float32([-1.0, -1.0]).at[jnp.clip(winner, 0, 1)].set(1.0),
@@ -170,10 +171,35 @@ class Game:
 # ─── Board helpers ───────────────────────────────────────────────────────────
 
 
-def _material_winner(board: Array) -> Array:
-    """Player with more pieces left: 0 white, 1 black, -1 tied."""
-    white, black = (board == WHITE).sum(), (board == BLACK).sum()
-    return jnp.where(white > black, jnp.int32(0), jnp.where(black > white, jnp.int32(1), jnp.int32(-1)))
+def _advancement_winner(board: Array) -> Array:
+    """Whoever has come further up the board: 0 white, 1 black, -1 tied.
+
+    Compares piece counts row by row, deepest first: white's count on row
+    HEIGHT-1-i against black's count on row i, for i = 0, 1, 2, ... The first
+    row that differs decides.
+
+    White advances towards row HEIGHT-1 and black towards row 0, so row pair i
+    is "i rows from the opponent's home rank" for both players. The i = 0 pair -
+    pieces actually on the opponent's home rank - is level in any position the
+    cap can be reached from, because a difference there is the win condition and
+    would have ended the game already; so in practice this starts at the
+    second-to-home rank and walks back down the board.
+
+    This scores the objective rather than material: the game is won by getting
+    up the board, so a player who is further up is the one making progress.
+    Ties need the two sides to be mirror images rank for rank, which makes draws
+    almost impossible.
+    """
+    b = board.reshape(HEIGHT, WIDTH)
+    # diff[i] = white on row HEIGHT-1-i, minus black on row i.
+    diff = (b == WHITE).sum(axis=1)[::-1] - (b == BLACK).sum(axis=1)
+    decided = diff != 0
+    first = jnp.argmax(decided)  # the deepest rank where the two differ
+    return jnp.where(
+        ~decided.any(),
+        jnp.int32(-1),
+        jnp.where(diff[first] > 0, jnp.int32(0), jnp.int32(1)),
+    )
 
 
 def _init_board() -> Array:

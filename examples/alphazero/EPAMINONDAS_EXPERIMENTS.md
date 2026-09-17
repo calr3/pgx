@@ -251,4 +251,36 @@ What that means when reading results here:
   unskilled play, and re-run this comparison. Untested.
 - E3 (v1) remains the strongest Epaminondas checkpoint measured so far, at
   `checkpoints/epaminondas_20260917191121/000160.ckpt`. E5 is the strongest
-  under current rules.
+  under v2 rules.
+
+## v3: the cap is decided on advancement, not material
+
+Material was the wrong tiebreak, for the same reason a draw was: it does not
+measure the thing the game is about. Epaminondas is won by getting up the board,
+so the cap now compares piece counts **rank by rank, deepest first** - white's
+count on row `HEIGHT-1-i` against black's on row `i` - and the first rank that
+differs takes it (`_advancement_winner`).
+
+The deepest pair is always level in any position the cap can be reached from: a
+difference there *is* the win condition, so the game would already have ended.
+The comparison therefore starts in practice at the second-to-home rank and walks
+back down the board, and a draw needs the two sides to be exact mirrors rank for
+rank.
+
+Measured over 256 random games: **0 draws** (117 white wins, 139 black). Under
+the material tiebreak, early play drew ~98% of games.
+
+### Why this should also undo v2's cost
+
+E5's -95 Elo came from ties, not from the capture clock as such: untrained play
+is quiet, so the clock fired while both sides still held all 28 pieces, and
+*equal material is a draw*. Advancement is almost never equal, so those same
+games are now decided rather than drawn, and there is no reason for the
+degenerate first 40 iterations to reappear.
+
+Stated as a prediction before measuring, so it can be wrong: **v3 should not
+show E5's early collapse, and should beat both E5 (v2) and E3 (v1)**. If the
+early draw rate at iteration 20 is still near 1.0, the diagnosis above is wrong
+and the capture clock itself is the problem.
+
+Status: rules implemented and tested; training run to follow.
