@@ -111,12 +111,19 @@ are the winning arm; the decisions behind them:
   used to be a draw, which made stalling safe; deciding it on material (v1) took
   draws from 83% at iteration 40 to zero by iteration 20, and raised completed
   games per iteration from ~120-300 to ~1,400.
-- **A capture clock cost ~100 Elo and was removed (v5).** Ending the game 60
-  quiet moves after the last capture lost three times - -95 Elo against a
-  material tiebreak, -112 against the advancement one, +95 the other way once
-  the absolute cap came back. Epaminondas's manoeuvring phases are longer than
-  60 moves, so it cut games off before a full strategic arc. The cap is absolute
-  again, at 300 moves.
+- **A 60-move capture clock cost ~100 Elo (v2, v3).** Ending the game 60 quiet
+  moves after the last capture lost three times - -95 Elo against a material
+  tiebreak, -112 against the advancement one, +95 the other way once an absolute
+  cap replaced it. Epaminondas's manoeuvring phases are longer than 60 moves, so
+  it cut games off before a full strategic arc.
+- **v6 is a capture clock again, at 100 moves.** A design decision, taken on the
+  view that an absolute cap pays whoever is ahead to run the clock out and that
+  60 was too short a horizon rather than the idea being wrong. **Untested** - the
+  evidence above is against it. Two things follow: there is no absolute bound on
+  game length any more (worst case ~5600 moves), and **`max_num_steps=900` in
+  tournaments is now too small** - 28% of random-play games exceed it, and a
+  truncated game is scored as a draw, reintroducing the outcome these rules
+  exist to remove. Use ~3000 and check the truncated count is zero.
 - **The tiebreak costs nothing.** v5 against v1 - the same horizon, advancement
   scoring and no draws instead of material - is +16 Elo, half a standard error
   from parity. The rules were adopted for being right, not for strength, and

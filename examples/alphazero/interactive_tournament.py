@@ -30,7 +30,7 @@ import pgx.heckmeck as Heckmeck
 from omegaconf import OmegaConf
 from pgx.g_hex import black
 from pgx.g_hex2 import black2
-from pgx._src.games.epaminondas import MAX_MOVES as _EPAM_MAX_MOVES
+from pgx._src.games.epaminondas import MAX_QUIET_MOVES as _EPAM_MAX_QUIET
 from pydantic import BaseModel
 from config import Config
 from network import make_forward
@@ -449,7 +449,11 @@ class EpaminondasCli(Cli):
             print(f"{_EPAM_HEIGHT - row_idx:2} " + " ".join(cells))
         stage_name = ["pick lead", "pick rear", "pick destination"][stage]
         mover = "White" if int(x.color[0]) == 0 else "Black"
-        print(f"   move {int(x.moves[0])}/{_EPAM_MAX_MOVES}  {mover} to {stage_name}\n")
+        # The clock that ends the game counts quiet moves, so show that too.
+        print(
+            f"   move {int(x.moves[0])}  quiet {int(x.quiet_moves[0])}/{_EPAM_MAX_QUIET}"
+            f"  {mover} to {stage_name}\n"
+        )
 
     def describe_action(self, action: jnp.ndarray) -> str:
         return f"chose {_epam_idx_to_label(int(action[0]))}"

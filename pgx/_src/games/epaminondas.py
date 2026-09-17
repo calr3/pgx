@@ -55,26 +55,31 @@ EMPTY = 0
 WHITE = 1  # player 0, moves first, back rank is row 0
 BLACK = 2  # player 1, back rank is row HEIGHT - 1
 
-# The game ends once this many full moves have been played, and is then decided
-# on advancement: piece counts are compared rank by rank starting from the
-# opponent's home rank, and the first rank that differs wins it (see
-# _advancement_winner). An exact rank-for-rank mirror falls back to whoever
-# captured last, and then to black, who moves second - so no game is ever drawn.
+# The game ends once this many moves have passed *without a capture*. The
+# counter resets to zero on every capture, so a game that keeps trading stays
+# alive; only a quiet stretch ends it. It is then decided on advancement: piece
+# counts are compared rank by rank starting from the opponent's home rank, and
+# the first rank that differs wins it (see _advancement_winner). An exact
+# rank-for-rank mirror falls back to whoever captured last, and then to black,
+# who moves second - so no game is ever drawn.
+#
 # This deviates from the published rules, which have no move limit at all; the
-# cap exists only to bound self-play.
+# limit exists only to bound self-play.
 #
-# A capture clock was tried instead - ending the game 60 moves after the last
-# capture - on the reasoning that an absolute cap pays a player who is ahead to
-# run the clock out. It cost ~100 Elo twice (EPAMINONDAS_EXPERIMENTS.md, E5 and
-# E6): Epaminondas has long manoeuvring phases with no captures, and cutting
-# them short stops the model seeing a full strategic arc.
+# History (EPAMINONDAS_EXPERIMENTS.md). A 60-move capture clock was tried twice
+# and cost ~100 Elo both times (E5, E6): Epaminondas has long manoeuvring phases
+# with no captures, and cutting them short stopped the model seeing a full
+# strategic arc. An absolute 300-move cap replaced it (E7, +95 Elo). This is a
+# capture clock again but at 100 moves, on the reasoning that an absolute cap
+# pays a player who is ahead to run the clock out, and that 60 was simply too
+# short a horizon rather than the idea being wrong.
 #
-# The incentive it was meant to fix is much weaker under the advancement
-# tiebreak than it was under the material one it was designed against. Material
-# only changes through captures, so a leader could sit on it; advancement is
-# contestable, and a stalling leader is overtaken by an opponent who simply
-# pushes pieces up the board.
-MAX_MOVES = 300
+# Note there is no longer an absolute bound. Each capture removes at least one
+# piece and each side starts with 28, so at most 55 captures can occur and the
+# worst case is ~56 * 100 = 5600 moves (16,800 actions). That is far beyond any
+# game seen in practice - E8's averaged ~60 moves - but anything that caps steps
+# per game (tournaments, ladders) has to allow for it or it will truncate.
+MAX_QUIET_MOVES = 100
 
 # The eight directions, and the index of each one's opposite.
 _DIRS = np.array(
@@ -118,7 +123,8 @@ class GameState(NamedTuple):
     lead: Array = jnp.int32(0)  # chosen in stage 0
     rear: Array = jnp.int32(0)  # chosen in stage 1 (== lead for a single piece)
     winner: Array = jnp.int32(-1)  # -1 = ongoing, else the winning player
-    moves: Array = jnp.int32(0)  # completed full moves, for the absolute backstop
+    moves: Array = jnp.int32(0)  # completed full moves, for reporting
+    quiet_moves: Array = jnp.int32(0)  # moves since the last capture; ends the game
     last_capturer: Array = jnp.int32(-1)  # who captured most recently; -1 = nobody has
 
 
@@ -152,7 +158,7 @@ class Game:
         )
 
     def is_terminal(self, state: GameState) -> Array:
-        return (state.winner >= 0) | (state.moves >= MAX_MOVES)
+        return (state.winner >= 0) | (state.quiet_moves >= MAX_QUIET_MOVES)
 
     def rewards(self, state: GameState) -> Array:
         # Reaching the cap goes to whoever has come further up the board,
@@ -307,6 +313,8 @@ def _apply_move(state: GameState, dest: Array) -> GameState:
     # the piece count alone says whether this move captured.
     captured = (board != EMPTY).sum() < (state.board != EMPTY).sum()
     last_capturer = jnp.where(captured, state.color, state.last_capturer)
+    # The clock runs on quiet moves only, and a capture puts it back to zero.
+    quiet_moves = jnp.where(captured, jnp.int32(0), state.quiet_moves + 1)
     # The player about to move wins if they have more pieces on the opponent's
     # back rank than the opponent has on theirs.
     winner = jax.lax.select(_wins_at_turn_start(board, color), color, jnp.int32(-1))
@@ -316,7 +324,7 @@ def _apply_move(state: GameState, dest: Array) -> GameState:
     winner = jax.lax.select((winner < 0) & stuck, 1 - color, winner)
     return GameState(
         color=color, board=board, stage=jnp.int32(0), lead=jnp.int32(0), rear=jnp.int32(0),
-        winner=winner, moves=moves, last_capturer=last_capturer,
+        winner=winner, moves=moves, quiet_moves=quiet_moves, last_capturer=last_capturer,
     )
 
 

@@ -550,3 +550,45 @@ advantage there is not implausible.
 
 Untested, and it matters for reading every result here: seat-balanced scores
 cancel it, but any unbalanced measurement inherits it.
+
+## v6 rules: a 100-move capture clock (adopted, not yet measured)
+
+The move limit now counts moves **since the last capture**, resetting to zero on
+every capture, at 100 rather than v2's 60. The tiebreak is unchanged from v4/v5:
+advancement rank by rank from the opponent's home rank, then the last capturer,
+then black. No draws.
+
+**This is a design decision, not a measured improvement, and the prior evidence
+is against it.** A 60-move capture clock lost twice, by 95 and 112 Elo (E5, E6),
+and removing it was worth +95 (E7). The case for trying again at 100 is that an
+absolute cap pays a player who is ahead to run the clock out, and that 60 may
+have been too short a horizon rather than the idea being wrong - Epaminondas's
+manoeuvring phases are long. Whether 100 is long enough is untested.
+
+### What it does to game length
+
+64 random-play games under v6, versus v5's hard bound of 900 actions
+(300 moves x 3):
+
+| | v5 | v6 |
+|---|---|---|
+| draws | 0 | 0 |
+| moves | <= 300 | mean 218, median 100, max 691 |
+| actions | <= 900 | mean 653, **max 2073** |
+| games over 900 actions | impossible | **18 of 64 (28%)** |
+
+**There is no longer an absolute bound.** Each capture resets the clock, so the
+only limit is that captures are finite: 28 pieces a side, at least one removed
+per capture, so at most ~55 captures and a worst case near 5600 moves (16,800
+actions).
+
+**Consequence for measurement.** Anything that caps steps per game must be
+raised or it will truncate - and `model_tournament.py` scores a truncated game
+as a **draw**, which silently reintroduces the one outcome these rules exist to
+remove. The E1-E8 head-to-heads used `max_num_steps=900`, which was exactly v5's
+bound and is now too small; 28% of random-play games exceed it. Use ~3000 for
+v6, and check the reported "of which truncated" count is zero.
+
+Trained models play far shorter games than random ones (E8's averaged 153-190
+actions), so the practical impact is smaller than the random-play figures
+suggest - but the tail is what truncation bites.

@@ -100,7 +100,9 @@ class Epaminondas(core.Env):
         # v3: the cap is decided rank by rank on advancement, not on piece count.
         # v4: an exact mirror falls back to the last capture, then to black. No draws.
         # v5: back to an absolute 300-move cap; the capture clock cost ~100 Elo.
-        return "v5"
+        # v6: a capture clock again, but 100 quiet moves rather than 60, keeping
+        #     v4's rank-by-rank tiebreak. There is no absolute bound in v6.
+        return "v6"
 
     @property
     def num_players(self) -> int:

@@ -19,7 +19,7 @@ import numpy as np
 import pgx
 from pgx.epaminondas import Epaminondas, State
 from pgx._src.games.epaminondas import (
-    BLACK, EMPTY, HEIGHT, MAX_MOVES, N, WHITE, WIDTH, Game, GameState,
+    BLACK, EMPTY, HEIGHT, MAX_QUIET_MOVES, N, WHITE, WIDTH, Game, GameState,
 )
 
 env = Epaminondas()
@@ -221,25 +221,25 @@ def test_symmetry_rule_forbids_a_mirrored_back_rank():
     assert (11, 3) in legal_squares(state)
 
 
-def test_the_move_cap_ends_the_game():
+def test_the_quiet_move_cap_ends_the_game():
     state = make_state(white=[(5, 5), (9, 1)], black=[(7, 7)], color=0,
-                       moves=jnp.int32(MAX_MOVES - 1))
+                       quiet_moves=jnp.int32(MAX_QUIET_MOVES - 1))
     assert not bool(game.is_terminal(state))
     state = play(state, (5, 5), (5, 5), (4, 5))
-    assert int(state.moves) == MAX_MOVES and bool(game.is_terminal(state))
+    assert int(state.quiet_moves) == MAX_QUIET_MOVES and bool(game.is_terminal(state))
     # White's piece on row 9 is two ranks from black's home; black's best is
     # seven from white's, so white is further up the board.
     assert np.asarray(game.rewards(state)).tolist() == [1.0, -1.0]
 
 
-def test_move_cap_is_decided_on_advancement():
+def test_quiet_move_cap_is_decided_on_advancement():
     # Reaching the cap is not a draw: it goes to whoever has come further up the
     # board, compared rank by rank from the opponent's home rank inwards. A
     # plain draw there made stalling a safe equilibrium - a player who never
     # commits scores 0 rather than -1 - and self-play converged on it.
     def capped(white, black):
         state = make_state(white=white, black=black, color=0,
-                           moves=jnp.int32(MAX_MOVES))
+                           quiet_moves=jnp.int32(MAX_QUIET_MOVES))
         assert bool(game.is_terminal(state))
         return np.asarray(game.rewards(state)).tolist()
 
@@ -265,7 +265,7 @@ def test_mirror_falls_back_to_the_last_capture():
     mirror = dict(white=[(1, 3), (2, 5)], black=[(10, 3), (9, 5)])
 
     def capped(**kwargs):
-        state = make_state(color=0, moves=jnp.int32(MAX_MOVES),
+        state = make_state(color=0, quiet_moves=jnp.int32(MAX_QUIET_MOVES),
                            **mirror, **kwargs)
         assert bool(game.is_terminal(state))
         return np.asarray(game.rewards(state)).tolist()
@@ -273,6 +273,37 @@ def test_mirror_falls_back_to_the_last_capture():
     assert capped(last_capturer=jnp.int32(0)) == [1.0, -1.0]
     assert capped(last_capturer=jnp.int32(1)) == [-1.0, 1.0]
     assert capped() == [-1.0, 1.0]  # no capture all game: black, for moving second
+
+
+def test_a_capture_resets_the_quiet_clock():
+    """The clock counts moves since the last capture, so a capture zeroes it.
+
+    This is what separates v6 from v5's absolute cap: a game that keeps trading
+    never reaches the limit, however long it runs.
+    """
+    # One move short of the cap, with a capture available. Black keeps a second
+    # piece well away from the action: capturing its last one would end the game
+    # by leaving it with no legal move, which is a win rather than a cap.
+    state = make_state(white=[(5, 4), (5, 5)], black=[(5, 6), (9, 9)], color=0,
+                       quiet_moves=jnp.int32(MAX_QUIET_MOVES - 1))
+    assert not bool(game.is_terminal(state))
+    state = play(state, (5, 5), (5, 4), (5, 6))  # captures
+    assert int(state.quiet_moves) == 0
+    assert not bool(game.is_terminal(state))
+
+    # The same position without a capture available ends instead.
+    quiet = make_state(white=[(5, 5)], black=[(9, 9)], color=0,
+                       quiet_moves=jnp.int32(MAX_QUIET_MOVES - 1))
+    quiet = play(quiet, (5, 5), (5, 5), (4, 5))
+    assert int(quiet.quiet_moves) == MAX_QUIET_MOVES
+    assert bool(game.is_terminal(quiet))
+
+
+def test_total_moves_still_counts_up_across_captures():
+    """`moves` is now only for reporting, and must not reset when the clock does."""
+    state = make_state(white=[(5, 4), (5, 5)], black=[(5, 6)], color=0)
+    state = play(state, (5, 5), (5, 4), (5, 6))  # captures
+    assert int(state.moves) == 1 and int(state.quiet_moves) == 0
 
 
 def test_capturing_records_the_capturer():
@@ -291,7 +322,7 @@ def test_a_win_beats_the_cap_tiebreak():
     # The tiebreak only decides when nobody has won. A player who wins on the
     # same move that reaches the cap still wins, even while further back.
     state = make_state(white=[(5, 5)], black=[(7, 7), (2, 9)], color=0)
-    state = state._replace(moves=jnp.int32(MAX_MOVES), winner=jnp.int32(0))
+    state = state._replace(quiet_moves=jnp.int32(MAX_QUIET_MOVES), winner=jnp.int32(0))
     assert bool(game.is_terminal(state))
     assert np.asarray(game.rewards(state)).tolist() == [1.0, -1.0]
 

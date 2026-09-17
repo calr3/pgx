@@ -168,7 +168,8 @@ def main() -> None:
     # 6: Epaminondas v3 rules - the cap is decided on advancement, rank by rank.
     # 7: Epaminondas v4 rules - mirrors fall back to the last capture; no draws.
     # 8: Epaminondas v5 rules - absolute 300-move cap again, keeping that tiebreak.
-    settings["game_version"] = 8
+    # 9: Epaminondas v6 rules - a 100-quiet-move capture clock, same tiebreak.
+    settings["game_version"] = 9
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:
