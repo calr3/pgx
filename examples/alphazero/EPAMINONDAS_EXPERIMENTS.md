@@ -778,3 +778,91 @@ it needs ~2,000 games, not 256.
 Not worth chasing: a 20 Elo seat effect changes no decision here, and
 `model_tournament.py` plays every pairing seat-swapped, so it cancels out of
 every comparison.
+
+## E10 (v7): the clock and verdict planes, and a design mistake in one of them
+
+**Question.** The observation is fully canonical - own/opponent planes, rows
+flipped for black - so the network could see neither the quiet-move clock nor
+who wins if it fires. About 69% of random-play games are decided by that
+machinery. v7 added two constant planes: 7 is `quiet_moves / MAX_QUIET_MOVES`,
+8 is +1 if the mover wins should the game end now, else -1.
+
+**Setup.** E7's exact pilot recipe (`selfplay_batch_size=256`,
+`training_batch_size=2048`, `num_updates_per_iter=32`) run to 700 iterations
+instead of 160 - 5.94 h against E7's 1.30 h. `checkpoints/epaminondas_20260919001750/`.
+E9's batch-1024 config was deliberately not reused, since it had just lost by
+118 Elo for reasons still unidentified.
+
+### Result: -92 Elo, and a seat asymmetry three times E7's
+
+```
+A = E10 (v7 planes, 700 iters, 5.94 h)   B = E7 (160 iters, 1.30 h)
+
+A wins 95 (37.1%) | B wins 161 (62.9%) | draws 0 (of which truncated: 0)
+A score 0.371 +/- 0.030   Elo diff A-B: -92
+A as P0 0.188 | A as P1 0.555   <- a 0.367 gap, ~12 sigma
+avg game length 91.9 plies
+```
+
+Mirror matches, same settings, 256 games each:
+
+| model vs itself | as P0 | as P1 | black's edge |
+|---|---|---|---|
+| E7 | 0.469 | 0.531 | +0.031 (1.0 sigma) |
+| E10 | 0.398 | 0.602 | **+0.102 (3.3 sigma)** |
+
+E10 is a materially different player by colour: respectable as black, weak as
+white. E7's seat effect was indistinguishable from noise; E10's is not.
+
+### Why: plane 8 degenerates into a colour identifier
+
+Verified directly on the opening position:
+
+```
+white (player 0) verdict plane = -1.0
+black (player 1) verdict plane = +1.0
+last_capturer = -1
+```
+
+The start is an exact rank-for-rank mirror with nobody having captured, so the
+tiebreak chain falls straight through to "black wins ties". **Every game
+therefore begins with white told it is losing and black told it is winning**,
+before a piece has moved, and the same holds in any symmetric position - which
+is most of the opening phase.
+
+This was a design error, not a bug: the plane computes exactly what it was
+specified to compute. The specification was wrong. The stated virtue - "this is
+how the black-wins-ties rule reaches a network that is never told which colour
+it is" - is precisely the defect, because it breaks the canonical representation
+wherever the position is symmetric, and it is symmetric exactly when the plane
+carries no strategic content.
+
+**Proposed fix:** scale the verdict by the clock,
+`verdict * (quiet_moves / MAX_QUIET_MOVES)`. At the start the clock is 0, so the
+plane is 0 for both colours and canonicalisation is preserved; it grows to +/-1
+as a quiet stretch runs on, which is when the tiebreak actually decides
+anything. The information then arrives in proportion to its relevance.
+Untested.
+
+### The larger problem: two scale-ups have now lost to a 1.3 h pilot
+
+| run | what changed | wall clock | result vs E7 |
+|---|---|---|---|
+| E9 | 4x batch, v6 | 3.29 h | **-118 Elo** |
+| E10 | 4.4x iterations, v7 planes | 5.94 h | **-92 Elo** |
+
+E9 changed batch size, E10 changed neither batch size nor rules. The common
+thread is that **both spent several times E7's compute and came out weaker**,
+and no single explanation covers both. The seat defect accounts for part of
+E10's loss but not all of it: E10 scored only 0.555 even as black, against a
+model it out-trained 4.4x.
+
+This is the finding that matters for the TPU rental, because a rental buys
+exactly the thing that has now twice failed to convert into strength. Do not
+rent until a run beats E7.
+
+**Next experiment:** E7's exact recipe at E7's exact length (160 iterations,
+~1.3 h) under v7. If that matches E7, the planes are neutral and the problem is
+in longer schedules. If it also loses, the problem is neither scale nor
+schedule, and the next suspects are the v7 planes themselves and whether E7 is
+an unusually strong checkpoint rather than a typical one.

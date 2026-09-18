@@ -97,7 +97,22 @@ actions without change.
 Status: nine runs (`EPAMINONDAS_EXPERIMENTS.md`). The block above is still the
 winning arm, and it is a **pilot-scale** recipe - keep `selfplay_batch_size=256`.
 
-**Scaling it up is not solved.** E9 ran these settings at
+**Scaling it up is not solved, in either direction.** Two runs have now spent
+several times E7's compute and come out weaker: E9 at 4x the batch (-118 Elo)
+and E10 at 4.4x the iterations (-92 Elo). E9 changed batch size and rules; E10
+changed neither. No single explanation covers both, and until one run beats E7
+there is no evidence that more compute buys strength here - which is the whole
+premise of renting hardware.
+
+**v7 added two observation planes and one of them is miswired.** Plane 7 is the
+quiet-move clock; plane 8 is the verdict if the game ended now. In any symmetric
+position the tiebreak resolves to black, so plane 8 degenerates into a colour
+identifier and tells white it is losing from move one. E10's seat asymmetry is
++0.102 (3.3 sigma) against E7's +0.031 (1.0 sigma). The proposed fix - scale the
+verdict by the clock, so it is 0 at the start and +/-1 only when the tiebreak is
+imminent - is untested. Treat plane 8 as broken until it is.
+
+**Scaling detail.** E9 ran these settings at
 `selfplay_batch_size=1024` / `training_batch_size=4096` /
 `num_updates_per_iter=64` for 3.29 h under v6 rules, and lost to the 1.3 h E7
 pilot **118 Elo** (0.336 +/- 0.030 over 256 games) despite 4x the batch, 2.5x

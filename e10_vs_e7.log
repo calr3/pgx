@@ -1,0 +1,13 @@
+/home/charlie/calr3gh/pgx/examples/alphazero/model_tournament.py:72: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  class TourneyConfig(BaseModel):
+env_id='epaminondas' seed=49064405 models='checkpoints/epaminondas_20260919001750/000700.ckpt,checkpoints/epaminondas_20260918013629/000160.ckpt' games=256 batch_size=256 num_simulations=32 max_num_considered_actions=16 gumbel_scale=0.0 random_opening_plies=3 max_num_steps=3000
+Model A: checkpoints/epaminondas_20260919001750/000700.ckpt (sims=32)
+Model B: checkpoints/epaminondas_20260918013629/000160.ckpt (sims=32)
+  Model B was trained on 7 observation planes and the env now provides 9; feeding it the leading 7.
+Round 1/1: 256 games in 146.9s (1.74 games/s) (includes XLA compile)
+  A wins 95 (37.1%) | B wins 161 (62.9%) | draws 0 (of which truncated: 0)
+  A score: 0.371 ± 0.030  (Elo diff A−B: -92)
+  A as P0: score 0.188 over 128 games
+  A as P1: score 0.555 over 128 games
+  avg game length: 91.9 plies
+
