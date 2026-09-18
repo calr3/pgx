@@ -94,8 +94,24 @@ python3 -u examples/alphazero/train.py env_id=epaminondas architecture=boardform
 with one action per cell. It transfers to Epaminondas's 14x12 board and 168
 actions without change.
 
-Status: eight runs of ~1.3 h each (`EPAMINONDAS_EXPERIMENTS.md`). These settings
-are the winning arm; the decisions behind them:
+Status: nine runs (`EPAMINONDAS_EXPERIMENTS.md`). The block above is still the
+winning arm, and it is a **pilot-scale** recipe - keep `selfplay_batch_size=256`.
+
+**Scaling it up is not solved.** E9 ran these settings at
+`selfplay_batch_size=1024` / `training_batch_size=4096` /
+`num_updates_per_iter=64` for 3.29 h under v6 rules, and lost to the 1.3 h E7
+pilot **118 Elo** (0.336 +/- 0.030 over 256 games) despite 4x the batch, 2.5x
+the wall clock and 4x the data. Two candidate causes are confounded in that run
+- v6's capture clock, and a 4x batch left at `learning_rate=5e-4` - and neither
+has been isolated. Do not run full-size Epaminondas expecting the pilot's
+quality until one of them is.
+
+Sizing figures from E9, at batch 1024 on a 16 GB GPU: ~95-104 s/iteration
+(self-play ~90 s of it), 7.88 GiB replay buffer at `replay_buffer_iters=4`,
+~14.5 GiB of GPU (no `train_micro_batches` needed), ~30 GB peak host RAM, and a
+14.1 GB `data_state.pkl`. The last two are inflated by v6's long games.
+
+The decisions behind the pilot settings:
 
 - **`num_simulations=32` is tested here, not just inherited.** 64 lost at equal
   time - -49 Elo even against the E7 checkpoint it out-spent by 5%, and -184
@@ -116,14 +132,21 @@ are the winning arm; the decisions behind them:
   tiebreak, -112 against the advancement one, +95 the other way once an absolute
   cap replaced it. Epaminondas's manoeuvring phases are longer than 60 moves, so
   it cut games off before a full strategic arc.
-- **v6 is a capture clock again, at 100 moves.** A design decision, taken on the
-  view that an absolute cap pays whoever is ahead to run the clock out and that
-  60 was too short a horizon rather than the idea being wrong. **Untested** - the
-  evidence above is against it. Two things follow: there is no absolute bound on
-  game length any more (worst case ~5600 moves), and **`max_num_steps=900` in
-  tournaments is now too small** - 28% of random-play games exceed it, and a
-  truncated game is scored as a draw, reintroducing the outcome these rules
-  exist to remove. Use ~3000 and check the truncated count is zero.
+- **v6 is a capture clock again, at 100 moves - and it is now under suspicion.**
+  It was adopted as a design decision, on the view that an absolute cap pays
+  whoever is ahead to run the clock out and that 60 was too short a horizon
+  rather than the idea being wrong. The only run under it (E9) lost by 118 Elo,
+  which would make capture clocks 0 for 4 (-95, -112, +95 when one was removed,
+  -118). That result is confounded with a scale-up, so it is not yet a verdict,
+  but if you need a rules choice today, **v5 is the one with a winning record**.
+  The mechanism to watch is `selfplay/games_finished`: under v6 it fell 1,616 ->
+  ~500 per iteration as the net strengthened, because stronger play keeps
+  resetting the clock with occasional captures, so self-play spends its budget
+  on games that never resolve.
+  For tournaments, use `max_num_steps=3000` and check the truncated count is
+  zero. v6 has no absolute bound on game length (worst case ~5600 moves) and 28%
+  of *random-play* games exceed 900 actions, but trained play is far shorter -
+  E9 vs E7 averaged 334 plies with 0 truncations.
 - **The tiebreak costs nothing.** v5 against v1 - the same horizon, advancement
   scoring and no draws instead of material - is +16 Elo, half a standard error
   from parity. The rules were adopted for being right, not for strength, and

@@ -660,6 +660,89 @@ is behaving. If it is still above ~600, the clock is too loose and self-play is
 spending its budget on manoeuvring that never resolves - which would be the
 first real evidence against v6.
 
-### Result
+### Result: the scale-up lost by 118 Elo
 
-Pending.
+E9 finished 120 iterations in **3.29 h**. Head to head against E7, 256 games, 32
+simulations, `random_opening_plies=3`, `max_num_steps=3000`:
+
+```
+A = E9 (v6, batch 1024, 120 iters, 3.29 h)
+B = E7 (v5, batch 256,  160 iters, 1.30 h)
+
+A wins 86 (33.6%) | B wins 170 (66.4%) | draws 0 (of which truncated: 0)
+A score 0.336 +/- 0.030   Elo diff A-B: -118
+A as P0 0.281 | A as P1 0.391 | avg game length 334 plies
+```
+
+E9 had 4x the batch, 2.5x the wall clock, 1.5x the gradient steps (7,680 vs
+5,120) and 4x the data, and is **118 Elo weaker** than a 1.3 h pilot. The
+scale-up did not merely fail to help; this configuration cost more than all of
+that compute was worth.
+
+**The prime suspect is v6.** Capture clocks have now lost four times: -95 (v2 vs
+v1), -112 (v2 vs v3), +95 when an absolute cap replaced one (E7), and -118 here.
+The mechanism was visible live: finished games per iteration fell from 1,616 at
+iteration 20 to ~500 by iteration 100 as the net strengthened, and
+`value_target_fraction` slipped 1.000 -> 0.97. Same self-play compute, a third
+of the terminal outcomes.
+
+**It is confounded, and the confound is real.** E9 changed rules *and* scale
+together. The competing explanation is that batch 1024 at `learning_rate=5e-4`
+is mis-tuned - a 4x batch usually wants a larger LR, and E7's was kept unchanged
+- which would also yield a weaker model with healthy curves. Nothing here
+separates the two.
+
+Two experiments do, and the first is cheap:
+
+- **Rules, isolated (~1.3 h):** E7's exact pilot settings under v6, compared to
+  E7 head to head. Any gap is purely the rules.
+- **Scale, isolated (~3.3 h):** E9's settings under v5.
+
+Until one of them is run, **do not attribute E9's loss to either cause**, and do
+not treat full-size Epaminondas as a solved recipe.
+
+### What E9 did establish
+
+The sizing figures the TPU rental needed, all previously unknown:
+
+| quantity | value |
+|---|---|
+| steady-state iteration | **~95-104 s** at batch 1024 (self-play ~90 s of it) |
+| replay buffer | **7.88 GiB** at `replay_buffer_iters=4` |
+| peak host RAM | **~30 GB** of 47, peaking during the data-state write, not training |
+| `data_state.pkl` | **14.1 GB** (7.6 GB at iteration 20; it grew with the tail) |
+| GPU memory | ~14.5 GiB of 16 GiB, no `train_micro_batches` needed |
+| 120 iterations | 3.29 h |
+
+Two of these are v6-inflated: `data_state.pkl` nearly doubled over the run
+because longer games inflate the held-back tail, and the host-RAM peak follows
+it. Under v5 both would be smaller.
+
+### `eval/vs_baseline` was misleading in both directions
+
+| iteration | 0 | 20 | 40 | 60 | 80 | 100 | 120 |
+|---|---|---|---|---|---|---|---|
+| win rate vs E7 | 0.004 | 0.006 | 0.190 | 0.192 | 0.237 | **0.131** | 0.290 |
+
+The iteration-100 dip is ~4 standard errors on 256 games and looked, at the
+time, like confirmation that the game-length blow-up was costing strength. It
+recovered fully by iteration 120. **It was noise**, and a causal story was built
+on it prematurely. The metric is raw policy sampling; CLAUDE.md already says it
+is too noisy to rank runs, and a single point of it is worth less than that.
+
+Note also that the final 0.290 - the run's best - accompanied a model that then
+lost its head-to-head 0.336. The two are not inconsistent (different search
+budgets), but it is a further reason to decide only on `model_tournament.py`.
+
+### Trained v6 games are short; the random-play figures overstated the risk
+
+`max_num_steps=3000` produced **0 truncated games** at an average length of 334
+plies. The v6 section above warned that 900 was too small based on random play
+(28% over 900 actions); for *trained* play 900 would have been ample. Keep 3000
+as the safe default, but the truncation risk in practice is small.
+
+### The seat asymmetry, a fourth time
+
+A as P0 scored 0.281, as P1 0.391 - a **+0.11 advantage to player 1**, alongside
+the ~+0.08 seen in both E8 matches and the baseline-vs-random check. Four
+independent sightings now. Still unexplained and still untested.
