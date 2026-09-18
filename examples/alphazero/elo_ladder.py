@@ -28,7 +28,13 @@ from pydantic import BaseModel
 
 # Older checkpoints pickled Config from __main__; importing it here lets them load.
 from config import Config  # noqa: F401
-from model_tournament import TourneyConfig, build_round_runner, load_from_checkpoint
+from model_tournament import (
+    TourneyConfig,
+    build_round_runner,
+    expected_obs_channels,
+    load_from_checkpoint,
+    narrow_observation,
+)
 from network import make_forward
 
 
@@ -128,8 +134,10 @@ def play_pair(env, lcfg: LadderConfig, path_a: str, path_b: str, num_devices: in
     )
     config_a, model_a = load_from_checkpoint(path_a)
     config_b, model_b = load_from_checkpoint(path_b)
-    forward_a = make_forward(env.num_actions, config_a)
-    forward_b = make_forward(env.num_actions, config_b)
+    # Checkpoints predating an added observation plane see only the planes they
+    # were trained on, so a ladder can span observation versions.
+    forward_a = narrow_observation(make_forward(env.num_actions, config_a), expected_obs_channels(model_a))
+    forward_b = narrow_observation(make_forward(env.num_actions, config_b), expected_obs_channels(model_b))
     model_a, model_b = jax.tree_util.tree_map(
         lambda x: jnp.broadcast_to(x, (num_devices, *x.shape)), (model_a, model_b)
     )

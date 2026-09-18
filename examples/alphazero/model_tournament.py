@@ -132,6 +132,48 @@ def load_from_checkpoint(path: str) -> tuple[Config, Model]:
     return config, ckpt["model"]
 
 
+def expected_obs_channels(model: Model) -> int | None:
+    """Observation planes the checkpoint's stem was built for, or None if unknown.
+
+    Read off the stem convolution's weight, whose shape is (kh, kw, in, out).
+    Returns None for architectures with no `stem_conv` (e.g. the MLP nets), which
+    leaves the observation untouched.
+    """
+    for module, entries in model[0].items():
+        if module.endswith("stem_conv"):
+            w = entries.get("w")
+            if getattr(w, "ndim", 0) == 4:
+                return int(w.shape[2])
+    return None
+
+
+def narrow_observation(forward: hk.TransformedWithState, channels: int | None):
+    """Feed a checkpoint only the leading observation planes it was trained on.
+
+    Planes are appended, never reordered: Epaminondas v7 added the clock and
+    verdict as planes 7 and 8 and left 0-6 exactly as they were. So dropping the
+    trailing planes shows an older checkpoint precisely what it saw in training,
+    and pre-v7 models stay usable as benchmark opponents instead of the whole
+    ladder being retired every time a plane is added.
+
+    This is only sound while that append-only invariant holds. If an observation
+    is ever reordered or a plane's meaning changed, bump the env version and
+    retire the old checkpoints rather than silently feeding them nonsense.
+    """
+    if channels is None:
+        return forward
+
+    def apply(params, state, obs, *args, **kwargs):
+        if obs.shape[-1] < channels:
+            raise ValueError(
+                f"checkpoint expects {channels} observation planes but the env "
+                f"provides {obs.shape[-1]}; it cannot be played against this env."
+            )
+        return forward.apply(params, state, obs[..., :channels], *args, **kwargs)
+
+    return hk.TransformedWithState(init=forward.init, apply=apply)
+
+
 def make_recurrent_fn(env: pgx.Env, forward: hk.TransformedWithState) -> mctx.RecurrentFn:
     def recurrent_fn(
         model: Model, rng_key: jnp.ndarray, action: jnp.ndarray, state: pgx.State
@@ -426,8 +468,18 @@ if __name__ == "__main__":
     print(f"Model A: {model_paths[0]} (sims={sims_a})")
     print(f"Model B: {model_paths[1]} (sims={sims_b})")
 
-    forward_a = make_forward(env.num_actions, config_a)
-    forward_b = make_forward(env.num_actions, config_b)
+    env_planes = int(env.observation_shape[-1])
+    channels_a = expected_obs_channels(model_a)
+    channels_b = expected_obs_channels(model_b)
+    for label, path, channels in (("A", model_paths[0], channels_a), ("B", model_paths[1], channels_b)):
+        if channels is not None and channels != env_planes:
+            print(
+                f"  Model {label} was trained on {channels} observation planes and the env "
+                f"now provides {env_planes}; feeding it the leading {channels}."
+            )
+
+    forward_a = narrow_observation(make_forward(env.num_actions, config_a), channels_a)
+    forward_b = narrow_observation(make_forward(env.num_actions, config_b), channels_b)
 
     # Replicate both models to all devices (leading axis mapped by pmap).
     model_a, model_b = jax.tree_util.tree_map(
