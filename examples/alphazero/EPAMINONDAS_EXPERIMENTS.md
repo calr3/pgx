@@ -592,3 +592,74 @@ v6, and check the reported "of which truncated" count is zero.
 Trained models play far shorter games than random ones (E8's averaged 153-190
 actions), so the practical impact is smaller than the random-play figures
 suggest - but the tail is what truncation bites.
+
+## E9: the first full-size run (in progress)
+
+Every run from E1 to E8 was a ~1.3 h pilot at `selfplay_batch_size=256`. That
+left three numbers unknown that the TPU rental has to be sized against: the
+steady-state iteration cost at full batch, peak host RAM, and the size of
+`data_state.pkl`. E9 is the run that measures them. It is also the first run
+under **v6** rules, which are adopted but unmeasured.
+
+```sh
+python3 -u examples/alphazero/train.py env_id=epaminondas architecture=boardformer \
+  selfplay_bf16=true num_simulations=32 playout_cap_prob=0.25 \
+  fast_num_simulations=8 continue_games=true \
+  selfplay_batch_size=1024 max_num_steps=384 training_batch_size=4096 \
+  num_updates_per_iter=64 replay_buffer_iters=4 \
+  learning_rate=5e-4 weight_decay=1e-4 warmup_steps=100 grad_clip_norm=1.0 \
+  lr_schedule=cosine save_data_state=true eval_interval=20 max_num_iters=120
+```
+
+`checkpoints/epaminondas_20260918163258/`, budget ~4 h.
+
+### Sizing: why `num_updates_per_iter` is 64 and not 384
+
+A 5-iteration probe at full batch was run first. Two things it settled:
+
+- **The replay buffer is 7.88 GiB** for `replay_buffer_iters=4` at this size,
+  against 45 GiB free. Not a constraint.
+- **Gess's 4x sample reuse does not transfer.** RECIPES justifies it as free
+  "at full size, where training is ~4% of an iteration". Fitting iteration time
+  against `num_updates` gives ~90-109 s of fixed self-play and a per-update cost
+  that puts 384 updates at **19-25% of the iteration**, not 4%, because
+  Epaminondas self-play is far cheaper per step than Gess's. Paying 25% of wall
+  clock for an untested change was not worth it, so E9 holds the **0.67x reuse
+  ratio that E1-E8 actually validated** and changes only the batch size.
+
+The fit itself is unstable - 0.097 s/update on two points, 0.25 s on three -
+because `trajectories.process` computes discounted returns in a Python loop over
+`384 + tail_length` timesteps, so its cost tracks the held-back tail and the
+regression misattributes that to `num_updates`. The two fits agree closely at 64
+updates (106 s vs 116 s) and diverge at 256 (134 s vs 154 s), which is a second
+reason to stay low. **Don't quote the per-update figure**; re-measure it with
+`num_updates` varied at a fixed tail size if it ever matters.
+
+### `max_pending_steps` under v6, and why it was left at 1024
+
+With `continue_games=true`, steps wait in a tail until their game ends. The tail
+is stored dense as `(tail_length, num_slots, ...)`, **not per-slot**, so
+`max_pending_steps` costs `steps x 1024 slots x ~5.4 KB`: 5.7 GB at the default
+1024, ~17 GB at 3072. Raising it is not free.
+
+v6 removed the absolute game-length bound, so the obvious worry was that long
+games would overflow the cap and enter the buffer without value targets. The
+probe showed the cap holding: `value_target_fraction` ran 1.000, 1.000, 0.965,
+0.973 over iterations 1-4. The memory is bounded by construction at ~5.7 GB, so
+what a loose clock actually costs is target coverage, not RAM.
+
+### The live signal to watch: `selfplay/steps_per_game`
+
+The probe's near-random iterations got **longer** each time - 622, 716, 824 -
+with `terminate_rate` falling 0.617 -> 0.521 -> 0.454, before turning at
+iteration 4 (640 steps, 0.568). That is v6's unbounded length showing up exactly
+where predicted, and then resolving as the net learned something.
+
+If it is back near E8's ~160 actions by iteration 20, the 100-quiet-move clock
+is behaving. If it is still above ~600, the clock is too loose and self-play is
+spending its budget on manoeuvring that never resolves - which would be the
+first real evidence against v6.
+
+### Result
+
+Pending.

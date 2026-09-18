@@ -15,3 +15,7 @@ wandb
 checkpoints
 __pycache__
 tests/assets/*/*.svg
+
+# Training run logs and pid files
+e9_run.log
+e9_run.pid
