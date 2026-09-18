@@ -34,7 +34,7 @@ class State(core.State):
     """
 
     current_player: Array = jnp.int32(0)
-    observation: Array = jnp.zeros((HEIGHT, WIDTH, 7), dtype=jnp.float32)
+    observation: Array = jnp.zeros((HEIGHT, WIDTH, 9), dtype=jnp.float32)
     rewards: Array = jnp.float32([0.0, 0.0])
     terminated: Array = jnp.bool_(False)
     truncated: Array = jnp.bool_(False)
@@ -102,7 +102,11 @@ class Epaminondas(core.Env):
         # v5: back to an absolute 300-move cap; the capture clock cost ~100 Elo.
         # v6: a capture clock again, but 100 quiet moves rather than 60, keeping
         #     v4's rank-by-rank tiebreak. There is no absolute bound in v6.
-        return "v6"
+        # v7: the observation gains two planes - the quiet-move clock and the
+        #     verdict if the game ended now. Both were invisible before, and
+        #     they decide most games. 7 channels -> 9, so v6 and earlier
+        #     checkpoints cannot be loaded against this env.
+        return "v7"
 
     @property
     def num_players(self) -> int:

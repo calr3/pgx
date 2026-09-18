@@ -161,19 +161,27 @@ class Game:
         return (state.winner >= 0) | (state.quiet_moves >= MAX_QUIET_MOVES)
 
     def rewards(self, state: GameState) -> Array:
-        # Reaching the cap goes to whoever has come further up the board,
-        # compared rank by rank. If the two are exact mirrors it goes to
-        # whoever captured most recently, and failing that to black, who
-        # compensates for moving second. Every game therefore has a winner:
-        # there are no draws.
-        tiebreak = jax.lax.select(state.last_capturer >= 0, state.last_capturer, jnp.int32(1))
-        advantage = _advancement_winner(state.board)
-        winner = jax.lax.select(advantage >= 0, advantage, tiebreak)
-        winner = jax.lax.select(state.winner >= 0, state.winner, winner)
-        return jnp.float32([-1.0, -1.0]).at[winner].set(1.0)
+        return jnp.float32([-1.0, -1.0]).at[_clock_winner(state)].set(1.0)
 
 
 # ─── Board helpers ───────────────────────────────────────────────────────────
+
+
+def _clock_winner(state: GameState) -> Array:
+    """Who wins if the game ends in this position: 0 white, 1 black.
+
+    Reaching the cap goes to whoever has come further up the board, compared
+    rank by rank. If the two are exact mirrors it goes to whoever captured most
+    recently, and failing that to black, who compensates for moving second.
+    Every game therefore has a winner: there are no draws.
+
+    Shared by `rewards` and by the observation's verdict plane, so the value the
+    network is shown is by construction the outcome it will be scored against.
+    """
+    tiebreak = jax.lax.select(state.last_capturer >= 0, state.last_capturer, jnp.int32(1))
+    advantage = _advancement_winner(state.board)
+    winner = jax.lax.select(advantage >= 0, advantage, tiebreak)
+    return jax.lax.select(state.winner >= 0, state.winner, winner)
 
 
 def _advancement_winner(board: Array) -> Array:
@@ -468,13 +476,31 @@ def _symmetry_allowed(state: GameState, candidates: Array) -> Array:
 
 
 def _observe(state: GameState, color: Array) -> Array:
-    """(HEIGHT, WIDTH, 7) float32 from `color`'s perspective.
+    """(HEIGHT, WIDTH, 9) float32 from `color`'s perspective.
 
     Rows are flipped for black so that the player to move always looks "up" the
     board: own back rank is row 0.
 
-    Channels: own pieces, opponent pieces, lead marker, rear marker, and three
-    constant planes one-hot encoding the stage.
+    Channels:
+      0 own pieces, 1 opponent pieces
+      2 lead marker, 3 rear marker
+      4-6 constant planes one-hot encoding the stage
+      7 the quiet-move clock, `quiet_moves / MAX_QUIET_MOVES` in [0, 1]
+      8 the verdict: +1 if `color` wins should the game end now, else -1
+
+    Planes 7 and 8 exist because the observation is otherwise fully canonical -
+    own/opponent rather than white/black - and so cannot express two things that
+    decide most games. The clock is not on the board at all, and the tiebreak
+    depends on `last_capturer` and on a black-wins-a-mirror rule, neither of
+    which is recoverable from the stones. Even the advancement comparison, which
+    is a function of the board, is a lexicographic scan that a convolutional or
+    attention stack has little reason to represent. Roughly 69% of random-play
+    games are decided by this machinery, so leaving it out left the value head
+    blind to the outcome of most of its positions.
+
+    Both are constant across the board, so the row flip is a no-op for them;
+    plane 8 is stated from `color`'s point of view, which is how the black-wins-
+    ties rule reaches a network that is never told which colour it is.
     """
     b = state.board.reshape(HEIGHT, WIDTH)
     own = (b == _stone(color)).astype(jnp.float32)
@@ -487,5 +513,8 @@ def _observe(state: GameState, color: Array) -> Array:
     rear = marker(state.rear, state.stage >= 2)
     stage_planes = [jnp.full((HEIGHT, WIDTH), (state.stage == i).astype(jnp.float32)) for i in range(3)]
 
-    planes = jnp.stack([own, opp, lead, rear, *stage_planes], axis=-1)
+    clock = jnp.full((HEIGHT, WIDTH), state.quiet_moves / MAX_QUIET_MOVES, jnp.float32)
+    verdict = jnp.full((HEIGHT, WIDTH), jnp.where(_clock_winner(state) == color, 1.0, -1.0), jnp.float32)
+
+    planes = jnp.stack([own, opp, lead, rear, *stage_planes, clock, verdict], axis=-1)
     return jax.lax.select(color == 0, planes, jnp.flip(planes, axis=0))

@@ -15,6 +15,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 import pgx
 from pgx.epaminondas import Epaminondas, State
@@ -331,7 +332,7 @@ def test_a_win_beats_the_cap_tiebreak():
 
 def test_env_turn_order_and_observation():
     state = env.init(jax.random.PRNGKey(0))
-    assert state.observation.shape == (HEIGHT, WIDTH, 7)
+    assert state.observation.shape == (HEIGHT, WIDTH, 9)
     assert env.num_actions == N and env.num_players == 2
     step = jax.jit(env.step)
     players = [int(state.current_player)]
@@ -345,6 +346,39 @@ def test_env_turn_order_and_observation():
     black_view = env.observe(state, jnp.int32(1))
     assert np.asarray(white_view[..., 0]).sum() == 28  # own pieces
     assert np.allclose(np.asarray(white_view[..., 0]), np.asarray(black_view[..., 1])[::-1])
+
+
+def test_the_clock_plane_tracks_the_quiet_move_count():
+    state = make_state(white=[(5, 5)], black=[(7, 7)], color=0)
+    assert np.asarray(game.observe(state, jnp.int32(0))[..., 7]).max() == 0.0
+
+    half = state._replace(quiet_moves=jnp.int32(MAX_QUIET_MOVES // 2))
+    plane = np.asarray(game.observe(half, jnp.int32(0))[..., 7])
+    assert plane.min() == plane.max() == pytest.approx(0.5)  # constant over the board
+
+
+def test_the_verdict_plane_says_who_wins_if_the_game_ends_now():
+    # White is further up the board, so white wins on advancement.
+    state = make_state(white=[(10, 3)], black=[(4, 7)], color=0)
+    assert np.asarray(game.rewards(state)).tolist() == [1.0, -1.0]
+
+    # Each side is told the same outcome from its own point of view.
+    assert np.asarray(game.observe(state, jnp.int32(0))[..., 8]).max() == 1.0
+    assert np.asarray(game.observe(state, jnp.int32(1))[..., 8]).max() == -1.0
+
+
+def test_the_verdict_plane_carries_the_black_wins_mirrors_rule():
+    # An exact rank-for-rank mirror with nobody having captured: black wins it,
+    # and that is recoverable from neither the stones nor the canonical view.
+    state = make_state(white=[(5, 5)], black=[(6, 5)], color=0)
+    assert int(state.last_capturer) == -1
+    assert np.asarray(game.rewards(state)).tolist() == [-1.0, 1.0]
+    assert np.asarray(game.observe(state, jnp.int32(0))[..., 8]).max() == -1.0
+    assert np.asarray(game.observe(state, jnp.int32(1))[..., 8]).max() == 1.0
+
+    # It follows the last capturer once there has been one.
+    took = state._replace(last_capturer=jnp.int32(0))
+    assert np.asarray(game.observe(took, jnp.int32(0))[..., 8]).max() == 1.0
 
 
 def test_random_playthrough_stays_legal():

@@ -71,11 +71,19 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
     elif model_id == "pig_v0":
         return _make_pig_hold_at_20_model()
     elif model_id == "epaminondas_v0":
-        # E7: boardformer, 160 iterations under v5 rules, the strongest measured
-        # (EPAMINONDAS_EXPERIMENTS.md). An untrained net was a meaningless
-        # opponent, so eval/vs_baseline/* said nothing.
-        return _make_trained_baseline_model(
-            "checkpoints/epaminondas_20260918013629/000160.ckpt", 14 * 12
+        # Untrained, because v7 took the observation from 7 planes to 9 and every
+        # checkpoint trained before it - E7 included, which used to sit here -
+        # cannot consume the new observation. Point this back at the first strong
+        # v7 checkpoint once one exists; an untrained opponent makes
+        # eval/vs_baseline/* nearly meaningless in the meantime.
+        return _make_untrained_baseline_model(
+            model_args={
+                "num_actions": 14 * 12,
+                "num_channels": 128,
+                "num_layers": 6,
+                "resnet_v2": True,
+            },
+            shape=(1, 12, 14, 9),
         )
     elif model_id == "gess_v0":
         return _make_untrained_baseline_model(
