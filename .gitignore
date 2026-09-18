@@ -19,3 +19,5 @@ tests/assets/*/*.svg
 # Training run logs and pid files
 e9_run.log
 e9_run.pid
+e9_vs_e7.log
+seat_mirror.log
