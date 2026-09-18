@@ -741,8 +741,40 @@ plies. The v6 section above warned that 900 was too small based on random play
 (28% over 900 actions); for *trained* play 900 would have been ample. Keep 3000
 as the safe default, but the truncation risk in practice is small.
 
-### The seat asymmetry, a fourth time
+### The seat asymmetry: not a bug, and probably not established either
 
-A as P0 scored 0.281, as P1 0.391 - a **+0.11 advantage to player 1**, alongside
-the ~+0.08 seen in both E8 matches and the baseline-vs-random check. Four
-independent sightings now. Still unexplained and still untested.
+E9 vs E7 gave A 0.281 as P0 and 0.391 as P1, which looked like a fourth sighting
+of the player-1 advantage seen in the E8 matches and the baseline-vs-random
+check. It was checked directly.
+
+**There is no harness bug.** E7 against its own checkpoint, 256 games, same
+settings, scored **0.500 +/- 0.031, Elo +0**. A seat or rotation mismatch in
+`model_tournament.py` would have shown up here and did not, so no existing Elo
+number in this log is contaminated.
+
+**The rules are not structurally biased either.** 256 random-vs-random games on
+CPU split 0.488 / 0.512 by seat. Of those, **69% ended on the quiet clock**
+rather than by a real win, and even that tiebreak-decided subset split
+0.481 / 0.525 - so "black wins ties" is not quietly handing player 1 games.
+
+Quantified across every measurement rather than counted as sightings:
+
+| test | games | P1 score | deviation | significance |
+|---|---|---|---|---|
+| random vs random | 256 | 0.512 | +0.012 | 0.4 sigma |
+| E7 vs E7 (mirror) | 256 | 0.531 | +0.031 | 1.0 sigma |
+| E9 vs E7 | 256 | 0.555 | +0.055 | 1.8 sigma |
+
+Pooled over 768 games: **+0.033, ~1.8 sigma** (p ~ 0.07). Suggestive, not
+established.
+
+**The "four independent sightings" framing was wrong.** Each measurement is
+individually consistent with zero, and pooling them still does not clear
+significance; repetition of an underpowered comparison is not accumulating
+evidence. There may be a real ~+0.03 (~20 Elo) edge to black, which would be
+unsurprising given black moves second and wins the tiebreak, but demonstrating
+it needs ~2,000 games, not 256.
+
+Not worth chasing: a 20 Elo seat effect changes no decision here, and
+`model_tournament.py` plays every pairing seat-swapped, so it cancels out of
+every comparison.
