@@ -71,11 +71,11 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
     elif model_id == "pig_v0":
         return _make_pig_hold_at_20_model()
     elif model_id == "epaminondas_v0":
-        # Untrained, because v7 took the observation from 7 planes to 9 and every
-        # checkpoint trained before it - E7 included, which used to sit here -
-        # cannot consume the new observation. Point this back at the first strong
-        # v7 checkpoint once one exists; an untrained opponent makes
-        # eval/vs_baseline/* nearly meaningless in the meantime.
+        # Untrained, because v7/v8 changed the observation and every checkpoint
+        # trained before them - E7, which used to sit here, and E10 - cannot
+        # consume it. Point this back at the first strong v8 checkpoint once one
+        # exists; an untrained opponent makes eval/vs_baseline/* nearly
+        # meaningless in the meantime.
         return _make_untrained_baseline_model(
             model_args={
                 "num_actions": 14 * 12,
@@ -83,7 +83,7 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
                 "num_layers": 6,
                 "resnet_v2": True,
             },
-            shape=(1, 12, 14, 9),
+            shape=(1, 12, 14, 8),
         )
     elif model_id == "gess_v0":
         return _make_untrained_baseline_model(

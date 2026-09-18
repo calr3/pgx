@@ -332,7 +332,7 @@ def test_a_win_beats_the_cap_tiebreak():
 
 def test_env_turn_order_and_observation():
     state = env.init(jax.random.PRNGKey(0))
-    assert state.observation.shape == (HEIGHT, WIDTH, 9)
+    assert state.observation.shape == (HEIGHT, WIDTH, 8)
     assert env.num_actions == N and env.num_players == 2
     step = jax.jit(env.step)
     players = [int(state.current_player)]
@@ -348,37 +348,57 @@ def test_env_turn_order_and_observation():
     assert np.allclose(np.asarray(white_view[..., 0]), np.asarray(black_view[..., 1])[::-1])
 
 
-def test_the_clock_plane_tracks_the_quiet_move_count():
-    state = make_state(white=[(5, 5)], black=[(7, 7)], color=0)
-    assert np.asarray(game.observe(state, jnp.int32(0))[..., 7]).max() == 0.0
+def test_the_signed_clock_plane_tracks_the_quiet_move_count():
+    # Just after a capture the plane is zero whatever the position, so neither
+    # side is told anything about the tiebreak before it can matter.
+    state = make_state(white=[(10, 3)], black=[(4, 7)], color=0)
+    for seat in (0, 1):
+        assert np.asarray(game.observe(state, jnp.int32(seat))[..., 7]).max() == 0.0
 
     half = state._replace(quiet_moves=jnp.int32(MAX_QUIET_MOVES // 2))
     plane = np.asarray(game.observe(half, jnp.int32(0))[..., 7])
     assert plane.min() == plane.max() == pytest.approx(0.5)  # constant over the board
 
 
-def test_the_verdict_plane_says_who_wins_if_the_game_ends_now():
+def test_the_signed_clock_plane_says_who_wins_if_the_game_ends_now():
     # White is further up the board, so white wins on advancement.
     state = make_state(white=[(10, 3)], black=[(4, 7)], color=0)
+    state = state._replace(quiet_moves=jnp.int32(MAX_QUIET_MOVES))
     assert np.asarray(game.rewards(state)).tolist() == [1.0, -1.0]
 
-    # Each side is told the same outcome from its own point of view.
-    assert np.asarray(game.observe(state, jnp.int32(0))[..., 8]).max() == 1.0
-    assert np.asarray(game.observe(state, jnp.int32(1))[..., 8]).max() == -1.0
+    # Each side is told the same outcome from its own point of view, and the
+    # magnitude is the clock either way.
+    assert np.asarray(game.observe(state, jnp.int32(0))[..., 7]).max() == pytest.approx(1.0)
+    assert np.asarray(game.observe(state, jnp.int32(1))[..., 7]).max() == pytest.approx(-1.0)
 
 
-def test_the_verdict_plane_carries_the_black_wins_mirrors_rule():
+def test_the_opening_position_leaks_no_colour():
+    # The regression that cost E10 a 3.3 sigma seat asymmetry: the opening is an
+    # exact mirror with no captures, so a raw verdict resolved to black and told
+    # white it was losing before a piece had moved. Scaled by the clock, which
+    # is zero there, both sides see the same thing.
+    opening = game.init()
+    white = np.asarray(game.observe(opening, jnp.int32(0)))
+    black = np.asarray(game.observe(opening, jnp.int32(1)))
+    assert white[..., 7].max() == 0.0 and black[..., 7].max() == 0.0
+    # And the whole observation is identical under the canonical view: both are
+    # already stated from the mover's side, so they match without any flip.
+    assert np.allclose(white, black)
+
+
+def test_the_signed_clock_carries_the_black_wins_mirrors_rule():
     # An exact rank-for-rank mirror with nobody having captured: black wins it,
     # and that is recoverable from neither the stones nor the canonical view.
-    state = make_state(white=[(5, 5)], black=[(6, 5)], color=0)
+    state = make_state(white=[(5, 5)], black=[(6, 5)], color=0,
+                       quiet_moves=jnp.int32(MAX_QUIET_MOVES))
     assert int(state.last_capturer) == -1
     assert np.asarray(game.rewards(state)).tolist() == [-1.0, 1.0]
-    assert np.asarray(game.observe(state, jnp.int32(0))[..., 8]).max() == -1.0
-    assert np.asarray(game.observe(state, jnp.int32(1))[..., 8]).max() == 1.0
+    assert np.asarray(game.observe(state, jnp.int32(0))[..., 7]).max() == pytest.approx(-1.0)
+    assert np.asarray(game.observe(state, jnp.int32(1))[..., 7]).max() == pytest.approx(1.0)
 
     # It follows the last capturer once there has been one.
     took = state._replace(last_capturer=jnp.int32(0))
-    assert np.asarray(game.observe(took, jnp.int32(0))[..., 8]).max() == 1.0
+    assert np.asarray(game.observe(took, jnp.int32(0))[..., 7]).max() == pytest.approx(1.0)
 
 
 def test_random_playthrough_stays_legal():

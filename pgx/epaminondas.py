@@ -34,7 +34,7 @@ class State(core.State):
     """
 
     current_player: Array = jnp.int32(0)
-    observation: Array = jnp.zeros((HEIGHT, WIDTH, 9), dtype=jnp.float32)
+    observation: Array = jnp.zeros((HEIGHT, WIDTH, 8), dtype=jnp.float32)
     rewards: Array = jnp.float32([0.0, 0.0])
     terminated: Array = jnp.bool_(False)
     truncated: Array = jnp.bool_(False)
@@ -106,7 +106,13 @@ class Epaminondas(core.Env):
         #     verdict if the game ended now. Both were invisible before, and
         #     they decide most games. 7 channels -> 9, so v6 and earlier
         #     checkpoints cannot be loaded against this env.
-        return "v7"
+        # v8: those two become one signed clock plane. v7's raw verdict read -1
+        #     for white and +1 for black in any symmetric position, including
+        #     the opening, so it leaked colour and cost a 3.3 sigma seat
+        #     asymmetry; scaling it by the clock makes it 0 there. 9 -> 8
+        #     channels, so v7 checkpoints are retired too - plane 7 changed
+        #     meaning, so narrowing cannot rescue them.
+        return "v8"
 
     @property
     def num_players(self) -> int:
