@@ -129,11 +129,22 @@ model.** Two claims in this file were wrong in opposite directions because of
 that - "scaling is broken" (a v6 run measured against v5 E7) and "scaling is
 fine" (E9 and E13 compared through E7).
 
-**v6 gives black a large advantage, and it grows with strength.** In self-mirror
-matches: E7 (v5) 0.531, E13 (v6) 0.625, E14 (v6, strongest) 0.727. Independent
-of the observation planes, and not explained by game length. It does not
-contaminate Elo here, since every pairing is played seat-swapped, but it is a
-real property of the ruleset.
+**Measure against `tdgauntlet`'s alpha-beta, not only against our own
+checkpoints.** Every Elo in this file is relative to another of our runs. Against
+the Rust alpha-beta in `~/calr3gh/tdgauntlet`, E7 and E14 score **-311 and -257
+Elo** and lost every counted minimatch (77-0-3 over 80 games), while being given
+5-6x its thinking time. The family is a long way below a competent classical
+engine, and no 2x-scale run closes that. It is also a fixed external opponent, so
+it is the right yardstick for future runs.
+
+**v6 gives black a large advantage in pgx at 32 simulations, and not in
+tdgauntlet at 256.** In pgx self-mirror
+matches at 32 sims: E7 (v5) 0.531, E13 (v6) 0.625, E14 (v6, strongest) 0.727 -
+independent of the observation planes and not explained by game length. But in
+tdgauntlet at 256 sims white won 0.475 of the strength-balanced pairing, showing
+no such edge. Search size, self-mirror versus distinct opponents, and the harness
+all differ; which regime is representative is untested. It contaminates no Elo
+either way, since every pairing is played seat-swapped.
 
 **Do not add an observation plane derived from the tiebreak.** Measured against
 E13 (the matched v6 baseline), the v8 signed-clock plane costs **210-270 Elo**:

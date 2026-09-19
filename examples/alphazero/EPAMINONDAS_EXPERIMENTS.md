@@ -1229,3 +1229,100 @@ contaminate any Elo in this log.
 Not diagnosed further: nobody has measured what fraction of strong-play v6 games
 actually end on the clock versus by a real win, which would separate "black
 steers to the tiebreak" from "black simply has the better side under v6".
+
+## Gauntlet vs a classical alpha-beta engine: the models are ~250-310 Elo behind
+
+Every number above is relative - one of our checkpoints against another. This is
+the first measurement against something outside the family, and it is
+unflattering.
+
+Run with `tdgauntlet` (`~/calr3gh/tdgauntlet`), a tournament server whose Rust
+Epaminondas is an independent implementation of pgx's v6 rules, held to pgx by a
+conformance test. Config `examples/az_v_alphabeta_gauntlet.toml`, a full round
+robin, one minimatch per randomised **first move** (`plies = 1`, which is three
+pgx actions; 114 distinct first moves exist). 120 games in 1 h 46 m.
+
+```bash
+# model clients, in the pgx environment, sharing the GPU
+cd ~/calr3gh/tdgauntlet/clients/jax
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.3 ~/.venv/bin/python3 -m tdg_jax \
+    --port 9330 --sims 256 --allow-rules-mismatch \
+    --checkpoint ~/calr3gh/pgx/checkpoints/epaminondas_20260918013629/000160.ckpt   # E7
+XLA_PYTHON_CLIENT_MEM_FRACTION=0.3 ~/.venv/bin/python3 -m tdg_jax \
+    --port 9331 --sims 256 --allow-rules-mismatch \
+    --checkpoint ~/calr3gh/pgx/checkpoints/epaminondas_20260919191528/000120.ckpt   # E14
+
+cd ~/calr3gh/tdgauntlet && export PATH="$HOME/.cargo/bin:$PATH"
+./target/release/tdgauntlet run examples/az_v_alphabeta_gauntlet.toml
+```
+
+### Result
+
+```
+player      score    Elo   counted     excluded      W-D-L   think ms
+alphabeta  100.0%  >+999        37       3 (8%)     77-0-3        861
+az-e14      18.5%   -257        27     13 (32%)    23-0-57       4149
+az-e7       14.3%   -311        28     12 (30%)    20-0-60       5283
+
+  az-e7  v az-e14     44.4%  over  9 counted, 11 excluded
+  az-e7  v alphabeta   0.0%  over 19 counted,  1 excluded
+  az-e14 v alphabeta   0.0%  over 18 counted,  2 excluded
+```
+
+**The engine won 77 of 80 games and took every counted minimatch from both
+models.** 0.0% is not rounding: neither model ever won both games of an opening
+against it. Our three wins were `az-e7` once (29 moves) and `az-e14` twice (83
+and 270 moves).
+
+**And the models had 5-6x the thinking time.** `budget_sims = 256` was chosen to
+be roughly comparable to `budget_ms = 1000`; in practice the models averaged
+4,149 ms and 5,283 ms per move against the engine's 861 ms. The gap is therefore
+*understated* here, not overstated. A fair equal-time comparison would need the
+models at far fewer simulations, or the engine given seconds.
+
+A minimatch is scored only when it is not split 1-1, on the grounds that a split
+means the opening decided it. Exclusion ran 8% for the engine and 30-32% for the
+models.
+
+### E7 v E14 came out backwards, and should not be believed
+
+tdgauntlet has `az-e7` at 44.4% against `az-e14`, where pgx's own 256-game
+tournament had E7 **+128 Elo** ahead. The gauntlet figure rests on **9 counted
+minimatches** after an 11-of-20 exclusion rate. Prefer the pgx number; this is a
+sample-size artefact, not a contradiction worth explaining.
+
+### It does *not* corroborate the v6 black advantage - and that is a puzzle
+
+White won **60 of 120** games overall, and **19 of 40** (0.475) in the
+strength-balanced `az-e7` v `az-e14` pairing. No black advantage is visible.
+
+That sits badly against the pgx mirror measurements taken the same day, where
+black scored 0.625 (E13) and 0.727 (E14) against identical opponents. Three
+differences could account for it, none tested:
+
+- **Search size.** The pgx mirrors ran 32 simulations; this ran 256. A black edge
+  that a shallow search cannot avoid may simply be avoidable with more search.
+- **Identical versus different opponents.** A self-mirror pits a policy against
+  its own blind spots; two different models do not.
+- **The harness.** pgx and the Rust implementation are conformance-tested on
+  rules, not on tournament bookkeeping.
+
+An earlier note in this log offered the high exclusion rate as corroboration of
+the black advantage. **That was wrong**: exclusion means colour-and-opening
+decided a given minimatch, not that one colour wins systematically, and the
+white-win rate here is 0.475. The v6 seat asymmetry is real in pgx at 32
+simulations and absent here at 256; which regime is representative is open.
+
+### What it means
+
+Every relative gain in this log - the data pipeline, the architecture, the
+learning-rate fix - is movement within a family that sits **250-310 Elo below a
+competent classical engine given less thinking time**. That is worth knowing
+before renting hardware to make the family marginally better: the gap is not of
+a size that a 2x-scale run closes.
+
+The engine is not a strawman - `crates/games` plus an alpha-beta with a
+transposition table, 8 threads, and an evaluation tuned against pgx - but it is
+also not a research artefact. A strong classical engine being far ahead of a
+small AlphaZero run is the expected result at this scale; the value here is the
+number, and a fixed external opponent to measure future runs against.
