@@ -105,21 +105,35 @@ measured three times (95 and 112 Elo in earlier experiments, ~140 here), not a
 fault in the runs. **The correct baseline for a v6 run is about -130 against
 E7.**
 
-**Scaling currently buys nothing.** Played directly against each other - both v6,
-both 7 planes, no v5 model in the chain - E9 (batch 1024, 3.29 h) scored
-**0.453 +/- 0.031 against E13** (batch 256, 1.27 h), Elo -33. E9 had 2.6x the
-wall clock, 4x the batch and 50% more gradient updates, and is not better.
+**Scale the learning rate with the batch.** This is the one setting that decides
+whether more compute buys anything. At `selfplay_batch_size=1024` /
+`training_batch_size=4096`, use **`learning_rate=1e-3`**, not the pilot's 5e-4.
+Direct head-to-heads, all v6 and 7 planes:
 
-Two earlier claims here were both wrong in different directions: that scaling was
-broken (E9 -118 vs E7) came from measuring a v6 run against a v5 model, and that
-scaling was fine came from comparing E9 and E13 indirectly through that same v5
-model. Compare runs head to head, not by subtracting their scores against a
-third.
+| comparison | Elo |
+|---|---|
+| E9 (batch 1024, lr 5e-4) vs E13 (pilot batch 256) | **-33** |
+| E14 (batch 1024, lr 1e-3) vs E13 (pilot batch 256) | **+38** |
+| E14 vs E9 (learning rate isolated, same seed) | **+63** |
 
-**The prime suspect is the learning rate**, untested: E9 quadrupled the batch and
-kept `learning_rate=5e-4`. Before sizing any large run, test E9's config at
-`learning_rate=1e-3` against E9 itself - one variable, opponent already in hand,
-~3.3 h.
+Keeping the pilot's learning rate at 4x the batch is an under-stepping
+optimizer, and it cost the entire benefit of scaling. Fixing it is worth ~70
+Elo. 1e-3 is not known to be optimal - a linear rule would suggest 2e-3, untested.
+
+Temper expectations on the size of the win: E14 spent **2.5x E13's wall clock
+for +38 Elo**, at ~1.8 sigma. Scaling works, but the return on compute is
+moderate.
+
+**Compare runs head to head, never by subtracting their scores against a third
+model.** Two claims in this file were wrong in opposite directions because of
+that - "scaling is broken" (a v6 run measured against v5 E7) and "scaling is
+fine" (E9 and E13 compared through E7).
+
+**v6 gives black a large advantage, and it grows with strength.** In self-mirror
+matches: E7 (v5) 0.531, E13 (v6) 0.625, E14 (v6, strongest) 0.727. Independent
+of the observation planes, and not explained by game length. It does not
+contaminate Elo here, since every pairing is played seat-swapped, but it is a
+real property of the ruleset.
 
 **Do not add an observation plane derived from the tiebreak.** Measured against
 E13 (the matched v6 baseline), the v8 signed-clock plane costs **210-270 Elo**:

@@ -1135,3 +1135,97 @@ batch 256 to 1024 currently gains nothing.
 what an under-stepping optimizer looks like. The test is E9's config at
 `learning_rate=1e-3` played against E9 itself - one variable, and the opponent
 already exists. ~3.3 h. Nothing about a rental should be decided before it runs.
+
+## E14: the learning rate was the problem, and scaling now works
+
+**Question.** E9 spent 2.6x the wall clock at 4x the batch and gained nothing
+(0.453 against E13). The untested suspect was the step size: E9 quadrupled the
+batch and kept `learning_rate=5e-4`.
+
+**Setup.** E9's config with `learning_rate=1e-3` and **the same seed**, so the
+step size is the only difference in the run. 120 iterations in 3.133 h against
+E9's 3.29 h. `checkpoints/epaminondas_20260919191528/`.
+
+### Result: +63 Elo over E9, +38 over the pilot
+
+```
+A = E14 (lr 1e-3)   B = E9 (lr 5e-4)      A score 0.590 +/- 0.031   Elo +63
+A = E14             B = E13 (pilot)       A score 0.555 +/- 0.031   Elo +38
+```
+
+Every comparison here is a direct head-to-head between v6, 7-plane models - no
+chaining through E7:
+
+| comparison | Elo |
+|---|---|
+| E9 (batch 1024, lr 5e-4) vs E13 (pilot) | **-33** |
+| E14 (batch 1024, lr 1e-3) vs E13 (pilot) | **+38** |
+| E14 vs E9 (learning rate isolated, same seed) | **+63** |
+
+**Fixing the learning rate turned a scaling loss into a scaling win**, worth
+about 70 Elo, consistently across both comparisons. E9's failure to convert more
+compute was an under-stepping optimizer, not a ceiling in the recipe.
+
+**Temper the magnitude.** E14 spent **2.5x E13's wall clock for +38 Elo**, at
+~1.8 sigma. Scaling works; it is not lavishly efficient. Anyone sizing a rental
+should plan on real but moderate returns.
+
+### The mid-run eval would have given the wrong answer, again
+
+| iteration | 40 | 60 | 80 | 100 | 120 |
+|---|---|---|---|---|---|
+| E9 (5e-4) win vs E7 | 0.190 | 0.192 | 0.237 | 0.131 | 0.290 |
+| E14 (1e-3) win vs E7 | 0.052 | 0.128 | 0.259 | 0.457 | **0.473** |
+
+At iteration 40 E14 was scoring a third of E9 and looked like a failure. It
+finished 63% ahead. A higher learning rate decays from a higher peak, so the run
+is still taking large steps in mid-schedule and converges late. **Third time in
+this log that reading `eval/vs_baseline` early would have produced the wrong
+conclusion.**
+
+E14's 0.473 against E7 is the best any v6 model has reached - close to parity
+with the v5 reference while carrying v6's ~130 Elo rules penalty.
+
+### Next
+
+The learning rate is now known to matter and is not known to be optimal. 1e-3
+is 2x E9's; the batch is 4x the pilot's, and a linear rule would suggest 2e-3.
+The obvious follow-up is E14's config at 2e-3 against E14, one variable, ~3.1 h.
+
+### The seat asymmetry is a v6 rules property, not an observation one
+
+E14's mirror, and the series it completes:
+
+| model | rules | planes | black in its own mirror | mirror game length |
+|---|---|---|---|---|
+| E7 | **v5** | 7 | **0.531** | 342 plies |
+| E13 | v6 | 7 | 0.625 | 498 plies |
+| **E14** | v6 | 7 | **0.727** | 366 plies |
+| E10 | v7 | 9 | 0.602 | - |
+| E12 | v8 | 8 | 0.672 | - |
+| E11 | v8 | 8 | 0.773 | 76 plies |
+
+**Two explanations have now been tried and both are wrong.** The E12 write-up
+said the series tracks how much colour the observation leaks - refuted by E13
+and E14, which have no plane and still show 0.625 and 0.727. The E13 write-up
+then said long games reach the black-favouring tiebreak - refuted by E14, whose
+games are *shorter* than E13's (366 vs 498 plies) yet whose asymmetry is
+*larger*.
+
+What survives: **every v6 model shows a large black advantage and the single v5
+model does not**, and the effect grows with strength - E14 is the strongest v6
+model measured and has the biggest gap. The natural reading is that v6 contains
+a real imbalance favouring black, most plausibly that the tiebreak's
+black-wins-a-mirror default is something a strong player can steer towards, and
+that stronger play exploits it harder.
+
+**This is a rules design issue, not a bug**, and it is independent of the
+observation: E14 has no extra plane. A strong v6 model playing black scores
+about 0.73 against itself. Worth deciding whether that is acceptable, since it
+means seat allocation matters a great deal in v6 - and note that
+`model_tournament.py` plays every pairing seat-swapped, so it does not
+contaminate any Elo in this log.
+
+Not diagnosed further: nobody has measured what fraction of strong-play v6 games
+actually end on the clock versus by a real win, which would separate "black
+steers to the tiebreak" from "black simply has the better side under v6".
