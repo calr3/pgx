@@ -97,40 +97,42 @@ actions without change.
 Status: nine runs (`EPAMINONDAS_EXPERIMENTS.md`). The block above is still the
 winning arm, and it is a **pilot-scale** recipe - keep `selfplay_batch_size=256`.
 
-**Scaling it up is not solved, in either direction.** Two runs have now spent
-several times E7's compute and come out weaker: E9 at 4x the batch (-118 Elo)
-and E10 at 4.4x the iterations (-92 Elo). E9 changed batch size and rules; E10
-changed neither. No single explanation covers both, and until one run beats E7
-there is no evidence that more compute buys strength here - which is the whole
-premise of renting hardware.
+**Compare v6 runs against a v6 baseline, not against E7.** E7 is the only strong
+Epaminondas checkpoint trained under **v5** rules, and every v6 run measured so
+far lands 120-140 Elo below it - including E13, which is E7's exact recipe with
+a different seed and nothing else changed. That gap is the capture clock, now
+measured three times (95 and 112 Elo in earlier experiments, ~140 here), not a
+fault in the runs. **The correct baseline for a v6 run is about -130 against
+E7.**
 
-**Do not add an observation plane derived from the tiebreak.** v7 and v8 both
-tried and both failed badly. Any such plane carries the "black wins an exact
-mirror" default, which is a colour signal in every near-symmetric position -
-including the opening - and self-play amplifies it into a model that cannot play
-white. Measured, at matched wall clock against E7 on E7's own recipe:
+**Scaling looks fine.** E9 at 4x batch scored -118 against E7, *better* than the
+-140 of the pilot-scale E13 at the same rules - about one standard error apart.
+An earlier version of this file said scaling was broken and that nothing should
+be rented until a run beat E7; that was wrong, and came from measuring v6 runs
+against a v5 model.
 
-| run | plane | vs E7 | black in its own mirror |
-|---|---|---|---|
-| E7 | none | - | 0.531 |
-| E10 | clock + raw verdict | -92 | 0.602 |
-| E11 | signed clock, seed 0 | **-351** | 0.773 |
-| E12 | signed clock, seed 1 | **-411** | 0.672 |
+**Do not add an observation plane derived from the tiebreak.** Measured against
+E13 (the matched v6 baseline), the v8 signed-clock plane costs **210-270 Elo**:
+E11 -351 and E12 -411 where E13 is -140, on identical settings at matched wall
+clock. Two seeds, so not seed luck. Any such plane carries the "black wins an
+exact mirror" default, which is a colour signal in every near-symmetric
+position. v9 unwires it, and a test asserts both sides see an identical
+observation in a mirrored position.
 
-Two seeds, so this is not seed luck. Note also that the motivation was wrong:
-"69% of games are decided by the clock" was measured on *random* play, and
-trained games (27-63 moves) cannot reach a 100-quiet-move clock at all.
+Note the motivation was also measured in the wrong regime: "69% of games are
+decided by the clock" came from *random* play.
+
+**A mirror seat asymmetry is not by itself evidence about the observation.**
+E13 has no plane and still shows black at 0.625, because its mirror games run
+498 plies and reach the tiebreak, which favours black. The plane's own leak is
+visible only where games are too short for that - E11's mirror averaged 76
+plies and still showed 0.773. Check game length before attributing an asymmetry.
 
 **Measure seat effects with a model against itself, never with a head-to-head.**
 A weak model loses from both seats, which hides its asymmetry: E11's head-to-head
 showed a 0.016 gap while its mirror showed 0.546.
 
-If the information is still wanted, the leak is entirely in the fallback. A
-plane carrying **advancement only** (+1/-1/0, zero when tied) is symmetric by
-construction. Untested, and the bar for trying is a single-variable run against
-E7 with the mirror checked first.
-
-**Scaling detail.** E9 ran these settings at
+**Scaling detail.** E9 ran these settings at**Scaling detail.** E9 ran these settings at
 `selfplay_batch_size=1024` / `training_batch_size=4096` /
 `num_updates_per_iter=64` for 3.29 h under v6 rules, and lost to the 1.3 h E7
 pilot **118 Elo** (0.336 +/- 0.030 over 256 games) despite 4x the batch, 2.5x

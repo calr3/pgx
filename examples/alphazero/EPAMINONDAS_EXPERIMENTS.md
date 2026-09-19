@@ -1021,3 +1021,86 @@ costs almost nothing, since trained games run 27-63 moves and never reach the
 Untested. Given that two attempts at this plane have now cost 92, 351 and 411
 Elo, the bar for a third should be a single-variable run against E7 at matched
 wall clock, with the **mirror** checked before anything else.
+
+## E13: the control that reframes E9 through E12
+
+**Question.** Every comparison in this log is against E7, and nobody had checked
+whether E7 is a typical run or a lucky one. E13 is E7's recipe with **seed=1**
+and no observation plane (v9), 160 iterations in 1.269 h against E7's 1.301 h.
+`checkpoints/epaminondas_20260919170010/`.
+
+### Result: -140 Elo. E7 is not reproducible - because E7 is v5
+
+```
+A = E13 (7 planes, seed 1, v6 rules)   B = E7 (v5 rules)
+
+A wins 79 (30.9%) | B wins 177 (69.1%) | draws 0 (of which truncated: 0)
+A score 0.309 +/- 0.029   Elo diff A-B: -140
+A as P0 0.234 | A as P1 0.383   avg game length 367 plies
+```
+
+Collecting every head-to-head against E7:
+
+| run | rules | planes | iterations | vs E7 |
+|---|---|---|---|---|
+| **E13** | **v6** | **7** | **160** | **-140** |
+| E9 | v6 | 7 | 120 @ batch 1024 | -118 |
+| E10 | v7 | 9 | 700 | -92 |
+| E11 | v8 | 8 | 160 | -351 |
+| E12 | v8 | 8 | 160 | -411 |
+
+**E7 is the only model trained under v5.** Every v6 run sits near -120 to -140,
+and this log already records capture clocks costing 95 and 112 Elo (v2 vs v1, v2
+vs v3). E13's -140 is that same penalty measured a third time. E7 is not a lucky
+draw; it is trained under rules worth ~130 Elo more, and **the correct baseline
+for a v6 run was never 0.**
+
+### Correction: scaling is not broken
+
+E9 - the batch-1024 run whose -118 prompted "do not rent until a run beats E7" -
+scored **better than E13's -140**, at the same rules and plane count. The two are
+about one standard error apart, i.e. indistinguishable. **E9's apparent failure
+was the rules, not the batch size**, and the earlier conclusion that this recipe
+does not reward more compute was drawn against a v5 yardstick that no v6 run
+could match. Scaling looks neutral-to-fine.
+
+### Correction: the mirror asymmetry is not a clean plane diagnostic
+
+| run | planes | black in its own mirror | mirror game length |
+|---|---|---|---|
+| E7 (v5) | 7 | 0.531 | 342 plies |
+| **E13 (v6)** | **7** | **0.625** | **498 plies** |
+| E10 (v7) | 9 | 0.602 | - |
+| E12 (v8) | 8 | 0.672 | - |
+| E11 (v8) | 8 | 0.773 | 76 plies |
+
+**E13 has no plane and still shows 0.625.** The claim in the E12 write-up that
+the series "tracks how much colour the observation leaks" is wrong. Two
+mechanisms produce similar numbers:
+
+- **Long games reach the tiebreak**, which resolves to black. E13's mirror games
+  run 498 plies (~166 moves), well past the 100-quiet-move clock. This is a
+  property of v6, not of any observation.
+- **The plane leaks colour directly**, which is the only thing that can explain
+  E11: its mirror games averaged 76 plies, far too short to reach the clock, yet
+  black scored 0.773.
+
+Do not read a mirror asymmetry as evidence about the observation without also
+checking the game length.
+
+### What still stands: the plane is harmful
+
+E11 and E12 differ from E13 only in the plane - same rules, same 160 iterations,
+same batch, matched wall clock. -351 and -411 against E13's -140, so **the v8
+plane costs roughly 210-270 Elo**. That rests on head-to-heads at a properly
+matched baseline and is unaffected by the mirror confusion above. Unwiring it in
+v9 was right; the magnitude claimed in the E11/E12 write-ups (350-410) was
+inflated by measuring against a v5 model.
+
+### The open question is now the rules, not scaling
+
+v6's capture clock appears to cost ~130 Elo against v5, which is the third
+consistent measurement of a capture clock being expensive. v6 is a deliberate
+design choice taken on the grounds that an absolute cap pays whoever is ahead to
+run the clock out, and it is kept for that reason - but its cost should be
+recorded honestly rather than attributed to batch sizes and observation planes.
