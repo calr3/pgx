@@ -104,13 +104,31 @@ changed neither. No single explanation covers both, and until one run beats E7
 there is no evidence that more compute buys strength here - which is the whole
 premise of renting hardware.
 
-**v7 added two observation planes and one of them is miswired.** Plane 7 is the
-quiet-move clock; plane 8 is the verdict if the game ended now. In any symmetric
-position the tiebreak resolves to black, so plane 8 degenerates into a colour
-identifier and tells white it is losing from move one. E10's seat asymmetry is
-+0.102 (3.3 sigma) against E7's +0.031 (1.0 sigma). The proposed fix - scale the
-verdict by the clock, so it is 0 at the start and +/-1 only when the tiebreak is
-imminent - is untested. Treat plane 8 as broken until it is.
+**Do not add an observation plane derived from the tiebreak.** v7 and v8 both
+tried and both failed badly. Any such plane carries the "black wins an exact
+mirror" default, which is a colour signal in every near-symmetric position -
+including the opening - and self-play amplifies it into a model that cannot play
+white. Measured, at matched wall clock against E7 on E7's own recipe:
+
+| run | plane | vs E7 | black in its own mirror |
+|---|---|---|---|
+| E7 | none | - | 0.531 |
+| E10 | clock + raw verdict | -92 | 0.602 |
+| E11 | signed clock, seed 0 | **-351** | 0.773 |
+| E12 | signed clock, seed 1 | **-411** | 0.672 |
+
+Two seeds, so this is not seed luck. Note also that the motivation was wrong:
+"69% of games are decided by the clock" was measured on *random* play, and
+trained games (27-63 moves) cannot reach a 100-quiet-move clock at all.
+
+**Measure seat effects with a model against itself, never with a head-to-head.**
+A weak model loses from both seats, which hides its asymmetry: E11's head-to-head
+showed a 0.016 gap while its mirror showed 0.546.
+
+If the information is still wanted, the leak is entirely in the fallback. A
+plane carrying **advancement only** (+1/-1/0, zero when tied) is symmetric by
+construction. Untested, and the bar for trying is a single-variable run against
+E7 with the mirror checked first.
 
 **Scaling detail.** E9 ran these settings at
 `selfplay_batch_size=1024` / `training_batch_size=4096` /

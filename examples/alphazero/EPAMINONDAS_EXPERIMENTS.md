@@ -960,3 +960,64 @@ single run. **E12 repeats E11 with `seed=1`** to settle it: if E12 also collapse
 the plane is guilty; if E12 lands near E7 then this recipe is unstable, several
 of this log's conclusions have been noise read as signal, and that instability
 matters far more for a rental than any plane does.
+
+## E12: the seed repeat convicts the plane
+
+**Question.** E11's collapse could have been a degenerate self-play attractor
+rather than the observation plane: nobody had ever measured this recipe's
+run-to-run variance. E12 is E11 with `seed=1` and nothing else changed.
+`checkpoints/epaminondas_20260919145555/`, 160 iterations in 1.282 h against
+E11's 1.273 h and E7's 1.301 h.
+
+### Result: worse than E11
+
+```
+A = E12 (v8, seed 1)   B = E7
+
+A wins 22 (8.6%) | B wins 234 (91.4%) | draws 0 (of which truncated: 0)
+A score 0.086 +/- 0.018   Elo diff A-B: -411
+A as P0 0.008 | A as P1 0.164
+avg game length 135.1 plies
+```
+
+**As white, E12 scored 0.008 - one point in 128 games.**
+
+### Both seeds, and the leak scales with how much colour the plane exposes
+
+| run | observation | vs E7 | black's score in its own mirror |
+|---|---|---|---|
+| E7 | 7 planes | - | 0.531 (1.0 sigma) |
+| E10 | v7, clock + raw verdict | -92 | 0.602 (3.3 sigma) |
+| E11 | v8, signed clock, seed 0 | **-351** | **0.773 (8.8 sigma)** |
+| E12 | v8, signed clock, seed 1 | **-411** | **0.672 (5.5 sigma)** |
+
+Two independent seeds of a single-variable change, both catastrophic, both with
+a large white handicap. **This is not seed luck.** The variance between seeds is
+real (-351 vs -411, mirrors 0.773 vs 0.672) but small next to the effect.
+
+### What this settles, and what it does not
+
+Settled: **the observation plane is the cause of E10, E11 and E12's weakness.**
+Any plane derived from the full tiebreak chain carries the black-wins-a-mirror
+default, which is a colour signal in every near-symmetric position, and
+self-play amplifies it into a policy that cannot play white.
+
+Not settled: **E9's -118 remains unexplained.** E9 was 7-plane v6 with no leak,
+so its loss has a different cause - batch size, learning rate, or something
+else. That is still the open question for scaling, and the one that matters for
+a rental.
+
+### The fix, if the information is still wanted
+
+The leak is entirely in the fallback, not the comparison. `_advancement_winner`
+returns -1 for an exact mirror, and it is the `select(advantage >= 0, advantage,
+tiebreak)` step that replaces that with "black". A plane carrying **advancement
+only** - +1, -1, or **0 when tied** - is symmetric by construction: a mirrored
+position reads 0 for both colours, and no amount of self-play can turn it into a
+colour identifier. The black-default and `last_capturer` stay hidden, which
+costs almost nothing, since trained games run 27-63 moves and never reach the
+100-quiet-move clock anyway.
+
+Untested. Given that two attempts at this plane have now cost 92, 351 and 411
+Elo, the bar for a third should be a single-variable run against E7 at matched
+wall clock, with the **mirror** checked before anything else.
