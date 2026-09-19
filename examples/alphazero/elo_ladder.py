@@ -179,7 +179,8 @@ def main() -> None:
     # 9: Epaminondas v6 rules - a 100-quiet-move capture clock, same tiebreak.
     # 10: Epaminondas v7 - the observation gains the clock and verdict planes.
     # 11: Epaminondas v8 - those two become one signed clock plane.
-    settings["game_version"] = 11
+    # 12: Epaminondas v9 - that plane is unwired; the observation is 7 planes.
+    settings["game_version"] = 12
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:

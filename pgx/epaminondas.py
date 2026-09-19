@@ -34,7 +34,7 @@ class State(core.State):
     """
 
     current_player: Array = jnp.int32(0)
-    observation: Array = jnp.zeros((HEIGHT, WIDTH, 8), dtype=jnp.float32)
+    observation: Array = jnp.zeros((HEIGHT, WIDTH, 7), dtype=jnp.float32)
     rewards: Array = jnp.float32([0.0, 0.0])
     terminated: Array = jnp.bool_(False)
     truncated: Array = jnp.bool_(False)
@@ -112,7 +112,11 @@ class Epaminondas(core.Env):
         #     asymmetry; scaling it by the clock makes it 0 there. 9 -> 8
         #     channels, so v7 checkpoints are retired too - plane 7 changed
         #     meaning, so narrowing cannot rescue them.
-        return "v8"
+        # v9: the clock/verdict plane is unwired, back to 7 planes. Both forms
+        #     of it leaked the tiebreak's black-wins-a-mirror default as a
+        #     colour signal and cost 92, 351 and 411 Elo (E10, E11, E12).
+        #     v6-era checkpoints load again; v7/v8 ones are retired.
+        return "v9"
 
     @property
     def num_players(self) -> int:

@@ -476,7 +476,7 @@ def _symmetry_allowed(state: GameState, candidates: Array) -> Array:
 
 
 def _observe(state: GameState, color: Array) -> Array:
-    """(HEIGHT, WIDTH, 8) float32 from `color`'s perspective.
+    """(HEIGHT, WIDTH, 7) float32 from `color`'s perspective.
 
     Rows are flipped for black so that the player to move always looks "up" the
     board: own back rank is row 0.
@@ -485,33 +485,25 @@ def _observe(state: GameState, color: Array) -> Array:
       0 own pieces, 1 opponent pieces
       2 lead marker, 3 rear marker
       4-6 constant planes one-hot encoding the stage
-      7 the signed clock: `quiet_moves / MAX_QUIET_MOVES`, negated when `color`
-        would *lose* were the game to end now. Magnitude is how close the clock
-        is to firing; sign is who the tiebreak favours.
 
-    Plane 7 exists because the observation is otherwise fully canonical -
-    own/opponent rather than white/black - and so cannot express what decides
-    most games. The clock is not on the board at all, and the tiebreak depends
-    on `last_capturer` and on a black-wins-a-mirror rule, neither recoverable
-    from the stones. Even the advancement comparison, though a function of the
-    board, is a lexicographic scan a convolutional or attention stack has little
-    reason to represent. Roughly 69% of random-play games are decided by this
-    machinery.
+    **The clock/verdict plane is deliberately unwired.** v7 and v8 added one and
+    both failed badly, because any plane derived from the tiebreak carries its
+    "black wins an exact mirror" default. That is a colour signal in every
+    near-symmetric position - the opening included - and self-play amplifies it
+    into a model that cannot play white. Measured at matched wall clock on E7's
+    own recipe: E10 (clock + raw verdict) -92 Elo, E11 (signed clock, seed 0)
+    -351, E12 (signed clock, seed 1) -411, with black scoring 0.602, 0.773 and
+    0.672 against itself where E7 scores 0.531. Two seeds, so not seed luck.
 
-    **Why the verdict is scaled by the clock rather than given raw.** v7 carried
-    the two as separate planes, an unsigned clock and a raw +/-1 verdict. The
-    opening position is an exact mirror with no captures, so the tiebreak chain
-    falls through to black and the raw verdict read -1 for white and +1 for
-    black before a piece had moved - a colour identifier in every symmetric
-    position, which is most of the opening. E10 trained that way and finished
-    with a seat asymmetry of +0.102 (3.3 sigma) against E7's +0.031, playing
-    materially worse as white. Scaling by the clock makes the plane 0 for both
-    colours at the start, so canonicalisation holds, and lets it reach +/-1 only
-    as the tiebreak becomes imminent - the information arrives in proportion to
-    its relevance. A separate clock plane is then redundant, being just this
-    plane's magnitude.
+    The motivation was also measured in the wrong regime: "69% of games are
+    decided by the clock" came from *random* play, and trained games run 27-63
+    moves, which cannot reach a 100-quiet-move clock at all.
 
-    Constant across the board, so the row flip is a no-op for it.
+    `_clock_winner` stays, because `rewards` needs it. If this information is
+    ever wanted in the observation, the leak is entirely in the fallback: a
+    plane carrying **advancement only** (+1/-1/0, zero when tied) is symmetric
+    by construction, since `_advancement_winner` returns -1 for a mirror and it
+    is the step replacing that with "black" that leaks.
     """
     b = state.board.reshape(HEIGHT, WIDTH)
     own = (b == _stone(color)).astype(jnp.float32)
@@ -524,8 +516,5 @@ def _observe(state: GameState, color: Array) -> Array:
     rear = marker(state.rear, state.stage >= 2)
     stage_planes = [jnp.full((HEIGHT, WIDTH), (state.stage == i).astype(jnp.float32)) for i in range(3)]
 
-    sign = jnp.where(_clock_winner(state) == color, 1.0, -1.0)
-    signed_clock = jnp.full((HEIGHT, WIDTH), sign * state.quiet_moves / MAX_QUIET_MOVES, jnp.float32)
-
-    planes = jnp.stack([own, opp, lead, rear, *stage_planes, signed_clock], axis=-1)
+    planes = jnp.stack([own, opp, lead, rear, *stage_planes], axis=-1)
     return jax.lax.select(color == 0, planes, jnp.flip(planes, axis=0))
