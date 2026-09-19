@@ -1104,3 +1104,34 @@ consistent measurement of a capture clock being expensive. v6 is a deliberate
 design choice taken on the grounds that an absolute cap pays whoever is ahead to
 run the clock out, and it is kept for that reason - but its cost should be
 recorded honestly rather than attributed to batch sizes and observation planes.
+
+### E9 vs E13 head to head: scaling buys nothing
+
+E9 and E13 are both v6 rules at 7 planes, so they play each other directly - no
+need to chain through E7, and no v5 confound. 256 games, 32 simulations,
+`max_num_steps=3000`:
+
+```
+A = E9 (batch 1024, 120 iters, 3.29 h)   B = E13 (batch 256, 160 iters, 1.27 h)
+
+A wins 116 (45.3%) | B wins 140 (54.7%) | draws 0 (of which truncated: 0)
+A score 0.453 +/- 0.031   Elo diff A-B: -33
+A as P0 0.445 | A as P1 0.461   avg game length 475.8 plies
+```
+
+E9 spent **2.6x the wall clock, 4x the batch and 50% more gradient updates**
+(7,680 vs 5,120) and came out slightly worse. At ~1.5 sigma, parity is not
+excluded; an improvement is.
+
+**This supersedes the "scaling looks fine" note in the E13 section above**, which
+was inferred indirectly from -118 vs -140 against E7. Comparing two runs through
+a third model of different rules is noisy; the direct head-to-head is the
+instrument. Both statements can be true and only the second matters: E9 is not
+118 Elo worse than a pilot (that was a v5-baseline artefact), *and* scaling from
+batch 256 to 1024 currently gains nothing.
+
+**Prime suspect: the learning rate.** E9 quadrupled the batch and kept
+`learning_rate=5e-4`. More data per step at the same step size, with no gain, is
+what an under-stepping optimizer looks like. The test is E9's config at
+`learning_rate=1e-3` played against E9 itself - one variable, and the opponent
+already exists. ~3.3 h. Nothing about a rental should be decided before it runs.

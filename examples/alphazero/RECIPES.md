@@ -105,11 +105,21 @@ measured three times (95 and 112 Elo in earlier experiments, ~140 here), not a
 fault in the runs. **The correct baseline for a v6 run is about -130 against
 E7.**
 
-**Scaling looks fine.** E9 at 4x batch scored -118 against E7, *better* than the
--140 of the pilot-scale E13 at the same rules - about one standard error apart.
-An earlier version of this file said scaling was broken and that nothing should
-be rented until a run beat E7; that was wrong, and came from measuring v6 runs
-against a v5 model.
+**Scaling currently buys nothing.** Played directly against each other - both v6,
+both 7 planes, no v5 model in the chain - E9 (batch 1024, 3.29 h) scored
+**0.453 +/- 0.031 against E13** (batch 256, 1.27 h), Elo -33. E9 had 2.6x the
+wall clock, 4x the batch and 50% more gradient updates, and is not better.
+
+Two earlier claims here were both wrong in different directions: that scaling was
+broken (E9 -118 vs E7) came from measuring a v6 run against a v5 model, and that
+scaling was fine came from comparing E9 and E13 indirectly through that same v5
+model. Compare runs head to head, not by subtracting their scores against a
+third.
+
+**The prime suspect is the learning rate**, untested: E9 quadrupled the batch and
+kept `learning_rate=5e-4`. Before sizing any large run, test E9's config at
+`learning_rate=1e-3` against E9 itself - one variable, opponent already in hand,
+~3.3 h.
 
 **Do not add an observation plane derived from the tiebreak.** Measured against
 E13 (the matched v6 baseline), the v8 signed-clock plane costs **210-270 Elo**:
