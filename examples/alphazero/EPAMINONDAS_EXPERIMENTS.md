@@ -866,3 +866,97 @@ rent until a run beats E7.
 in longer schedules. If it also loses, the problem is neither scale nor
 schedule, and the next suspects are the v7 planes themselves and whether E7 is
 an unusually strong checkpoint rather than a typical one.
+
+## E11 (v8): the cleanest experiment yet, and the plane loses 351 Elo
+
+**Setup.** E7's recipe, matched to the iteration and near-matched on wall clock.
+The *only* difference is the observation.
+
+| | E7 | E11 |
+|---|---|---|
+| iterations | 160 | 160 |
+| wall clock | 1.301 h | 1.273 h |
+| frames | 15,728,640 | 15,728,640 |
+| batch / train batch / updates | 256 / 2048 / 32 | 256 / 2048 / 32 |
+| learning rate | 5e-4 cosine | 5e-4 cosine |
+| observation planes | 7 | **8** |
+
+`checkpoints/epaminondas_20260919064540/`. This is the first Epaminondas
+comparison that moves one variable: E9 changed batch *and* rules, E10 changed
+schedule *and* planes.
+
+### Result
+
+```
+A = E11 (v8)   B = E7
+
+A wins 30 (11.7%) | B wins 226 (88.3%) | draws 0 (of which truncated: 0)
+A score 0.117 +/- 0.020   Elo diff A-B: -351
+A as P0 0.125 | A as P1 0.109
+avg game length 135.9 plies
+```
+
+### The mirror is the instrument, not the head-to-head
+
+The head-to-head above shows almost no seat gap (0.125 vs 0.109), and reading
+that as "the asymmetry is fixed" is a mistake: E11 is weak enough to lose from
+both seats, which masks it. Against itself:
+
+| model vs itself | as P0 | as P1 | black's score |
+|---|---|---|---|
+| E7 | 0.469 | 0.531 | 0.531 |
+| E10 (v7, two planes) | 0.398 | 0.602 | 0.602 |
+| **E11 (v8, signed plane)** | **0.227** | **0.773** | **0.773** |
+
+**The v8 fix made the asymmetry worse than the defect it was meant to repair.**
+The series tracks how much colour the observation leaks.
+
+### Why scaling by the clock did not fix the leak
+
+`quiet_moves` is zero only at the very start of a game and immediately after a
+capture. By the second or third move, with no captures yet and the position
+still near-symmetric, the tiebreak still resolves to black, so white sees
+-0.02, -0.03, -0.04 ... and black the mirror image. v8 removed the leak from
+exactly one position and let it return on the next move as a *ramp* - and a
+smoothly ramping signal appears to be more learnable than a constant one.
+
+The likely dynamic: the plane says black is favoured in every near-symmetric
+position; self-play makes that self-fulfilling; the feedback loop runs away.
+E11's self-play collapsed to 27-move games with `terminate_rate` 1.000 - black
+rushes, white's policy rots.
+
+### The motivating statistic was measured in the wrong regime
+
+v7 was justified with "about 69% of games are decided by the clock machinery".
+That figure came from **random** play, where games run 622+ steps. The clock
+needs 100 quiet moves, and `quiet_moves` increments once per move:
+
+| | steps | moves | can reach the clock? |
+|---|---|---|---|
+| E11 self-play (final) | 80 | ~27 | no |
+| E11 vs E7 | 136 | ~45 | no |
+| E7 self-play (E8) | 153-190 | 51-63 | no |
+
+**In trained play the tiebreak essentially never fires.** The blind spot the
+planes were added to fix is, in the regime that matters, largely not there - so
+the planes contribute little information and all of the leak. The 69% figure was
+quoted in the v7 code comments, RECIPES and the commit message before anyone
+checked whether it applied to trained self-play. It does not.
+
+### Training curves were the best of any run, and meant nothing
+
+E11 finished at `policy_loss` 0.410 and `value_loss` 0.144, both far below E7's,
+with `terminate_rate` 1.000 and 80-step games - and it is the weakest model
+measured here by a wide margin. The same signature as the `completed_unscaled`
+arm, which also had lower policy loss and shorter decisive games and lost
+119-0. CLAUDE.md's rule held again: only a head-to-head decides.
+
+### Caveat: one sample per arm
+
+Nobody has measured this recipe's run-to-run variance, and E11's collapse has
+the character of a degenerate self-play attractor. The mirror series makes the
+plane the strong favourite, but "the plane caused it" currently rests on a
+single run. **E12 repeats E11 with `seed=1`** to settle it: if E12 also collapses
+the plane is guilty; if E12 lands near E7 then this recipe is unstable, several
+of this log's conclusions have been noise read as signal, and that instability
+matters far more for a rental than any plane does.
