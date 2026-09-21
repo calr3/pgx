@@ -34,7 +34,7 @@ class State(core.State):
     """
 
     current_player: Array = jnp.int32(0)
-    observation: Array = jnp.zeros((HEIGHT, WIDTH, 16), dtype=jnp.float32)
+    observation: Array = jnp.zeros((HEIGHT, WIDTH, 19), dtype=jnp.float32)
     rewards: Array = jnp.float32([0.0, 0.0])
     terminated: Array = jnp.bool_(False)
     truncated: Array = jnp.bool_(False)
@@ -123,7 +123,12 @@ class Epaminondas(core.Env):
         #      under a colour flip and leaks no colour, unlike v7/v8. 7 planes
         #      -> 16; planes 0-6 are unchanged, so older checkpoints still play
         #      once narrowed to the leading 7.
-        return "v10"
+        # v11: the four linear-functional features (material, crossing,
+        #      advancement, tiebreak) are dropped - a pooling layer computes any
+        #      of them from the piece planes - and the scalar `mobility` becomes
+        #      eight per-square `_travel` planes, one per direction. The clock is
+        #      carried raw rather than multiplied by the tiebreak. 16 -> 19.
+        return "v11"
 
     @property
     def num_players(self) -> int:

@@ -20,12 +20,17 @@ import pytest
 import pgx
 from pgx.epaminondas import Epaminondas, State
 from pgx._src.games.epaminondas import (
-    BLACK, EMPTY, HEIGHT, MAX_QUIET_MOVES, N, WHITE, WIDTH, Game, GameState,
-    _FEATURE_SCALE_J,
+    BLACK, EMPTY, HEIGHT, MAX_QUIET_MOVES, N, NUM_DIRS, WHITE, WIDTH, Game, GameState,
+    _FEATURE_SCALE_J, _FLIP_DIR_PERM,
 )
+
+N_SCALAR = 4          # channels 7-10
+TRAVEL_0 = 7 + N_SCALAR  # travel planes start here
 
 env = Epaminondas()
 game = Game()
+
+from pgx._src.games.epaminondas import _DIRS as _DIRS_LIST
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -333,7 +338,7 @@ def test_a_win_beats_the_cap_tiebreak():
 
 def test_env_turn_order_and_observation():
     state = env.init(jax.random.PRNGKey(0))
-    assert state.observation.shape == (HEIGHT, WIDTH, 16)
+    assert state.observation.shape == (HEIGHT, WIDTH, 19)
     assert env.num_actions == N and env.num_players == 2
     step = jax.jit(env.step)
     players = [int(state.current_player)]
@@ -349,31 +354,72 @@ def test_env_turn_order_and_observation():
     assert np.allclose(np.asarray(white_view[..., 0]), np.asarray(black_view[..., 1])[::-1])
 
 
-def test_observation_eval_feature_planes():
+def test_observation_scalar_feature_planes():
     opening = game.init()
     obs = np.asarray(game.observe(opening, jnp.int32(0)))
-    assert obs.shape == (HEIGHT, WIDTH, 16)
+    assert obs.shape == (HEIGHT, WIDTH, 19)
 
-    # In opening position, all 9 feature planes (channels 7 to 15) must be 0.0
-    for ch in range(7, 16):
-        assert np.allclose(obs[..., ch], 0.0, atol=1e-5), f"channel {ch} non-zero in opening: {obs[0,0,ch]}"
+    # The opening is symmetric, so every "ours minus theirs" scalar is 0, and
+    # no capture has happened, so the clock is 0 too.
+    for ch in range(7, TRAVEL_0):
+        assert np.allclose(obs[..., ch], 0.0, atol=1e-5), f"channel {ch} nonzero in the opening"
 
-    # Test position with material advantage for White (2 white vs 1 black).
-    # The planes are divided by _FEATURE_SCALE_J, so a one-piece lead reads
-    # 1/28 rather than 1; the scale is part of the contract with the network.
-    unit = 1.0 / float(_FEATURE_SCALE_J[0])
+    # Each scalar plane really is constant across the board.
     st = make_state(white=[(5, 5), (5, 6)], black=[(6, 6)], color=0)
-    obs_w = np.asarray(game.observe(st, jnp.int32(0)))
-    assert np.allclose(obs_w[..., 7], unit)
+    o = np.asarray(game.observe(st, jnp.int32(0)))
+    for ch in range(7, TRAVEL_0):
+        assert o[..., ch].min() == o[..., ch].max()
 
-    # From black's perspective, material: own (1) - opp (2) = -1 piece.
-    obs_b = np.asarray(game.observe(st, jnp.int32(1)))
-    assert np.allclose(obs_b[..., 7], -unit)
+    # The clock is colour-blind: both sides read the same fraction, which is
+    # why it cannot leak colour the way v7/v8's verdict plane did.
+    late = opening._replace(quiet_moves=jnp.int32(MAX_QUIET_MOVES // 2))
+    for seat in (0, 1):
+        v = np.asarray(game.observe(late, jnp.int32(seat))[..., TRAVEL_0 - 1])
+        assert np.allclose(v, 0.5, atol=1e-6)
 
-    # Nothing may arrive at a scale that swamps the 0/1 piece planes in the
-    # stem convolution, which has no normalisation in front of it.
-    assert np.abs(obs[..., 7:]).max() <= 1.5
-    assert np.abs(obs_w[..., 7:]).max() <= 1.5
+    # Nothing may arrive at a scale that swamps the 0/1 piece planes.
+    assert np.abs(o[..., 7:]).max() <= 1.5
+
+
+def test_travel_planes_are_per_square_and_directional():
+    """The point of the travel planes: they vary across the board.
+
+    A scalar broadcast over 168 cells spends a plane on one number. These carry
+    the phalanx a square heads and the room in front of it, per direction.
+    """
+    opening = game.init()
+    travel = np.asarray(game.observe(opening, jnp.int32(0)))[..., TRAVEL_0:]
+    assert travel.shape == (HEIGHT, WIDTH, NUM_DIRS)
+    assert travel.min() < travel.max(), "travel must vary across the board"
+
+    # Only a player's own pieces can lead a move, so every other square is 0.
+    own = np.asarray(game.observe(opening, jnp.int32(0)))[..., 0]
+    assert np.all(travel[own == 0] == 0.0)
+
+    # A lone piece can step one square in any direction that stays on the board.
+    lone = make_state(white=[(5, 5)], black=[(11, 13)], color=0)
+    t = np.asarray(game.observe(lone, jnp.int32(0)))[..., TRAVEL_0:]
+    assert np.allclose(t[5, 5], 1.0 / (max(WIDTH, HEIGHT) - 1))
+
+    # A phalanx of three along a rank can move up to three squares that way.
+    trio = make_state(white=[(5, 3), (5, 4), (5, 5)], black=[(11, 13)], color=0)
+    t = np.asarray(game.observe(trio, jnp.int32(0)))[..., TRAVEL_0:]
+    east = int(np.flatnonzero((np.asarray([d for d in _DIRS_LIST]) == np.array([0, 1])).all(axis=1))[0])
+    assert np.isclose(t[5, 5, east], 3.0 / (max(WIDTH, HEIGHT) - 1))
+
+
+def test_flipping_for_black_permutes_the_direction_channels():
+    """Mirroring the rows mirrors what each direction means.
+
+    Without permuting the travel channels, black would read "towards row 0" out
+    of the channel white uses for "towards row 11" - silently. This is the shape
+    of the bug that cost 92, 351 and 411 Elo in v7/v8.
+    """
+    perm = np.asarray(_FLIP_DIR_PERM)
+    dirs = np.asarray(_DIRS_LIST)
+    for j, (dr, dc) in enumerate(dirs):
+        assert tuple(dirs[perm[j]]) == (-dr, dc)
+    assert np.array_equal(perm[perm], np.arange(NUM_DIRS)), "must be its own inverse"
 
 
 def test_the_observation_leaks_no_colour():

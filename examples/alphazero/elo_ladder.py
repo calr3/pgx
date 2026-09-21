@@ -181,7 +181,8 @@ def main() -> None:
     # 11: Epaminondas v8 - those two become one signed clock plane.
     # 12: Epaminondas v9 - that plane is unwired; the observation is 7 planes.
     # 13: Epaminondas v10 - nine evaluation-feature planes, scaled to ~[-1, 1].
-    settings["game_version"] = 13
+    # 14: Epaminondas v11 - per-square travel planes; linear features dropped.
+    settings["game_version"] = 14
     cache: dict = {}
     if lcfg.results_file and os.path.exists(lcfg.results_file):
         with open(lcfg.results_file) as f:
