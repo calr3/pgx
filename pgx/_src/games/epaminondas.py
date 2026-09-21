@@ -474,9 +474,180 @@ def _symmetry_allowed(state: GameState, candidates: Array) -> Array:
 
 # ─── Observation ─────────────────────────────────────────────────────────────
 
+_DIST_J = jnp.sqrt(
+    ((jnp.arange(N) // WIDTH) - (HEIGHT - 1) / 2.0) ** 2
+    + ((jnp.arange(N) % WIDTH) - (WIDTH - 1) / 2.0) ** 2
+).astype(jnp.float32)
+
+_TIEBREAK_WEIGHTS_J = (0.5 ** jnp.arange(HEIGHT, dtype=jnp.float32))
+
+# Roughly the largest magnitude each feature can reach, used to divide the
+# features into about [-1, 1] before they become observation planes.
+#
+# The alpha-beta engine these terms come from multiplies them by weights of
+# 0.5 to 250 and sums the result, so their raw scales never matter there. Here
+# they are network *inputs*, and `BoardFormer` applies its stem convolution to
+# the observation with no normalisation in front of it. Unscaled, `advancement`
+# (std 13 over random play) and `territory` (std 9.4) arrive 10-25x larger than
+# the 0/1 piece planes and dominate the stem's output at initialisation, which
+# buries the board itself. The network could learn to rescale, but there is no
+# reason to make it.
+#
+# These are structural bounds, not measured ones: 28 pieces a side, 14 columns,
+# 12 rows, 8 neighbours per square. They only have to be the right order of
+# magnitude - the point is comparability, not unit variance.
+_FEATURE_SCALE_J = jnp.float32([
+    28.0,        # material: every piece a side has
+    14.0,        # crossing: a full home rank
+    14.0,        # home_row_defense: a full home rank
+    28.0 * 8.0,  # territory: 8 neighbours per piece
+    8.0,         # centrality: half the board diagonal
+    14.0,        # mobility: mean travel plus a best travel of at most ~13
+    28.0 * (HEIGHT - 1),  # advancement: every piece the full depth of the board
+    28.0,        # tiebreak: sum of weighted rank differences
+    28.0,        # tiebreak_clock: the same, scaled by a fraction <= 1
+])
+
+
+def _longest_run_jax(row_bool: Array) -> Array:
+    """Longest contiguous run of True values in a 1D boolean array."""
+    def step(acc, val):
+        new_acc = jnp.where(val, acc + jnp.int32(1), jnp.int32(0))
+        return new_acc, new_acc
+    _, runs = jax.lax.scan(step, jnp.int32(0), row_bool)
+    return runs.max().astype(jnp.float32)
+
+
+def _territory_jax(board: Array, mine: Array, theirs: Array) -> Array:
+    """Per piece, adjacent squares on the board not occupied by enemy."""
+    nb = RAY_IDX[:, :, 1]  # (NUM_DIRS, N)
+    on_board = RAY_OK[:, :, 1]  # (NUM_DIRS, N)
+    not_enemy = (board[nb] != theirs) & on_board  # (NUM_DIRS, N)
+    is_mine = board == mine  # (N,)
+    return (not_enemy & is_mine[None, :]).sum().astype(jnp.float32)
+
+
+def _centrality_side(board: Array, stone: Array) -> Array:
+    """Mean Euclidean distance of `stone` pieces from the center of the board."""
+    mask = board == stone
+    n = mask.sum()
+    total = (mask * _DIST_J).sum()
+    return jnp.where(n > 0, total / n.astype(jnp.float32), jnp.float32(0.0))
+
+
+def _mobility_side(board: Array, color: Array) -> Array:
+    """Mobility for `color`: mean traversable distance + max traversable distance."""
+    own_back, _, empty_runs = _line_info(board, color)  # (NUM_DIRS, N)
+    dirs = jnp.arange(NUM_DIRS)[:, None]
+    first_ahead = RAY_IDX[:, :, 1]
+    first_ok = RAY_OK[:, :, 1]
+    ahead = jnp.where(first_ok, empty_runs[dirs, first_ahead], 0)
+    travel = jnp.minimum(own_back, ahead)
+    is_own = board == _stone(color)
+    valid_travel = jnp.where(is_own[None, :], travel, 0)
+    count = is_own.sum() * NUM_DIRS
+    total_travel = valid_travel.sum()
+    best_travel = valid_travel.max()
+    mean_travel = jnp.where(
+        count > 0,
+        total_travel.astype(jnp.float32) / count.astype(jnp.float32),
+        jnp.float32(0.0),
+    )
+    return mean_travel + best_travel.astype(jnp.float32)
+
+
+def _eval_features(state: GameState, color: Array) -> Array:
+    """Extracts 9 scalar evaluation features from `color`'s perspective:
+    0 material, 1 crossing, 2 home_row_defense, 3 territory, 4 centrality,
+    5 mobility, 6 advancement, 7 tiebreak, 8 tiebreak_clock.
+
+    These are the terms of the alpha-beta engine in tdgauntlet's
+    `clients/alphabeta/src/eval.rs` - the six LEONIDAS heuristics of King and
+    Peterson plus that engine's three advancement terms - so a network given
+    them starts with the features a strong classical evaluation is built from.
+    Every term is "ours minus theirs", so the whole vector is antisymmetric
+    under a colour flip and a mirrored position reads identically to both
+    sides. That is what keeps this from repeating the v7/v8 colour leak, and
+    `test_the_observation_leaks_no_colour` holds it there.
+
+    Divided by `_FEATURE_SCALE_J` on the way out; see the note there.
+    """
+    b = state.board
+    b_2d = b.reshape(HEIGHT, WIDTH)
+    own_st = _stone(color)
+    opp_st = _stone(1 - color)
+
+    # 1. Material
+    own_count = (b == own_st).sum().astype(jnp.float32)
+    opp_count = (b == opp_st).sum().astype(jnp.float32)
+    material = own_count - opp_count
+
+    # 2. Crossing
+    own_home = jax.lax.select(color == 0, 0, HEIGHT - 1)
+    opp_home = jax.lax.select(color == 0, HEIGHT - 1, 0)
+    own_crossing = (b_2d[opp_home] == own_st).sum().astype(jnp.float32)
+    opp_crossing = (b_2d[own_home] == opp_st).sum().astype(jnp.float32)
+    crossing = own_crossing - opp_crossing
+
+    # 3. Home row defense
+    own_hrd = _longest_run_jax(b_2d[own_home] == own_st)
+    opp_hrd = _longest_run_jax(b_2d[opp_home] == opp_st)
+    home_row_defense = own_hrd - opp_hrd
+
+    # 4. Territory
+    own_terr = _territory_jax(b, own_st, opp_st)
+    opp_terr = _territory_jax(b, opp_st, own_st)
+    territory = own_terr - opp_terr
+
+    # 5. Centrality (mean opp distance - mean own distance)
+    own_cent = _centrality_side(b, own_st)
+    opp_cent = _centrality_side(b, opp_st)
+    centrality = opp_cent - own_cent
+
+    # 6. Mobility
+    own_mob = _mobility_side(b, color)
+    opp_mob = _mobility_side(b, 1 - color)
+    mobility = own_mob - opp_mob
+
+    # 7. Advancement
+    rows = jnp.arange(N, dtype=jnp.int32) // WIDTH
+    own_adv = jnp.abs(rows - own_home)
+    opp_adv = jnp.abs(rows - opp_home)
+    own_progress = ((b == own_st) * own_adv).sum().astype(jnp.float32)
+    opp_progress = ((b == opp_st) * opp_adv).sum().astype(jnp.float32)
+    advancement = own_progress - opp_progress
+
+    # 8. Tiebreak
+    own_rows = (b_2d == own_st).sum(axis=1).astype(jnp.float32)
+    opp_rows = (b_2d == opp_st).sum(axis=1).astype(jnp.float32)
+    diff = jax.lax.select(
+        color == 0,
+        own_rows[::-1] - opp_rows,
+        own_rows - opp_rows[::-1],
+    )
+    tiebreak = (diff * _TIEBREAK_WEIGHTS_J).sum()
+
+    # 9. Tiebreak clock
+    quiet = jnp.minimum(state.quiet_moves, MAX_QUIET_MOVES).astype(jnp.float32)
+    tiebreak_clock = tiebreak * (quiet / float(MAX_QUIET_MOVES))
+
+    return jnp.stack(
+        [
+            material,
+            crossing,
+            home_row_defense,
+            territory,
+            centrality,
+            mobility,
+            advancement,
+            tiebreak,
+            tiebreak_clock,
+        ]
+    ) / _FEATURE_SCALE_J
+
 
 def _observe(state: GameState, color: Array) -> Array:
-    """(HEIGHT, WIDTH, 7) float32 from `color`'s perspective.
+    """(HEIGHT, WIDTH, 16) float32 from `color`'s perspective.
 
     Rows are flipped for black so that the player to move always looks "up" the
     board: own back rank is row 0.
@@ -485,25 +656,8 @@ def _observe(state: GameState, color: Array) -> Array:
       0 own pieces, 1 opponent pieces
       2 lead marker, 3 rear marker
       4-6 constant planes one-hot encoding the stage
-
-    **The clock/verdict plane is deliberately unwired.** v7 and v8 added one and
-    both failed badly, because any plane derived from the tiebreak carries its
-    "black wins an exact mirror" default. That is a colour signal in every
-    near-symmetric position - the opening included - and self-play amplifies it
-    into a model that cannot play white. Measured at matched wall clock on E7's
-    own recipe: E10 (clock + raw verdict) -92 Elo, E11 (signed clock, seed 0)
-    -351, E12 (signed clock, seed 1) -411, with black scoring 0.602, 0.773 and
-    0.672 against itself where E7 scores 0.531. Two seeds, so not seed luck.
-
-    The motivation was also measured in the wrong regime: "69% of games are
-    decided by the clock" came from *random* play, and trained games run 27-63
-    moves, which cannot reach a 100-quiet-move clock at all.
-
-    `_clock_winner` stays, because `rewards` needs it. If this information is
-    ever wanted in the observation, the leak is entirely in the fallback: a
-    plane carrying **advancement only** (+1/-1/0, zero when tied) is symmetric
-    by construction, since `_advancement_winner` returns -1 for a mirror and it
-    is the step replacing that with "black" that leaks.
+      7 material, 8 crossing, 9 home_row_defense, 10 territory, 11 centrality,
+      12 mobility, 13 advancement, 14 tiebreak, 15 tiebreak_clock
     """
     b = state.board.reshape(HEIGHT, WIDTH)
     own = (b == _stone(color)).astype(jnp.float32)
@@ -516,5 +670,9 @@ def _observe(state: GameState, color: Array) -> Array:
     rear = marker(state.rear, state.stage >= 2)
     stage_planes = [jnp.full((HEIGHT, WIDTH), (state.stage == i).astype(jnp.float32)) for i in range(3)]
 
-    planes = jnp.stack([own, opp, lead, rear, *stage_planes], axis=-1)
+    features = _eval_features(state, color)
+    feature_planes = [jnp.full((HEIGHT, WIDTH), features[i]) for i in range(9)]
+
+    planes = jnp.stack([own, opp, lead, rear, *stage_planes, *feature_planes], axis=-1)
     return jax.lax.select(color == 0, planes, jnp.flip(planes, axis=0))
+

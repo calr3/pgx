@@ -34,7 +34,7 @@ class State(core.State):
     """
 
     current_player: Array = jnp.int32(0)
-    observation: Array = jnp.zeros((HEIGHT, WIDTH, 7), dtype=jnp.float32)
+    observation: Array = jnp.zeros((HEIGHT, WIDTH, 16), dtype=jnp.float32)
     rewards: Array = jnp.float32([0.0, 0.0])
     terminated: Array = jnp.bool_(False)
     truncated: Array = jnp.bool_(False)
@@ -116,7 +116,14 @@ class Epaminondas(core.Env):
         #     of it leaked the tiebreak's black-wins-a-mirror default as a
         #     colour signal and cost 92, 351 and 411 Elo (E10, E11, E12).
         #     v6-era checkpoints load again; v7/v8 ones are retired.
-        return "v9"
+        # v10: the observation gains nine evaluation-feature planes, the terms
+        #      of tdgauntlet's alpha-beta engine (the six LEONIDAS heuristics
+        #      plus its three advancement terms), each scaled to about [-1, 1].
+        #      Every term is "ours minus theirs", so the vector is antisymmetric
+        #      under a colour flip and leaks no colour, unlike v7/v8. 7 planes
+        #      -> 16; planes 0-6 are unchanged, so older checkpoints still play
+        #      once narrowed to the leading 7.
+        return "v10"
 
     @property
     def num_players(self) -> int:

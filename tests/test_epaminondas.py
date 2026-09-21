@@ -21,6 +21,7 @@ import pgx
 from pgx.epaminondas import Epaminondas, State
 from pgx._src.games.epaminondas import (
     BLACK, EMPTY, HEIGHT, MAX_QUIET_MOVES, N, WHITE, WIDTH, Game, GameState,
+    _FEATURE_SCALE_J,
 )
 
 env = Epaminondas()
@@ -332,7 +333,7 @@ def test_a_win_beats_the_cap_tiebreak():
 
 def test_env_turn_order_and_observation():
     state = env.init(jax.random.PRNGKey(0))
-    assert state.observation.shape == (HEIGHT, WIDTH, 7)
+    assert state.observation.shape == (HEIGHT, WIDTH, 16)
     assert env.num_actions == N and env.num_players == 2
     step = jax.jit(env.step)
     players = [int(state.current_player)]
@@ -348,6 +349,33 @@ def test_env_turn_order_and_observation():
     assert np.allclose(np.asarray(white_view[..., 0]), np.asarray(black_view[..., 1])[::-1])
 
 
+def test_observation_eval_feature_planes():
+    opening = game.init()
+    obs = np.asarray(game.observe(opening, jnp.int32(0)))
+    assert obs.shape == (HEIGHT, WIDTH, 16)
+
+    # In opening position, all 9 feature planes (channels 7 to 15) must be 0.0
+    for ch in range(7, 16):
+        assert np.allclose(obs[..., ch], 0.0, atol=1e-5), f"channel {ch} non-zero in opening: {obs[0,0,ch]}"
+
+    # Test position with material advantage for White (2 white vs 1 black).
+    # The planes are divided by _FEATURE_SCALE_J, so a one-piece lead reads
+    # 1/28 rather than 1; the scale is part of the contract with the network.
+    unit = 1.0 / float(_FEATURE_SCALE_J[0])
+    st = make_state(white=[(5, 5), (5, 6)], black=[(6, 6)], color=0)
+    obs_w = np.asarray(game.observe(st, jnp.int32(0)))
+    assert np.allclose(obs_w[..., 7], unit)
+
+    # From black's perspective, material: own (1) - opp (2) = -1 piece.
+    obs_b = np.asarray(game.observe(st, jnp.int32(1)))
+    assert np.allclose(obs_b[..., 7], -unit)
+
+    # Nothing may arrive at a scale that swamps the 0/1 piece planes in the
+    # stem convolution, which has no normalisation in front of it.
+    assert np.abs(obs[..., 7:]).max() <= 1.5
+    assert np.abs(obs_w[..., 7:]).max() <= 1.5
+
+
 def test_the_observation_leaks_no_colour():
     """The observation must be identical for both sides in a mirrored position.
 
@@ -361,7 +389,7 @@ def test_the_observation_leaks_no_colour():
     white = np.asarray(game.observe(opening, jnp.int32(0)))
     black = np.asarray(game.observe(opening, jnp.int32(1)))
     # Both are already stated from the mover's side, so they match with no flip.
-    assert np.allclose(white, black)
+    assert np.allclose(white, black, atol=1e-5)
 
     # Still true once a few quiet moves have run down the clock, which is where
     # v8's leak reappeared as a ramp.
@@ -370,6 +398,7 @@ def test_the_observation_leaks_no_colour():
         assert np.allclose(
             np.asarray(game.observe(s, jnp.int32(0))),
             np.asarray(game.observe(s, jnp.int32(1))),
+            atol=1e-5,
         ), f"colour leak at quiet_moves={quiet}"
 
 

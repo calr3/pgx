@@ -151,8 +151,13 @@ def _make_trained_baseline_model(ckpt_path: str, num_actions: int):
     forward = make_forward(num_actions, ckpt["config"])
     params, state = ckpt["model"]
 
+    # Determine input channels expected by the checkpoint's conv stem
+    stem_w = params.get("board_former/stem_conv", {}).get("w")
+    in_channels = stem_w.shape[2] if stem_w is not None else None
+
     def apply(obs):
-        (logits, value), _ = forward.apply(params, state, obs, is_eval=True)
+        x = obs[..., :in_channels] if in_channels is not None else obs
+        (logits, value), _ = forward.apply(params, state, x, is_eval=True)
         return logits, value
 
     return apply
