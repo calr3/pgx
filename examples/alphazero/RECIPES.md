@@ -129,11 +129,33 @@ model.** Two claims in this file were wrong in opposite directions because of
 that - "scaling is broken" (a v6 run measured against v5 E7) and "scaling is
 fine" (E9 and E13 compared through E7).
 
+**Heuristic observation planes speed up learning per iteration and buy nothing
+per second.** v10 adds the nine terms of tdgauntlet's alpha-beta evaluator as
+planes. E15 reached by iteration 30 what E14 needed ~120 for, but they cost
+**2.18x per iteration** (205 s against 94 s, almost all of it `mobility`, which
+runs `_line_info` for both colours at every MCTS node), and at equal wall clock
+E15 vs E14 is **-16 Elo, a tie** - with E15 given 34% more time. Keep them only
+if the per-node cost comes down; most of the 9 planes are also cheap linear
+functionals of the piece planes, and the nine constant planes are 6 KB of the
+11.4 KB sample, which is what forced `replay_buffer_iters` down to 2.
+
+**Watch for intransitivity before quoting any single Elo.** E15 ties E7 (+11),
+E7 beats E14 (-128), E15 ties E14 (-16) - a ~155 Elo violation, far outside the
+standard errors. One opponent does not order these models.
+
 **Measure against `tdgauntlet`'s alpha-beta, not only against our own
 checkpoints.** Every Elo in this file is relative to another of our runs. Against
 the Rust alpha-beta in `~/calr3gh/tdgauntlet`, E7 and E14 score **-311 and -257
 Elo** and lost every counted minimatch (77-0-3 over 80 games), while being given
-5-6x its thinking time. The family is a long way below a competent classical
+5-6x its thinking time. E15 later lost **80-0** to it with zero exclusions.
+
+The gap is search, not evaluation: alpha-beta examines **398,336 nodes per move
+at depth 4 in 886 ms**, where 256-simulation MCTS examines **768 in 5,384 ms** -
+519x fewer positions in six times the wall clock, because every MCTS node is a
+network forward pass. Giving the network the engine's heuristics does not close
+it, and the policy-only client (same weights, no search) lost **0-80** to the
+same network under MCTS, so those features have not become judgement the network
+can apply directly. The family is a long way below a competent classical
 engine, and no 2x-scale run closes that. It is also a fixed external opponent, so
 it is the right yardstick for future runs.
 

@@ -1326,3 +1326,120 @@ transposition table, 8 threads, and an evaluation tuned against pgx - but it is
 also not a research artefact. A strong classical engine being far ahead of a
 small AlphaZero run is the expected result at this scale; the value here is the
 number, and a fixed external opponent to measure future runs against.
+
+## E15 (v10): nine evaluation-feature planes - faster per iteration, level at equal time
+
+**Question.** Give the network the nine terms of tdgauntlet's alpha-beta
+evaluator as observation planes (the six LEONIDAS heuristics plus that engine's
+three advancement terms), and does it learn faster? See `pgx/_src/games/
+epaminondas.py`; verified against a port of `clients/alphabeta/src/eval.rs` and
+against `negamax.py` over 336 positions, and antisymmetric under a colour flip,
+so it cannot repeat the v7/v8 colour leak.
+
+**Setup.** E14's config and seed, 70 iterations in **4.19 h**.
+`checkpoints/epaminondas_20260921161241/`. The observation is the intended
+difference; three others crept in and are listed under caveats.
+
+### It learns much faster per iteration
+
+| iteration | 10 | 20 | 30 | 40 | 50 | 60 | 70 | 120 |
+|---|---|---|---|---|---|---|---|---|
+| E15 win vs E7 | 0.036 | 0.199 | 0.548 | **0.801** | 0.562 | 0.521 | 0.610 | - |
+| E14 win vs E7 | - | 0.003 | - | 0.052 | - | 0.128 | - | 0.473 |
+
+E15 reached by iteration 30 what took E14 about 120. **But the planes cost 2.18x
+per iteration** (205 s against 94 s), almost all of it `mobility`, which runs
+`_line_info` for both colours at every MCTS node.
+
+### At equal wall clock it is a tie
+
+```
+E15 vs E14   A score 0.477 +/- 0.031   Elo -16    (E15 had 4.19 h to E14's 3.13 h)
+E15 vs E7    A score 0.516 +/- 0.031   Elo +11
+```
+
+E15 is the first v6-rules model to draw level with E7. But against the matched
+control it is **level, with 34% more wall clock**: the per-iteration gain is
+exactly consumed by the per-iteration cost. **The planes do not help at equal
+time.**
+
+### The results are badly intransitive
+
+| pairing | Elo |
+|---|---|
+| E15 vs E14 | -16 |
+| E15 vs E7 | +11 |
+| E14 vs E7 | -128 |
+
+E15 ties E7, E7 beats E14 by 128, so E15 should beat E14 by ~139. It ties.
+**A ~155 Elo violation**, far outside the +/- 0.031 standard errors. Style
+matchups here are large enough that a single opponent does not order these
+models, which is worth remembering before quoting any one number - including
+these.
+
+### Caveats: three deviations from E14
+
+WSL's OOM killer took the run twice (iterations 24 and 43), so it was resumed
+from checkpoints three times, and to fit memory it ran with
+`replay_buffer_iters=2` (E14 used 4) and `max_pending_steps` capped, which left
+`value_target_fraction` at **0.814** where E14 held 1.000. Each is small, but
+E15 vs E14 is no longer strictly single-variable. Given the result is a tie,
+they are unlikely to have decided it.
+
+### `eval/vs_baseline` was wrong for the fourth time today
+
+It had E15 at 0.61 against E7 where E14 managed 0.473, which reads as a clear
+lead; the head-to-head says level. The iteration-40 spike of 0.801 was noise and
+was over-read at the time. **This metric should not be used to rank runs at
+all**, which is what CLAUDE.md already says.
+
+## Why a classical alpha-beta crushes a model given the same heuristics
+
+`tdgauntlet` gauntlet, same openings as the earlier one (`seed = 1909`), E15
+under 256-simulation MCTS and as a raw policy, against the Rust alpha-beta:
+
+```
+player       score    Elo   counted   excluded     W-D-L   think ms
+alphabeta   100.0%  >+999        40    0 (0%)    80-0-0        873
+e15-mcts     50.0%     -0        40    0 (0%)   40-0-40       5154
+e15-policy    0.0%  <-999        40    0 (0%)    0-0-80          43
+```
+
+**Zero exclusions across 60 minimatches** - a perfect total order, where the
+earlier gauntlet excluded 8-32%. The gaps are large enough that no opening ever
+flipped a result.
+
+The natural objection is that the model now has the engine's own heuristics, so
+why is it still crushed? The search numbers answer it:
+
+| | nodes/move | depth | ms/move | nodes/sec |
+|---|---|---|---|---|
+| alphabeta | **398,336** | 4 | 886 | 449,589 |
+| e15-mcts | **768** (256 sims x 3 stages) | - | 5,384 | ~143 |
+
+**519x fewer positions per move, in six times the wall clock.** Every MCTS node
+is a forward pass of a 4.5M-parameter network; an alpha-beta node is a few
+hundred nanoseconds of board arithmetic and a nine-term dot product - about
+3,150x the throughput.
+
+"The same heuristics" is the misleading part. The network gets the nine *terms*;
+it does not get the hand-tuned weights that say what each is worth (material 30,
+crossing 250, ...), and it does not get the search, which is where nearly all of
+alpha-beta's strength lives. Alpha-beta's evaluation is *cruder* than the
+network's in principle - nine linear terms against 4.5M parameters - and it wins
+anyway by resolving tactics exactly, four full moves deep, with a transposition
+table. With 256 simulations against a branching factor of 114 and
+`max_num_considered_actions=16`, the model gets ~16 visits per root move and
+effectively sees one move ahead.
+
+**The policy-only run is the direct evidence.** `e15-policy` lost **0-80** to
+`e15-mcts` on identical weights, differing only in whether search runs. If the
+heuristic features had been distilled into positional judgement the raw policy
+would be respectable; it is helpless. The features reach the input but have not
+become an evaluation the network can apply without search.
+
+Epaminondas compounds this - a capture removes an entire enemy line and reaching
+the far rank wins outright, so one unseen tactic is usually terminal - but the
+search gap is the story, not the game. A competent alpha-beta beating a 4 h
+AlphaZero run is the expected result at this scale, and closing it needs orders
+of magnitude more training, not better input features.
