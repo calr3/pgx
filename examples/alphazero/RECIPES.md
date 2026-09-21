@@ -129,19 +129,40 @@ model.** Two claims in this file were wrong in opposite directions because of
 that - "scaling is broken" (a v6 run measured against v5 E7) and "scaling is
 fine" (E9 and E13 compared through E7).
 
-**Heuristic observation planes speed up learning per iteration and buy nothing
-per second.** v10 adds the nine terms of tdgauntlet's alpha-beta evaluator as
-planes. E15 reached by iteration 30 what E14 needed ~120 for, but they cost
-**2.18x per iteration** (205 s against 94 s, almost all of it `mobility`, which
-runs `_line_info` for both colours at every MCTS node), and at equal wall clock
-E15 vs E14 is **-16 Elo, a tie** - with E15 given 34% more time. Keep them only
-if the per-node cost comes down; most of the 9 planes are also cheap linear
-functionals of the piece planes, and the nine constant planes are 6 KB of the
-11.4 KB sample, which is what forced `replay_buffer_iters` down to 2.
+**Adopted: the v11 evaluation-feature planes, +95 Elo at equal wall clock.**
+E16 beat E14 **0.633 +/- 0.030 (Elo +95)** in 3.01 h against 3.13 h, and beat E7 -
+which had topped every comparison before it - by **225**. It is the strongest
+Epaminondas model here.
 
-**Watch for intransitivity before quoting any single Elo.** E15 ties E7 (+11),
+**Encode heuristics per square, not as broadcast constants.** This is where the
+gain is. v10 gave the network the nine terms of tdgauntlet's alpha-beta
+evaluator as constant planes and tied E14 while costing 2.18x per iteration
+(E15, -16 Elo with 34% more wall clock). v11 keeps the same information but
+emits eight **per-square** `_travel` planes - at every piece, the phalanx it
+heads and the room ahead along each rank, file and diagonal - and wins by 95 at
+1.43x per iteration. **The same heuristics, re-encoded, are worth ~111 Elo.**
+
+Per-square is also *cheaper* than the scalar it replaced (1.31 ms against
+2.51 ms at batch 1024): `_travel` reuses the run tables `legal_action_mask`
+already builds in the same step, so XLA shares the scans and only the reductions
+are saved. It is the reductions that cost, not the ray scans.
+
+**Do not hand the network features it computes for free.** `material`,
+`crossing`, `advancement` and `tiebreak` are exact linear functionals of the two
+piece planes - one pooling layer gives any of them - so they were dropped in
+v11 at no cost.
+
+**Re-do the tail arithmetic whenever the plane count changes.**
+`max_pending_steps` x `selfplay_batch_size` x sample bytes is the held-back tail:
+at 19 planes, 1024 rows is 13.2 GiB and put a run into swap, slowing it 134 ->
+204 s per iteration. 512 is the working value at batch 1024 with 19 planes.
+
+**Watch for intransitivity before quoting any single Elo.****Watch for intransitivity before quoting any single Elo.** E15 ties E7 (+11),
 E7 beats E14 (-128), E15 ties E14 (-16) - a ~155 Elo violation, far outside the
-standard errors. One opponent does not order these models.
+standard errors. E16's numbers, by contrast, agree to 2 Elo (+95 over E14 and
+-128 for E14 vs E7 predict +223; measured +225), so intransitivity is a property
+of particular matchups rather than of the ladder. Check it before trusting a
+single opponent.
 
 **Measure against `tdgauntlet`'s alpha-beta, not only against our own
 checkpoints.** Every Elo in this file is relative to another of our runs. Against

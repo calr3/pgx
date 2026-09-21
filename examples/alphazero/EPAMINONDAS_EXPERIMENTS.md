@@ -1443,3 +1443,71 @@ the far rank wins outright, so one unseen tactic is usually terminal - but the
 search gap is the story, not the game. A competent alpha-beta beating a 4 h
 AlphaZero run is the expected result at this scale, and closing it needs orders
 of magnitude more training, not better input features.
+
+## E16 (v11): per-square features win by 95 Elo at equal wall clock
+
+**Question.** E15 showed the nine heuristics help per iteration and cost 2.18x
+per iteration, netting a tie. Does encoding them **per square** rather than as
+constants broadcast over all 168 cells change that?
+
+**v11 does three things** (`pgx/_src/games/epaminondas.py`):
+
+- drops `material`, `crossing`, `advancement` and `tiebreak` - each an exact
+  linear functional of the two piece planes, so one pooling layer computes any
+  of them and handing them over bought only bandwidth;
+- replaces the scalar `mobility` with **`_travel`: eight per-square planes**,
+  one per direction, giving at every piece the phalanx it heads and the room in
+  front of it along each rank, file and diagonal;
+- carries the clock raw instead of multiplied by the tiebreak, so it is
+  linearly accessible and stays colour-blind.
+
+**Setup.** E14's config and seed, 84 iterations in **3.01 h** against E14's
+3.13 h - equal wall clock, which E15 never managed.
+
+### Result
+
+```
+E16 vs E14   A score 0.633 +/- 0.030   Elo  +95   (3.01 h vs 3.13 h)
+E16 vs E7    A score 0.785 +/- 0.026   Elo +225
+```
+
+| observation | vs E14 | wall clock |
+|---|---|---|
+| v10 - nine heuristics as broadcast scalars (E15) | -16, a tie | 34% *more* than E14 |
+| **v11 - eight per-square travel planes + four scalars (E16)** | **+95** | **equal** |
+
+**The same heuristics, encoded per square instead of as constants, are worth
+about 111 Elo** - and cost less: 1.43x per iteration against v10's 2.18x,
+because `_travel` reuses the run tables `legal_action_mask` already builds in
+the same step, so XLA shares the scans and only the reductions are saved
+(1.31 ms against the `mobility` scalar's 2.51 ms at batch 1024).
+
+**E16 is by a distance the strongest model here.** E7 had beaten everything all
+session - E9 -118, E13 -140, E14 -128, E15 +11 - and E16 takes it by 225.
+
+### These results are transitive, unlike E15's
+
+E16 vs E14 is +95 and E14 vs E7 is -128, predicting **+223** for E16 vs E7
+against a measured **+225**. Two Elo of agreement, where E15's numbers violated
+transitivity by ~155. The ordering here is real rather than a style matchup.
+
+### Caveats
+
+Two deviations from E14 remain, both forced by memory and both plausibly
+*handicaps*, so +95 is if anything conservative: `replay_buffer_iters=2` where
+E14 used 4, and `max_pending_steps=512`, which left `value_target_fraction` at
+0.830.
+
+`max_pending_steps` was first set to E14's 1024 to protect that fraction. With
+v11's 19 planes the held-back tail is 1024 rows x 1024 slots x 13,446 B =
+13.2 GiB, which put the run into swap and slowed it from 134 to 204 s per
+iteration - the sizing was done with v10's 11,430-byte samples and not redone.
+It was reverted to 512 and the run restarted. **Check the tail arithmetic
+against the current sample size whenever the plane count changes.**
+
+### The one number that did not mislead
+
+`eval/vs_baseline` ran 0.017, 0.103, 0.200, 0.232, 0.542, 0.635, **0.706** - the
+highest of any run, and this time the head-to-head agreed. That does not rehabilitate
+it: it was wrong four times out of four earlier today, and one agreement is not
+a record. Keep deciding on head-to-heads.
