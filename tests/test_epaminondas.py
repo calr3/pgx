@@ -464,3 +464,94 @@ def test_random_playthrough_stays_legal():
 
 def test_api():
     pgx.api_test(env, 3, use_key=False)
+
+
+def _mirror_squares():
+    """Square index -> its left-right mirror."""
+    return np.array([(i // WIDTH) * WIDTH + (WIDTH - 1 - i % WIDTH) for i in range(N)])
+
+
+def test_the_left_right_mirror_is_an_exact_symmetry():
+    """The board, the starting position and the eight directions are all symmetric about the
+    vertical axis, so a mirrored position has the mirrored legal moves and mirrored successors.
+    This is what makes `augment_epaminondas` a valid augmentation rather than noise."""
+    mir = _mirror_squares()
+
+    def mirror(x):
+        board = np.asarray(x.board).reshape(HEIGHT, WIDTH)[:, ::-1].reshape(-1)
+        return x._replace(
+            board=jnp.asarray(board),
+            lead=jnp.int32(mir[int(x.lead)]),
+            rear=jnp.int32(mir[int(x.rear)]),
+        )
+
+    rng = np.random.default_rng(0)
+    x = game.init()
+    for _ in range(120):
+        if bool(game.is_terminal(x)):
+            break
+        mask = np.asarray(game.legal_action_mask(x))
+        mirrored_mask = np.asarray(game.legal_action_mask(mirror(x)))
+        np.testing.assert_array_equal(mirrored_mask, mask[mir])
+
+        action = int(rng.choice(np.flatnonzero(mask)))
+        nxt, mirrored_nxt = game.step(x, jnp.int32(action)), game.step(mirror(x), jnp.int32(mir[action]))
+        np.testing.assert_array_equal(
+            np.asarray(mirror(nxt).board), np.asarray(mirrored_nxt.board)
+        )
+        assert bool(game.is_terminal(nxt)) == bool(game.is_terminal(mirrored_nxt))
+        assert int(nxt.winner) == int(mirrored_nxt.winner)
+        x = nxt
+
+
+def test_augmentation_produces_observations_a_real_position_could_give():
+    """The augmented sample must be one the env itself can produce. The trailing planes are
+    `_travel`, one per direction, so mirroring the columns changes what each of them means: if
+    the channel permutation were missing or wrong nothing would crash, the network would just
+    be trained on observations no position has."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples" / "alphazero"))
+    from symmetry import augment_epaminondas
+
+    mir = _mirror_squares()
+    rng = np.random.default_rng(1)
+    x = game.init()
+    for _ in range(7):  # a few moves in, so the board is not symmetric to start with
+        mask = np.asarray(game.legal_action_mask(x))
+        x = game.step(x, jnp.int32(int(rng.choice(np.flatnonzero(mask)))))
+
+    board = np.asarray(x.board).reshape(HEIGHT, WIDTH)[:, ::-1].reshape(-1)
+    mirrored_x = x._replace(
+        board=jnp.asarray(board),
+        lead=jnp.int32(mir[int(x.lead)]),
+        rear=jnp.int32(mir[int(x.rear)]),
+    )
+    obs = np.asarray(game.observe(x, x.color))
+    mirrored_obs = np.asarray(game.observe(mirrored_x, mirrored_x.color))
+    assert not np.allclose(obs, mirrored_obs), "pick a position that is not its own mirror"
+
+    # One-hot policy target on a legal action, so the mirror is easy to check.
+    action = int(np.flatnonzero(np.asarray(game.legal_action_mask(x)))[0])
+    policy = np.zeros(N, dtype=np.float32)
+    policy[action] = 1.0
+
+    batch = 64
+    out_obs, out_policy = augment_epaminondas(
+        jax.random.PRNGKey(0),
+        jnp.asarray(np.broadcast_to(obs, (batch, *obs.shape))),
+        jnp.asarray(np.broadcast_to(policy, (batch, N))),
+    )
+    out_obs, out_policy = np.asarray(out_obs), np.asarray(out_policy)
+
+    seen_plain = seen_mirrored = 0
+    for i in range(batch):
+        if np.allclose(out_obs[i], obs, atol=1e-6):
+            assert out_policy[i].argmax() == action
+            seen_plain += 1
+        else:
+            np.testing.assert_allclose(out_obs[i], mirrored_obs, atol=1e-6)
+            assert out_policy[i].argmax() == mir[action]
+            seen_mirrored += 1
+    assert seen_plain and seen_mirrored, "both orientations should appear in 64 samples"

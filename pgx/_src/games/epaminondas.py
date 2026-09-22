@@ -509,6 +509,16 @@ _FLIP_DIR_PERM = jnp.asarray(
     [int(np.flatnonzero((_DIRS[:, 0] == -dr) & (_DIRS[:, 1] == dc))[0]) for dr, dc in _DIRS]
 )
 
+# The same thing for a left-right mirror, which maps (dr, dc) to (dr, -dc). The
+# game is exactly invariant under it - the board, the starting position and the
+# eight move directions are all symmetric about the vertical axis - so it is a
+# valid training-time augmentation, and `examples/alphazero/symmetry.py` uses
+# this to permute the travel channels when it mirrors a sample. Also its own
+# inverse.
+MIRROR_DIR_PERM = jnp.asarray(
+    [int(np.flatnonzero((_DIRS[:, 0] == dr) & (_DIRS[:, 1] == -dc))[0]) for dr, dc in _DIRS]
+)
+
 
 def _longest_run_jax(row_bool: Array) -> Array:
     """Longest contiguous run of True values in a 1D boolean array."""

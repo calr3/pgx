@@ -149,8 +149,10 @@ class Config(BaseModel):
     # Split each device's minibatch into this many microbatches and accumulate
     # their gradients: same effective batch, less activation memory.
     train_micro_batches: int = 1
-    # Train on each sample under a random one of the 8 board symmetries
-    # (rotations/reflections). Gess only; see symmetry.py.
+    # Train on each sample under a random board symmetry: one of Gess's 8
+    # (rotations/reflections), or Epaminondas's single left-right mirror, whose
+    # board is not square and whose ranks are not interchangeable. See
+    # symmetry.py, which records how each was verified.
     symmetry_augmentation: bool = False
     # Replay buffer size, in self-play iterations' worth of samples
     # (replay_buffer_iters * selfplay_batch_size * max_num_steps): minibatches are
@@ -230,8 +232,11 @@ class Config(BaseModel):
 
     @model_validator(mode="after")
     def _check_gess_architectures(self):
-        if self.symmetry_augmentation and self.env_id != "gess":
-            raise ValueError(f"symmetry_augmentation requires env_id=gess, got {self.env_id!r}.")
+        if self.symmetry_augmentation and self.env_id not in ("gess", "epaminondas"):
+            raise ValueError(
+                "symmetry_augmentation requires env_id=gess or epaminondas, got "
+                f"{self.env_id!r}."
+            )
         if self.architecture == "boardformer" and self.bf_embed_dim % self.bf_num_heads != 0:
             raise ValueError(
                 f"bf_embed_dim ({self.bf_embed_dim}) must be divisible by "

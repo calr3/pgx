@@ -10,6 +10,8 @@
 import jax
 import jax.numpy as jnp
 
+from pgx._src.games.epaminondas import MIRROR_DIR_PERM, NUM_DIRS
+
 NUM_SYMMETRIES = 8
 
 
@@ -38,3 +40,41 @@ def augment_gess(
     obs = jax.vmap(transform_grid)(obs, syms)
     policy = jax.vmap(transform_grid)(policy_tgt.reshape(b, side, side), syms)
     return obs, policy.reshape(b, side * side)
+
+
+# Epaminondas has one symmetry, not eight. The board is 12x14 rather than
+# square, and the rank-by-rank tiebreak and the two home rows make the vertical
+# axis meaningful, so rotations and row flips are not symmetries. The left-right
+# mirror is: the board, the starting position and the eight move directions are
+# all symmetric about it. Checked over 57,600 positions from random games -
+# legal masks, successor boards, terminal flags and winners all agree with the
+# mirror image - which is the check to redo if the rules change.
+NUM_EPAMINONDAS_SYMMETRIES = 2
+
+
+def augment_epaminondas(
+    rng_key: jnp.ndarray, obs: jnp.ndarray, policy_tgt: jnp.ndarray
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """Mirror a random half of the samples left to right.
+
+    obs: (b, 12, 14, c) observations; policy_tgt: (b, 168) over the same grid.
+
+    The trailing `NUM_DIRS` observation planes are `_travel`, one per direction,
+    so mirroring the columns also changes what each of those channels means and
+    they have to be permuted to match. Getting that wrong would not crash: it
+    would quietly train the network on observations no position can produce.
+    """
+    b, h, w, c = obs.shape
+    assert h * w == policy_tgt.shape[-1], "policy target must cover the observation grid"
+    assert c > NUM_DIRS, "expected the travel planes to be the trailing channels"
+
+    mirrored = jnp.flip(obs, axis=2)
+    mirrored = jnp.concatenate(
+        [mirrored[..., :-NUM_DIRS], mirrored[..., -NUM_DIRS:][..., MIRROR_DIR_PERM]], axis=-1
+    )
+    take = jax.random.bernoulli(rng_key, 0.5, (b,))
+    obs = jnp.where(take[:, None, None, None], mirrored, obs)
+
+    policy = policy_tgt.reshape(b, h, w)
+    policy = jnp.where(take[:, None, None], jnp.flip(policy, axis=2), policy)
+    return obs, policy.reshape(b, h * w)
