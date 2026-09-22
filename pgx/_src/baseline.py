@@ -71,13 +71,17 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
     elif model_id == "pig_v0":
         return _make_pig_hold_at_20_model()
     elif model_id == "epaminondas_v0":
-        # E7: boardformer, 160 iterations, still the strongest measured
-        # (EPAMINONDAS_EXPERIMENTS.md). Usable again now that v9 has unwired the
-        # clock/verdict plane and the observation is back to the 7 planes E7
-        # trained on. An untrained net was a meaningless opponent, so
-        # eval/vs_baseline/* said nothing while one sat here.
+        # E17: boardformer, v11 observation, 264 iterations of cosine schedule
+        # run to the end (EPAMINONDAS_EXPERIMENTS.md), and the strongest model
+        # measured - it beats E7, which held this slot before it, by 484 Elo.
+        #
+        # Pick a baseline near the level of the runs being measured. E7 sat here
+        # long enough to stop being one: against it a current run wins ~94% of
+        # its games, which pins eval/vs_baseline/* near 1.0 and says nothing,
+        # the same way an untrained net pinned it near 0. Swap this whenever the
+        # gap gets that wide in either direction.
         return _make_trained_baseline_model(
-            "checkpoints/epaminondas_20260918013629/000160.ckpt", 14 * 12
+            "checkpoints/epaminondas_20260922033505/000252.ckpt", 14 * 12
         )
     elif model_id == "gess_v0":
         return _make_untrained_baseline_model(

@@ -124,6 +124,12 @@ Temper expectations on the size of the win: E14 spent **2.5x E13's wall clock
 for +38 Elo**, at ~1.8 sigma. Scaling works, but the return on compute is
 moderate.
 
+**`epaminondas_v0` in `pgx/_src/baseline.py` is now E17** (it was E7). A
+baseline only informs while it is near the level of the runs being measured: E7
+had drifted 484 Elo below, so `eval/vs_baseline/*` would have sat near 1.0 and
+said nothing, exactly as an untrained net pinned it near 0. Swap it whenever the
+gap gets that wide in either direction.
+
 **Compare runs head to head, never by subtracting their scores against a third
 model.** Two claims in this file were wrong in opposite directions because of
 that - "scaling is broken" (a v6 run measured against v5 E7) and "scaling is
