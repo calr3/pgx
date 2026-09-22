@@ -132,19 +132,42 @@ def load_from_checkpoint(path: str) -> tuple[Config, Model]:
     return config, ckpt["model"]
 
 
-def expected_obs_channels(model: Model) -> int | None:
-    """Observation planes the checkpoint's stem was built for, or None if unknown.
+def stem_inputs(params) -> int | None:
+    """Channels the stem convolution takes, or None if there is no `stem_conv`.
 
     Read off the stem convolution's weight, whose shape is (kh, kw, in, out).
-    Returns None for architectures with no `stem_conv` (e.g. the MLP nets), which
-    leaves the observation untouched.
+    Returns None for architectures with no `stem_conv` (e.g. the MLP nets).
     """
-    for module, entries in model[0].items():
+    for module, entries in params.items():
         if module.endswith("stem_conv"):
             w = entries.get("w")
             if getattr(w, "ndim", 0) == 4:
                 return int(w.shape[2])
     return None
+
+
+def expected_obs_channels(
+    model: Model, forward: hk.TransformedWithState, env: pgx.Env
+) -> int | None:
+    """Observation planes the checkpoint was trained on, or None if unknown.
+
+    Not the stem's width: a network may feed its stem more than the observation.
+    GessFormer pads the board to the action grid and adds an is_border plane, so
+    its stem takes 5 channels for a 4-plane observation, and reading the width
+    alone claimed a gess checkpoint needed a plane the env does not have. So
+    build the same architecture against the env installed now and take the gap
+    between what its stem receives and what the env provides — whatever the
+    network adds, it adds to both.
+    """
+    trained = stem_inputs(model[0])
+    if trained is None:
+        return None
+    start = env.init(jax.random.PRNGKey(0))
+    reference, _ = forward.init(jax.random.PRNGKey(0), start.observation[None])
+    provided = stem_inputs(reference)
+    if provided is None:
+        return None
+    return int(env.observation_shape[-1]) - (provided - trained)
 
 
 def narrow_observation(forward: hk.TransformedWithState, channels: int | None):
@@ -469,8 +492,10 @@ if __name__ == "__main__":
     print(f"Model B: {model_paths[1]} (sims={sims_b})")
 
     env_planes = int(env.observation_shape[-1])
-    channels_a = expected_obs_channels(model_a)
-    channels_b = expected_obs_channels(model_b)
+    forward_a = make_forward(env.num_actions, config_a)
+    forward_b = make_forward(env.num_actions, config_b)
+    channels_a = expected_obs_channels(model_a, forward_a, env)
+    channels_b = expected_obs_channels(model_b, forward_b, env)
     for label, path, channels in (("A", model_paths[0], channels_a), ("B", model_paths[1], channels_b)):
         if channels is not None and channels != env_planes:
             print(
@@ -478,8 +503,8 @@ if __name__ == "__main__":
                 f"now provides {env_planes}; feeding it the leading {channels}."
             )
 
-    forward_a = narrow_observation(make_forward(env.num_actions, config_a), channels_a)
-    forward_b = narrow_observation(make_forward(env.num_actions, config_b), channels_b)
+    forward_a = narrow_observation(forward_a, channels_a)
+    forward_b = narrow_observation(forward_b, channels_b)
 
     # Replicate both models to all devices (leading axis mapped by pmap).
     model_a, model_b = jax.tree_util.tree_map(

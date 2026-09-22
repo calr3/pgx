@@ -1511,3 +1511,73 @@ against the current sample size whenever the plane count changes.**
 highest of any run, and this time the head-to-head agreed. That does not rehabilitate
 it: it was wrong four times out of four earlier today, and one agreement is not
 a record. Keep deciding on head-to-heads.
+
+## E17 - finish E16's schedule: +386 Elo from letting the cosine land
+
+E16 was a 264-iteration schedule stopped at **iteration 84**, because the
+pilot's budget was 3 hours, not because it had converged. E17 resumes that
+checkpoint and runs the schedule out.
+
+```
+resume_from=checkpoints/epaminondas_20260922033505/000084.ckpt
+seed=0 architecture=boardformer selfplay_bf16=true continue_games=true
+num_simulations=32 playout_cap_prob=0.25 fast_num_simulations=8
+selfplay_batch_size=1024 max_num_steps=384 training_batch_size=4096
+num_updates_per_iter=64 replay_buffer_iters=2 max_pending_steps=512
+learning_rate=1e-3 weight_decay=1e-4 warmup_steps=100 grad_clip_norm=1.0
+lr_schedule=cosine eval_interval=12 max_num_iters=264
+```
+
+This is a **deliberate warm restart** of the learning rate: iteration 84 of 264
+puts the cosine back at ~7.8e-4, decaying to 1e-4 by the end. Policy loss duly
+jumped to 1.33 and then fell to 0.72 over the run.
+
+### Result
+
+```
+E17 vs E16   A score 0.906   Elo +386   (9.06 h total vs 3.01 h)
+E17 vs E7    A score 0.941   Elo +484
+E16 vs E7    A score 0.773   Elo +216   (the +225 on record, replayed)
+```
+
+Ladder fit, E7 anchored: **E17 +548 +/- 33**, E16 +194 +/- 23. Fit and
+head-to-heads agree to ~30 Elo.
+
+**Six more hours of the same recipe bought 386 Elo** - four times what the v11
+observation itself was worth (+95). E16 was not a converged model being
+improved on; it was a model stopped a third of the way through its schedule.
+This is the standing "most gains arrive late, as the cosine decays" note
+showing up at its full size, and it is worth remembering before reading any
+future pilot as a converged result.
+
+### First win over tdgauntlet's alpha-beta
+
+50 games, 25 randomised first moves played twice with colours swapped, seed
+1909 - the same openings E7 and E14 played. E17 at 256 sims, alphabeta at 1 s.
+
+| player | score | Elo | counted | excluded | W-D-L | think ms |
+|---|---|---|---|---|---|---|
+| **e17** | **84.6%** | **+296** | 13 | 12 (48%) | 34-0-16 | 5013 |
+| alphabeta | 15.4% | -296 | 13 | 12 (48%) | 16-0-34 | 813 |
+
+On the same seed E7 scored **-311** and E14 **-257**, and E15's policy-only lost
+**80-0**. E17 is the first model here to beat the alpha-beta at all.
+
+Two caveats. Only **13 minimatches counted** - 48% split 1-1 and were excluded
+as decided by the opening - and tdgauntlet's own rule of thumb puts the
+standard error at 7-10 points for 20-50 counted minimatches, so 13 is worse
+than that: the sign is solid, the margin is not. And E17 spent **5.0 s a move
+against the alpha-beta's 0.8 s**, so this is not a like-for-like budget.
+
+### The run died two iterations short
+
+WSL was torn down at ~06:36, after iteration 262 of 264, with no traceback and
+no `Killed` in the log - the same silent signature as the three earlier deaths,
+and the second since `.wslconfig` was given 50 GB of memory and a 32 GB swap on
+`E:`. Memory sat flat at 22 GiB of 49 for the whole run with swap untouched at
+4/32, so in-VM pressure does **not** explain this one. The final checkpoint is
+`000252.ckpt`, 95% of the schedule with the cosine already near its floor, and
+it is what every number above was measured with.
+
+`eval_interval=12` is what kept the cost to 12 iterations rather than the whole
+run. Keep it there.

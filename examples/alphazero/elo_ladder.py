@@ -136,8 +136,10 @@ def play_pair(env, lcfg: LadderConfig, path_a: str, path_b: str, num_devices: in
     config_b, model_b = load_from_checkpoint(path_b)
     # Checkpoints predating an added observation plane see only the planes they
     # were trained on, so a ladder can span observation versions.
-    forward_a = narrow_observation(make_forward(env.num_actions, config_a), expected_obs_channels(model_a))
-    forward_b = narrow_observation(make_forward(env.num_actions, config_b), expected_obs_channels(model_b))
+    forward_a = make_forward(env.num_actions, config_a)
+    forward_b = make_forward(env.num_actions, config_b)
+    forward_a = narrow_observation(forward_a, expected_obs_channels(model_a, forward_a, env))
+    forward_b = narrow_observation(forward_b, expected_obs_channels(model_b, forward_b, env))
     model_a, model_b = jax.tree_util.tree_map(
         lambda x: jnp.broadcast_to(x, (num_devices, *x.shape)), (model_a, model_b)
     )

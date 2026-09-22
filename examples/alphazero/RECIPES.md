@@ -131,8 +131,16 @@ fine" (E9 and E13 compared through E7).
 
 **Adopted: the v11 evaluation-feature planes, +95 Elo at equal wall clock.**
 E16 beat E14 **0.633 +/- 0.030 (Elo +95)** in 3.01 h against 3.13 h, and beat E7 -
-which had topped every comparison before it - by **225**. It is the strongest
-Epaminondas model here.
+which had topped every comparison before it - by **225**.
+
+**Let the cosine schedule land before reading a pilot as a result.** E16 was
+264 iterations' worth of schedule stopped at iteration 84, because the pilot
+budget ran out. Resuming it to the end (E17, 9.06 h in total) beat E16 by
+**386** and E7 by **484** - four times what the observation change itself was
+worth. E17 is the strongest Epaminondas model here, and the first to beat
+tdgauntlet's alpha-beta (**84.6%, +296**, where E7 scored -311 and E14 -257),
+though on 13 counted minimatches and at 5.0 s a move against its 0.8 s. A
+pilot-length run measures a recipe, not a model.
 
 **Encode heuristics per square, not as broadcast constants.** This is where the
 gain is. v10 gave the network the nine terms of tdgauntlet's alpha-beta
