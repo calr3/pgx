@@ -87,7 +87,8 @@ python3 -u examples/alphazero/train.py env_id=epaminondas architecture=boardform
   selfplay_batch_size=256 max_num_steps=384 training_batch_size=2048 \
   num_updates_per_iter=32 replay_buffer_iters=4 \
   learning_rate=5e-4 weight_decay=1e-4 warmup_steps=100 grad_clip_norm=1.0 \
-  lr_schedule=cosine eval_interval=40 max_num_iters=160
+  lr_schedule=cosine eval_interval=40 max_num_iters=160 \
+  symmetry_augmentation=true
 ```
 
 **Architecture: `boardformer`**, GessFormer generalised to any even-sized board
@@ -123,6 +124,21 @@ Elo. 1e-3 is not known to be optimal - a linear rule would suggest 2e-3, unteste
 Temper expectations on the size of the win: E14 spent **2.5x E13's wall clock
 for +38 Elo**, at ~1.8 sigma. Scaling works, but the return on compute is
 moderate.
+
+**Adopted: `symmetry_augmentation=true` for Epaminondas, +176 Elo.** Add it to
+the command above. Epaminondas has one symmetry, not Gess's eight - the board
+is 12x14 and its ranks are not interchangeable - and the left-right mirror was
+verified over 57,600 positions before use. E18 beat its own control by
+**0.734 (Elo +176)** at equal wall clock, and was the *faster* arm, because the
+mirror is one flip inside a training step that is ~5% of an iteration. It also
+beat E17, which had 32% more iterations and a warm restart.
+
+**Permute direction-indexed planes when you mirror.** v11's trailing eight
+observation planes are per-direction `_travel`; a mirror changes what each one
+means, so they need `MIRROR_DIR_PERM` as the black flip needs `_FLIP_DIR_PERM`.
+Omitting it would not crash, it would train on observations no position can
+produce. Assert the augmented sample equals the env's observation for the
+genuinely transformed position - not merely that something changed.
 
 **`epaminondas_v0` in `pgx/_src/baseline.py` is now E17** (it was E7). A
 baseline only informs while it is near the level of the runs being measured: E7

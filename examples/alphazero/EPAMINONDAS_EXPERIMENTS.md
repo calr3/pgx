@@ -1581,3 +1581,63 @@ it is what every number above was measured with.
 
 `eval_interval=12` is what kept the cost to 12 iterations rather than the whole
 run. Keep it there.
+
+## E18 / E19 - symmetry augmentation is worth 176 Elo
+
+The last item on the ranked list of what helps (`RECIPES.md`) that Epaminondas
+had never had. Gess trains on a random one of its 8 board symmetries and gained
+246 Elo by it; Epaminondas has **one** symmetry, not eight.
+
+### Which symmetry, and how it was checked
+
+The board is 12x14, and the rank-by-rank tiebreak and the two home rows make
+the vertical axis meaningful, so rotations and row flips are not symmetries.
+The **left-right mirror** is: the board, the starting position and the eight
+move directions are all symmetric about it. Checked over **57,600 positions**
+from random games - legal masks, successor boards, terminal flags and winners
+all agree with the mirror image, with zero mismatches.
+
+The trap is the observation, not the rules. v11's trailing eight planes are
+`_travel`, one per direction, so mirroring the columns changes what each of
+those channels *means*. They are permuted by `MIRROR_DIR_PERM` ([2,1,0,4,3,7,
+6,5]), exactly as the black flip already permutes them with `_FLIP_DIR_PERM`.
+Omitting that would not crash - it would train the network on observations no
+position can produce, the failure mode that cost 92, 351 and 411 Elo in
+E10-E12. The test therefore asserts the augmented sample is **equal to the
+observation the env gives for the genuinely mirrored position**, not merely
+that something moved.
+
+### Setup
+
+Two runs, same `seed=0`, same 200-iteration schedule, E17's recipe otherwise,
+one after the other on the same GPU. The flag is the only difference.
+
+```
+E18  symmetry_augmentation=true    200 iterations, 6.76 h
+E19  symmetry_augmentation=false   200 iterations, 7.03 h
+```
+
+### Result
+
+```
+E18 vs E19   A score 0.734   Elo +176   (6.76 h vs 7.03 h)
+E18 vs E17   A score 0.734   Elo +176
+E17 vs E19   A score 0.637   Elo  +98
+```
+
+Ladder fit, E17 anchored: **E18 +143 +/- 19**, E19 -69 +/- 19.
+
+**+176 Elo at equal wall clock, and the augmented arm was the faster of the
+two** (6.76 h against 7.03 h). The mirror is one flip and a channel gather
+inside the training step, and self-play is ~95% of an iteration, so it costs
+nothing measurable. It is the cheapest large gain on the list.
+
+E18 also beats **E17** by 176, despite E17 having 32% more iterations and a
+warm restart on top: 200 iterations with augmentation beat 264 without.
+
+### The chain does not close
+
+E18 over E17 (+176) plus E17 over E19 (+98) predicts +274 for E18 vs E19,
+against a measured **+176** - a ~98 Elo transitivity violation. That is the
+same non-transitivity this file has recorded before, and the reason the
+standing rule is to quote the direct head-to-head. +176 is the direct one.

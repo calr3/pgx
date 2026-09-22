@@ -1,0 +1,10 @@
+/home/charlie/calr3gh/pgx/examples/alphazero/elo_ladder.py:41: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  class LadderConfig(BaseModel):
+[1/3] e17 vs e18sym: 68.0/256 (457s)
+[2/3] e17 vs e19ctl: 163.0/256 (294s)
+[3/3] e18sym vs e19ctl: 188.0/256 (399s)
+
+Elo (anchor e17 = 0; errors assume independent games):
+  e18sym     +143 ±  19   (512 games)
+  e17          +0 ±   0   (512 games)
+  e19ctl      -69 ±  19   (512 games)
