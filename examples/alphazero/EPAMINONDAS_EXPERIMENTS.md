@@ -1641,3 +1641,45 @@ E18 over E17 (+176) plus E17 over E19 (+98) predicts +274 for E18 vs E19,
 against a measured **+176** - a ~98 Elo transitivity violation. That is the
 same non-transitivity this file has recorded before, and the reason the
 standing rule is to quote the direct head-to-head. +176 is the direct one.
+
+## The alpha-beta gauntlet at a matched budget: parity, not a 296-Elo win
+
+E17 scored **84.6% (+296)** against tdgauntlet's alpha-beta, the family's first
+win over it. That run gave the model **5.0 s a move and the engine 1.0 s**. This
+is the same tournament with the budgets brought together, played by **E18**,
+which beats E17 by 176.
+
+```
+player      score    Elo   counted   excluded     W-D-L   think ms
+alphabeta   53.8%    +27        13   12 (48%)    26-0-24      4191
+az (E18)    46.2%    -27        13   12 (48%)    24-0-26      2892
+```
+
+Net **7-6 in counted minimatches**, 26-24 in raw games: a dead heat, and with 13
+counted minimatches the standard error is comfortably wider than the gap.
+
+**So E17's +296 was the budget, not the model.** A model 176 Elo stronger than
+E17 is level with the engine once the clocks are comparable. The honest summary
+of where the family stands is *parity with tdgauntlet's alpha-beta at a few
+seconds a move*, not a win over it.
+
+### A wrong turn worth recording
+
+Setting this up, the `concurrency = 8` of the earlier configs was read as 8
+concurrent searches x `--threads 8` = 64 threads on 24 cores, i.e. the engine
+getting a third of the CPU its budget implied, and `concurrency` was dropped to
+3 to "fix" it. That was wrong. **`--threads` sets the client's
+`max_concurrency`** (`clients/alphabeta/src/main.rs:83`) - how many games it
+serves at once - and each search is single-threaded, so eight searches on 24
+cores never contended. The earlier 813 ms against a 1000 ms budget was
+iterative deepening stopping a ply early, not starvation.
+
+It also skewed this run. With 3 games in flight the JAX client batches 3
+requests rather than 8, so **E18's think time fell to 2892 ms** while the
+engine's rose to 4191 ms - the model now has *less* time than its opponent. The
+mismatch is far smaller than 5:1 and points the other way, so parity is if
+anything a slightly conservative reading, but the clean rerun is
+`concurrency = 8` with `budget_ms = 5000`.
+
+**Check what a knob does before compensating for it.** One `grep` for `threads`
+in the client would have settled it.

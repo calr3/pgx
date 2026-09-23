@@ -159,10 +159,9 @@ which had topped every comparison before it - by **225**.
 264 iterations' worth of schedule stopped at iteration 84, because the pilot
 budget ran out. Resuming it to the end (E17, 9.06 h in total) beat E16 by
 **386** and E7 by **484** - four times what the observation change itself was
-worth. E17 is the strongest Epaminondas model here, and the first to beat
-tdgauntlet's alpha-beta (**84.6%, +296**, where E7 scored -311 and E14 -257),
-though on 13 counted minimatches and at 5.0 s a move against its 0.8 s. A
-pilot-length run measures a recipe, not a model.
+worth. A pilot-length run measures a recipe, not a model. (E17 also scored
+**84.6%, +296** against tdgauntlet's alpha-beta, but at 5.0 s a move against its
+1.0 s; at a matched budget that win is not there - see below.)
 
 **Encode heuristics per square, not as broadcast constants.** This is where the
 gain is. v10 gave the network the nine terms of tdgauntlet's alpha-beta
@@ -187,7 +186,7 @@ v11 at no cost.
 at 19 planes, 1024 rows is 13.2 GiB and put a run into swap, slowing it 134 ->
 204 s per iteration. 512 is the working value at batch 1024 with 19 planes.
 
-**Watch for intransitivity before quoting any single Elo.****Watch for intransitivity before quoting any single Elo.** E15 ties E7 (+11),
+**Watch for intransitivity before quoting any single Elo.** E15 ties E7 (+11),
 E7 beats E14 (-128), E15 ties E14 (-16) - a ~155 Elo violation, far outside the
 standard errors. E16's numbers, by contrast, agree to 2 Elo (+95 over E14 and
 -128 for E14 vs E7 predict +223; measured +225), so intransitivity is a property
@@ -206,9 +205,21 @@ at depth 4 in 886 ms**, where 256-simulation MCTS examines **768 in 5,384 ms** -
 network forward pass. Giving the network the engine's heuristics does not close
 it, and the policy-only client (same weights, no search) lost **0-80** to the
 same network under MCTS, so those features have not become judgement the network
-can apply directly. The family is a long way below a competent classical
-engine, and no 2x-scale run closes that. It is also a fixed external opponent, so
-it is the right yardstick for future runs.
+can apply directly. It is a fixed external opponent, so it is the right
+yardstick for future runs.
+
+**Where the family now stands against it: parity, at a few seconds a move.**
+E18 (176 Elo above E17) scored **46.2% (-27)** over 50 games with the engine on
+a 5 s clock - net 7-6 in counted minimatches, a dead heat. The earlier +296 for
+E17 was a 5:1 time advantage, not strength. **Quote a gauntlet result with both
+clocks attached, or it means nothing.**
+
+**`--threads` on the alpha-beta client is its `max_concurrency`, not search
+parallelism** (`clients/alphabeta/src/main.rs:83`); each search is
+single-threaded. `concurrency = 8` with `--threads 8` does not oversubscribe 24
+cores. It was mistaken for contention once and "fixed" by dropping concurrency
+to 3, which only shrank the JAX client's batches and cut the *model's* think
+time to 2892 ms. Check what a knob does before compensating for it.
 
 **v6 gives black a large advantage in pgx at 32 simulations, and not in
 tdgauntlet at 256.** In pgx self-mirror
