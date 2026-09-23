@@ -1,0 +1,12 @@
+env_id='epaminondas' seed=0 max_num_iters=405 resume_from='checkpoints/epaminondas_20260922180057/000200.ckpt' reseed_on_resume=False wandb_run_id='' num_channels=128 num_layers=6 resnet_v2=True num_heads=-1 num_attention_layers=1 architecture='boardformer' mlp_width=256 mlp_layers=3 mlp_onehot_bins=0 gf_stem_channels=64 gf_stem_blocks=2 gf_embed_dim=192 gf_num_layers=6 gf_num_heads=8 gf_ffn_mult=2.0 gf_gab=True gf_remat=True rf_embed_dim=96 rf_num_layers=4 rf_num_heads=4 rf_ffn_mult=2.0 rf_stem_blocks=1 rf_remat=True rf_attn_bf16=True rf_symmetric=False bf_stem_channels=64 bf_stem_blocks=2 bf_embed_dim=192 bf_num_layers=6 bf_num_heads=8 bf_ffn_mult=2.0 bf_gab=True bf_remat=True selfplay_batch_size=1024 num_simulations=32 chance_samples=1 qtransform='completed_by_mix_value' selfplay_bf16=True playout_cap_prob=0.25 fast_num_simulations=8 sim_schedule='' max_num_steps=384 continue_games=True max_pending_steps=512 save_data_state=False training_batch_size=4096 train_micro_batches=1 symmetry_augmentation=True replay_buffer_iters=2 num_updates_per_iter=64 learning_rate=0.001 weight_decay=0.0001 warmup_steps=100 grad_clip_norm=1.0 lr_schedule='cosine' lr_final_ratio=0.1 eval_interval=12 mcts_eval_opponent='' mcts_eval_interval_hours=1.0 mcts_eval_games=128 mcts_eval_batch_size=128 mcts_eval_simulations=32
+Resuming from checkpoint: checkpoints/epaminondas_20260922180057/000200.ckpt
+wandb: Currently logged in as: calr (aptometry) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run rthi2qls
+wandb: Tracking run with wandb version 0.23.1
+wandb: Run data is saved locally in /home/charlie/calr3gh/pgx/wandb/run-20260924_004050-rthi2qls
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run E20 [32 samples]
+wandb: ⭐️ View project at https://wandb.ai/aptometry/pgx-az-epaminondas
+wandb: 🚀 View run at https://wandb.ai/aptometry/pgx-az-epaminondas/runs/rthi2qls
+Resumed at iteration 200 (78643200 frames, 6.76 hours)
+{'iteration': 200, 'hours': 6.756534034940935, 'frames': 78643200}

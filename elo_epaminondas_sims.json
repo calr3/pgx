@@ -1,0 +1,26 @@
+{
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260922033505/000252.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260923005823/000200.ckpt\", {\"batch_size\": 256, \"env_id\": \"epaminondas\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 3000, \"num_simulations\": 32, \"random_opening_plies\": 3, \"seed\": 49064405}]": {
+  "score": 163.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260922033505/000252.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260922180057/000200.ckpt\", {\"batch_size\": 256, \"env_id\": \"epaminondas\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 3000, \"num_simulations\": 32, \"random_opening_plies\": 3, \"seed\": 49064405}]": {
+  "score": 68.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260922033505/000252.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_e20_64sims/000305.ckpt\", {\"batch_size\": 256, \"env_id\": \"epaminondas\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 3000, \"num_simulations\": 32, \"random_opening_plies\": 3, \"seed\": 49064405}]": {
+  "score": 37.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260923005823/000200.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260922180057/000200.ckpt\", {\"batch_size\": 256, \"env_id\": \"epaminondas\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 3000, \"num_simulations\": 32, \"random_opening_plies\": 3, \"seed\": 49064405}]": {
+  "score": 68.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260923005823/000200.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_e20_64sims/000305.ckpt\", {\"batch_size\": 256, \"env_id\": \"epaminondas\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 3000, \"num_simulations\": 32, \"random_opening_plies\": 3, \"seed\": 49064405}]": {
+  "score": 26.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_20260922180057/000200.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/epaminondas_e20_64sims/000305.ckpt\", {\"batch_size\": 256, \"env_id\": \"epaminondas\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 3000, \"num_simulations\": 32, \"random_opening_plies\": 3, \"seed\": 49064405}]": {
+  "score": 66.0,
+  "games": 256
+ }
+}

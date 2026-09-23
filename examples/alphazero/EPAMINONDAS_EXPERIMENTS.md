@@ -1683,3 +1683,58 @@ anything a slightly conservative reading, but the clean rerun is
 
 **Check what a knob does before compensating for it.** One `grep` for `threads`
 in the client would have settled it.
+
+## E20 / E21 - does doubling the simulations pay for halving the iterations?
+
+Search is where this game's strength lives: the policy-only client lost 80-0 to
+the same weights under MCTS, and tdgauntlet's alpha-beta reads ~398,000 nodes a
+move against MCTS's 768. Every run so far used `num_simulations=32`, which is
+low - AlphaZero used 800 - and the only test on record went the other way (16
+sims lost 103 Elo at equal time: "target quality beats game count"). E20 doubles
+it to 64.
+
+Both E20 and the E21 control are hot-started from **E18's `000200.ckpt`**, which
+is a deliberate warm restart of the cosine (`max_num_iters` extends past 200),
+the same trick that took E16 to E17.
+
+### Cost: simulations are linear in training throughput
+
+**235 s/iteration at 64 sims against E18's 121 s at 32 - 1.94x.** Almost exactly
+the naive doubling, and worth contrasting with the *serving* case: calibrating
+the 30 s match found move time scaling as ~s^1.18 at batch 1, because tree
+bookkeeping and kernel-launch overhead dominate when a single position is
+searched alone. At training batch 1024 the network forward pass dominates and
+amortises cleanly, so the two regimes scale differently. **Do not carry a
+scaling exponent measured at batch 1 into a throughput estimate at batch 1024.**
+
+### E20's result is real but confounded
+
+```
+E20 vs E18   A score 0.742   Elo +183
+E20 vs E17   A score 0.855   Elo +340
+E20 vs E19   A score 0.898   Elo +404
+```
+
+Ladder, E17 anchored: **E20 +314 +/- 20**, E18 +139, E17 0, E19 -69.
+
+E20 is by a distance the strongest model here. But it had **both** 64 sims and
+6.9 h of training E18 never got, and extra training of that size has been worth
+a lot every time it was measured (E16 -> E17 was +386 from training alone). So
++183 says nothing yet about the simulation count.
+
+### E21: the control that isolates it
+
+Same starting weights, same wall clock, one knob different.
+
+```
+E20   num_simulations=64   105 iterations   6.85 h
+E21   num_simulations=32   205 iterations   6.89 h
+```
+
+**Watch out for two collisions this experiment nearly walked into.**
+`train.py:483` puts a resumed run's checkpoints in the *directory of the
+checkpoint it resumed from*, so E21 writes iterations 204-405 into E18's
+directory - exactly where E20's 204-305 already were. E20's were moved to
+`checkpoints/epaminondas_e20_64sims/` first. The wandb run id travels with the
+checkpoint too, so E21 resumed into E20's run (`rthi2qls`) and writes over its
+step numbers; `e20_run.log` and `e21_run.log` are the authoritative record.
