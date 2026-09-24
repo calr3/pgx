@@ -1738,3 +1738,39 @@ directory - exactly where E20's 204-305 already were. E20's were moved to
 `checkpoints/epaminondas_e20_64sims/` first. The wandb run id travels with the
 checkpoint too, so E21 resumed into E20's run (`rthi2qls`) and writes over its
 step numbers; `e20_run.log` and `e21_run.log` are the authoritative record.
+
+### E21's verdict: 32 simulations beat 64, by 86 Elo
+
+```
+E20 (64 sims) vs E21 (32 sims)   A score 0.379   Elo  -86
+E18           vs E21 (32 sims)   A score 0.164   Elo +265
+E18           vs E20 (64 sims)   A score 0.258   Elo +183
+```
+
+Ladder, E18 anchored: **E21 +276 +/- 22**, E20 +187 +/- 21.
+
+| arm | sims | iterations | wall clock past E18 |
+|---|---|---|---|
+| E20 | 64 | 105 | 6.94 h |
+| E21 | 32 | 205 | 7.23 h |
+
+E21 had 4% more wall clock, nowhere near enough to explain 86 Elo.
+
+**Doubling the simulations is a net loss at equal time, and E20's +183 over E18
+was the extra training, not the extra search** - E21 got the same training and
+finished 89 Elo above it. Twice the search per move does not pay for half the
+games.
+
+**With 16 sims having lost 103 Elo at equal time in an earlier experiment, 32 is
+a local optimum**: halving and doubling are both clearly worse. That is worth
+more than either measurement alone, and it is the number to take into a rented
+run - spend extra compute on games, not on simulations per move.
+
+### The prediction this refutes
+
+The case for raising simulations was that search is where this game's strength
+lives: the policy-only client lost 80-0 to the same weights under MCTS, and the
+alpha-beta reads 519x more positions per move. All true, and all about *playing*
+strength. It does not transfer to *training*: what a 64-simulation search adds
+to each target is worth less than the games given up to pay for it. **Evidence
+about how a model plays is not evidence about how it should be trained.**

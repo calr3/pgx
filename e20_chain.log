@@ -2,3 +2,4 @@
 00:03:51 moved E20 checkpoints to checkpoints/epaminondas_e20_64sims: 000204.ckpt 000216.ckpt 000228.ckpt 000240.ckpt 000252.ckpt 000264.ckpt 000276.ckpt 000288.ckpt 000300.ckpt 000305.ckpt 
 00:03:51 E20 final = checkpoints/epaminondas_e20_64sims/000305.ckpt
 00:40:34 ladder done
+08:06:37 E21 finished

@@ -106,6 +106,17 @@ measured three times (95 and 112 Elo in earlier experiments, ~140 here), not a
 fault in the runs. **The correct baseline for a v6 run is about -130 against
 E7.**
 
+**`num_simulations=32` is a local optimum for Epaminondas - do not raise it.**
+Halving to 16 lost 103 Elo at equal time; doubling to 64 lost **86** (E20 vs
+E21: same starting weights, matched wall clock, 105 iterations at 64 sims
+against 205 at 32). Twice the search per move does not pay for half the games.
+Extra compute belongs in games and iterations, not in simulations per move.
+
+Beware the tempting argument that search is where the strength is - policy-only
+lost 80-0 to the same weights under MCTS, and the alpha-beta reads 519x more
+positions. That is about *playing*, not *training*, and it predicted the wrong
+answer here.
+
 **Scale the learning rate with the batch.** This is the one setting that decides
 whether more compute buys anything. At `selfplay_batch_size=1024` /
 `training_batch_size=4096`, use **`learning_rate=1e-3`**, not the pilot's 5e-4.
