@@ -219,11 +219,22 @@ same network under MCTS, so those features have not become judgement the network
 can apply directly. It is a fixed external opponent, so it is the right
 yardstick for future runs.
 
-**Where the family now stands against it: parity, at a few seconds a move.**
-E18 (176 Elo above E17) scored **46.2% (-27)** over 50 games with the engine on
-a 5 s clock - net 7-6 in counted minimatches, a dead heat. The earlier +296 for
-E17 was a 5:1 time advantage, not strength. **Quote a gauntlet result with both
-clocks attached, or it means nothing.**
+**Where the family now stands against it: ahead at every budget.** A six-player
+round robin (E21 and the engine each at ~0.1 s, ~1 s and ~10 s, 300 games) has
+the model winning every matched rung outright, and **E21 at 2.1 s beating the
+engine at 8.5 s, 100% over 6 counted minimatches**. One 7 h training run took
+the family from E18's dead heat (46.2%) to that. A 10x of thinking time is worth
++543 Elo to the model over 0.1 s -> 1 s, against +254 to the engine over
+1 s -> 10 s.
+
+**Quote a gauntlet result with both clocks attached, or it means nothing.** E17
+once scored +296 on a 5:1 time advantage, and in the ladder above the model
+overshot its intended budget by ~2x at every rung.
+
+**Calibrate a model client at the concurrency the tournament will use.** The
+client batches whatever requests are in flight, so a simulation count timed at
+batch 1 runs ~2x slower at `concurrency = 4`. The engine holds its clock; the
+model does not, and the gap lands silently in the model's favour.
 
 **`--threads` on the alpha-beta client is its `max_concurrency`, not search
 parallelism** (`clients/alphabeta/src/main.rs:83`); each search is

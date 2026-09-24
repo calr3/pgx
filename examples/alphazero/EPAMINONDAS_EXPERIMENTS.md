@@ -1774,3 +1774,73 @@ alpha-beta reads 519x more positions per move. All true, and all about *playing*
 strength. It does not transfer to *training*: what a 64-simulation search adds
 to each target is worth less than the games given up to pay for it. **Evidence
 about how a model plays is not evidence about how it should be trained.**
+
+## The budget ladder: E21 is worth about a decade of the engine's thinking time
+
+Six players, full round robin, 10 openings, 300 games, 8.75 h: E21 and
+tdgauntlet's alpha-beta each at ~0.1 s, ~1 s and ~10 s a move. As well as
+model-vs-engine at each rung this measures each engine's own gain per 10x of
+thinking time, which is the slope that says what buying compute is worth.
+
+```
+player     score    Elo   counted  excl    W-D-L   actual think
+az-10s    100.0%      -       36     14   86-0-14      15113 ms
+az-1s      91.2%   +406       34     16   78-0-22       2121 ms
+ab-10s     60.0%    +70       35     15   57-0-43       8528 ms
+az-0.1s    31.2%   -137       32     18   38-0-62        189 ms
+ab-1s      25.7%   -184       35     15   33-0-67       1021 ms
+ab-0.1s     0.0%      -       42      8    8-0-92         99 ms
+```
+
+`az-10s` won every counted minimatch against all five opponents, so its rating
+is unbounded above; `ab-0.1s` lost every one, so its is unbounded below.
+
+### The model beats the engine at every rung
+
+```
+az-10s  v ab-10s   100%  (7 counted)
+az-1s   v ab-1s    100%  (8 counted)
+az-1s   v ab-10s   100%  (6 counted)
+az-0.1s v ab-1s     75%  (4 counted)
+az-0.1s v ab-0.1s  100%  (6 counted)
+az-0.1s v ab-10s    20%  (5 counted)
+```
+
+### The budgets were not matched in play - the model got ~2x the clock
+
+| rung | model | engine |
+|---|---|---|
+| 0.1 s | 189 ms | 99 ms |
+| 1 s | 2121 ms | 1021 ms |
+| 10 s | 15113 ms | 8528 ms |
+
+The simulation counts were calibrated at **batch 1**, but `concurrency = 4`
+means up to four requests share one batched search, which raises each request's
+latency. The engine held its clocks; the model overshot by 1.8-2.1x at every
+rung. **Calibrate a model client at the concurrency the tournament will use, not
+at batch 1.**
+
+That weakens the equal-budget cells but not the headline: **`az-1s` at 2121 ms
+beat `ab-10s` at 8528 ms, 100% over 6 counted minimatches** - a 4x deficit in
+the model's disfavour and still a sweep. Even discounting the overshoot, E21 is
+worth roughly a decade of the engine's time.
+
+### What a 10x of thinking time buys
+
+Model, 0.1 s -> 1 s: **+543 Elo**. Engine, 1 s -> 10 s: **+254 Elo**. Different
+stretches of the curve, so not strictly comparable, and `ab-0.1s`'s rating is
+unbounded so the engine's first decade cannot be measured at all. Taken at face
+value the model gains more per decade over the range where both are measurable.
+
+### This overturns the earlier parity result
+
+E18 scored 46.2% against the engine at a comparable budget - a dead heat. E21 is
++276 Elo above E18, and that has converted into winning every rung outright.
+**The family went from level with a competent classical engine to beating it at
+a 4x time deficit in one 7 h training run**, which is the strongest argument yet
+that this recipe still has room in it.
+
+Exclusion rates ran 16-36%, better than the ~48% the sizing assumed, so the
+counted samples (32-42 minimatches per player) are larger than feared - though
+individual cells still rest on 4-10 minimatches and should be read as the fit
+supports them, not alone.
