@@ -368,6 +368,33 @@ def test_observe():
     #])).all()
 
 
+def test_adjacency_is_symmetric():
+    from pgx._src.games.g_hex import _ADJ
+
+    adj = [set(int(n) for n in row if n != 21) for row in _ADJ]
+    for t, ns in enumerate(adj):
+        for n in ns:
+            assert t in adj[n], (t, n)
+
+
+def test_4_counts_for_an_empty_10():
+    # Everything but triangle 10 is filled. Its neighbours hold black's 10 on 4
+    # and white's 5 and 4 on 9 and 11: +1, so black wins. v0 forgot 4 and gave
+    # the game to white.
+    key = jax.random.PRNGKey(6)
+    state = init(key)
+    assert state.current_player == 0
+    elsewhere = iter(t for t in range(21) if t not in (4, 9, 10, 11))
+    blacks = [(10, 4)] + [(v, next(elsewhere)) for v in range(1, 10)]
+    whites = [(5, 9), (4, 11)] + [(v, next(elsewhere)) for v in (1, 2, 3, 6, 7, 8, 9, 10)]
+    for (bv, bt), (wv, wt) in zip(blacks, whites):
+        state = step(state, black(bv, bt))
+        state = step(state, white(wv, wt))
+    assert state.terminated
+    assert state._x.board[10] == 0
+    assert state._x.winner == 0
+    assert (state.rewards == jnp.array([1.0, -1.0])).all()
+
 def test_api():
     import pgx
 

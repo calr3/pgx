@@ -98,7 +98,9 @@ class GHex(core.Env):
 
     @property
     def version(self) -> str:
-        return "v0"
+        # v1: triangle 10 counts the tile on 4. v0 listed 10 as a neighbour
+        #     of 4 but not 4 of 10, although the two share an edge.
+        return "v1"
 
     @property
     def num_players(self) -> int:
