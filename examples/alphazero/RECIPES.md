@@ -95,8 +95,47 @@ python3 -u examples/alphazero/train.py env_id=epaminondas architecture=boardform
 with one action per cell. It transfers to Epaminondas's 14x12 board and 168
 actions without change.
 
-Status: nine runs (`EPAMINONDAS_EXPERIMENTS.md`). The block above is still the
-winning arm, and it is a **pilot-scale** recipe - keep `selfplay_batch_size=256`.
+Status: twenty-one runs (`EPAMINONDAS_EXPERIMENTS.md`). The block above is still
+the winning arm, and it is a **pilot-scale** recipe - keep
+`selfplay_batch_size=256`.
+
+### What actually helped, ranked
+
+Every figure is a direct head-to-head, not a ladder fit, and every one was
+measured at equal wall clock unless the row says otherwise.
+
+| change | Elo | cost | where |
+|---|---|---|---|
+| Let the cosine schedule finish (E16 -> E17) | **+386** | 6.4 h more | E17 |
+| Finish it again, from a better start (E18 -> E20/E21) | **+183 / +265** | ~7 h more | E20, E21 |
+| Symmetry augmentation, the left-right mirror | **+176** | free - the augmented arm was *faster* | E18 v E19 |
+| Per-square feature planes (v11 `_travel`) | **+95** | cheaper than the scalars it replaced | E16 v E14 |
+| Learning rate 1e-3 at batch 1024, not 5e-4 | **+63** | free | E14 v E9 |
+| Nine heuristics as broadcast scalars (v10) | **-16** | 2.18x per iteration | E15 |
+| Doubling simulations to 64 | **-86** | 2x per iteration | E20 v E21 |
+| Halving simulations to 16 | **-103** | - | earlier |
+
+The pattern: **the schedule and the data pipeline dominate; the search budget is
+already at its optimum and the observation is worth a lot only when encoded per
+square.** Nothing on this list beats simply letting a cosine run finish.
+
+### The external yardstick
+
+Six players, full round robin, 300 games (`EPAMINONDAS_EXPERIMENTS.md`): E21 and
+tdgauntlet's alpha-beta each at ~0.1 s, ~1 s and ~10 s a move.
+
+| player | score | Elo | counted | actual think |
+|---|---|---|---|---|
+| az-10s | 100.0% | unbounded | 36 | 15113 ms |
+| az-1s | 91.2% | +406 | 34 | 2121 ms |
+| ab-10s | 60.0% | +70 | 35 | 8528 ms |
+| az-0.1s | 31.2% | -137 | 32 | 189 ms |
+| ab-1s | 25.7% | -184 | 35 | 1021 ms |
+| ab-0.1s | 0.0% | unbounded | 42 | 99 ms |
+
+The model wins every matched rung, and `az-1s` beats `ab-10s` 100% over 6
+counted minimatches at a 4x time deficit. Read the `actual think` column with
+it: the model overshot its intended budget ~2x at every rung.
 
 **Compare v6 runs against a v6 baseline, not against E7.** E7 is the only strong
 Epaminondas checkpoint trained under **v5** rules, and every v6 run measured so
