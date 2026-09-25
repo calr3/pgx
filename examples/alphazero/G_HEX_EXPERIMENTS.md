@@ -180,3 +180,58 @@ at the end of a 2 h schedule, against A's -67 at 2 h and -104 at the end of its
 coincide; measured by iterations, E2's end (-101) is well below A near 290
 (-67). So the decline may be driven by the learning rate decaying, not by the
 amount of training. Untested; the direct test is a constant-LR arm.
+
+## E3: a constant learning rate still declines
+
+Arm A's command with `lr_schedule=constant` (warmup and AdamW unchanged),
+`max_num_iters=220`, 1.5 h. Checkpoints `g_hex_20260925213252`, wandb
+`a010xuch`. In-training match against A050: 50.8% at 0.5 h, 49.2% at 1 h,
+39.1% at 1.5 h.
+
+| player | Elo |
+|---|---|
+| **A050** | **0** |
+| E3_050 | -5 ± 10 |
+| E3_100 | -29 ± 10 |
+| A150 | -40 ± 10 |
+| E3_150 | -50 ± 10 |
+| E3_220 | -50 ± 10 |
+| A100 | -52 ± 10 |
+| E2_150 | -52 ± 10 |
+| A250 | -61 ± 10 |
+| E2_220 | -67 ± 10 |
+
+E3_050 beat E3_220 0.588. At matched iterations E3_220 beat E2_220 0.547 and
+A250 0.520: the cosine decay may add a little, but **the decline follows the
+amount of training, not the schedule**. E2's "tracks the schedule" reading
+was wrong.
+
+## The decline exists only after random openings
+
+Every ladder above starts each game pair with 2 uniformly random plies and
+then plays deterministically. A050 v A610, 512 games, 32 simulations:
+
+| start | A050 wins | A610 wins | draws | A050 score |
+|---|---|---|---|---|
+| empty board, `gumbel_scale=1.0` for variety | 2.9% | 1.8% | **95.3%** | 0.506 ± 0.005 |
+| empty board, `gumbel_scale=0.3` | | | | 0.501 ± 0.001 |
+| 1 random ply | 33.4% | 28.3% | 38.3% | 0.525 ± 0.017 |
+| 2 random plies (the ladder's setting) | | | | 0.649 ± 0.016 |
+
+From the real starting position the 20-minute and 4-hour models are
+indistinguishable and draw 95% of their games: g_hex looks like a draw with
+good play, and both already play it. The whole E1-E3 decline is in positions
+after uniformly random moves - lopsided ones, e.g. a 10 thrown away - which
+self-play stops visiting once the policy is good. It is a real loss of
+robustness, not of strength from the normal start. E2's sampled openings did
+not help because they sample the *improved* policy, which still plays good
+moves and never produces those positions.
+
+Consequences:
+
+- The ladder, at its default `random_opening_plies=2`, measures robustness to
+  bad openings. That matters against weaker players (humans), whose mistakes
+  create exactly these positions, but it is not the whole story; report the
+  empty-board result beside it.
+- The next training test is **uniformly random opening plies in self-play**
+  (in some fraction of games), which do reach those positions.

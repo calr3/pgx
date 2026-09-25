@@ -478,5 +478,141 @@
  "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000220.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000290.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
   "score": 140.0,
   "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000050.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 129.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000050.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 146.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000050.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 144.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000050.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 145.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 132.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 127.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 113.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 119.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 125.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 126.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 116.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 123.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 131.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 132.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000250.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 121.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000250.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 131.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000250.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 108.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000250.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 120.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000250.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 122.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925064902/000250.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 123.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 114.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 117.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 129.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 125.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000220.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 106.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000220.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 111.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000220.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 121.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925163040/000220.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 116.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 137.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 147.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000050.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 150.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 138.5,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000100.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 139.0,
+  "games": 256
+ },
+ "[\"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000150.ckpt\", \"/home/charlie/calr3gh/pgx/checkpoints/g_hex_20260925213252/000220.ckpt\", {\"batch_size\": 128, \"env_id\": \"g_hex\", \"game_version\": 14, \"games_per_pair\": 256, \"gumbel_scale\": 0.0, \"max_num_considered_actions\": 16, \"max_num_steps\": 256, \"num_simulations\": 32, \"random_opening_plies\": 2, \"seed\": 49064405}]": {
+  "score": 128.0,
+  "games": 256
  }
 }
