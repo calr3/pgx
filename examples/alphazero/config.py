@@ -34,6 +34,12 @@ class Config(BaseModel):
     # Number of self-attention blocks applied at the end (after the conv blocks),
     # used only when num_heads > 0. Must not exceed num_layers.
     num_attention_layers: int = 1
+    # For a game whose actions are some of the board's cells (dots_and_boxes'
+    # lines, see network.action_cells): give the resnet one policy logit per
+    # cell, read off where each action is, instead of its dense head over the
+    # flattened board. BoardFormer always uses the cells when a game has them.
+    # False keeps older checkpoints' architecture.
+    cell_policy_head: bool = False
     # "resnet" is AZNet (above fields). "gessformer" is the hybrid conv-stem +
     # Chessformer-style transformer for Gess (network.GessFormer), configured by
     # the gf_* fields below, which the resnet ignores.
@@ -248,9 +254,9 @@ class Config(BaseModel):
 
     @model_validator(mode="after")
     def _check_gess_architectures(self):
-        if self.symmetry_augmentation and self.env_id not in ("gess", "epaminondas"):
+        if self.symmetry_augmentation and self.env_id not in ("gess", "epaminondas", "dots_and_boxes"):
             raise ValueError(
-                "symmetry_augmentation requires env_id=gess or epaminondas, got "
+                "symmetry_augmentation requires env_id=gess, epaminondas or dots_and_boxes, got "
                 f"{self.env_id!r}."
             )
         if self.architecture == "boardformer" and self.bf_embed_dim % self.bf_num_heads != 0:

@@ -78,3 +78,59 @@ def augment_epaminondas(
     policy = policy_tgt.reshape(b, h, w)
     policy = jnp.where(take[:, None, None], jnp.flip(policy, axis=2), policy)
     return obs, policy.reshape(b, h * w)
+
+
+# Dots and Boxes is invariant under all 8 symmetries of the square: the board of
+# dots is square, every line and box looks alike, and nothing depends on
+# orientation. The observation is the 13x13 lattice of dots, lines and boxes,
+# and each symmetry of the lattice maps dots to dots, lines to lines (a
+# transpose swaps horizontal and vertical ones) and boxes to boxes, so the
+# planes transform as a grid. The policy target is over the 84 lines: scatter it
+# onto their lattice cells, transform, and read it back off.
+# `tests/test_dots_and_boxes.py` checks every symmetry against the rules -
+# observations, legal masks, successors and results - which is the check to
+# redo if the rules or the observation change.
+
+
+def augment_dots_and_boxes(
+    rng_key: jnp.ndarray, obs: jnp.ndarray, policy_tgt: jnp.ndarray
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """Transform each sample by an independent random symmetry.
+
+    obs: (b, 13, 13, c) lattice observations; policy_tgt: (b, 84) over lines.
+    """
+    from pgx._src.games.dots_and_boxes import _LINE_CELLS
+
+    b, g = obs.shape[0], obs.shape[1]
+    rows, cols = _LINE_CELLS[:, 0], _LINE_CELLS[:, 1]
+    syms = jax.random.randint(rng_key, (b,), 0, NUM_SYMMETRIES)
+    obs = jax.vmap(transform_grid)(obs, syms)
+    grid = jnp.zeros((b, g, g), policy_tgt.dtype).at[:, rows, cols].set(policy_tgt)
+    grid = jax.vmap(transform_grid)(grid, syms)
+    return obs, grid[:, rows, cols]
+
+
+def dots_and_boxes_permutations():
+    """(line_perm (8, 84), box_perm (8, 36)): under symmetry s, line l becomes
+    line_perm[s, l] and box k becomes box_perm[s, k]. For checking the rules."""
+    import numpy as np
+
+    from pgx._src.games.dots_and_boxes import _LINE_CELLS, BOXES, GRID, LINES, SIZE
+
+    cells = np.asarray(_LINE_CELLS)
+    line_ids = np.full((GRID, GRID), -1)
+    line_ids[cells[:, 0], cells[:, 1]] = np.arange(LINES)
+    box_ids = np.full((GRID, GRID), -1)
+    box_ids[1::2, 1::2] = np.arange(BOXES).reshape(SIZE, SIZE)
+    line_perm = np.zeros((NUM_SYMMETRIES, LINES), dtype=np.int32)
+    box_perm = np.zeros((NUM_SYMMETRIES, BOXES), dtype=np.int32)
+    for s in range(NUM_SYMMETRIES):
+        # The id that lands on each cell under s, read back as "what each id became".
+        moved_lines = np.asarray(transform_grid(jnp.asarray(line_ids), jnp.int32(s)))
+        moved_boxes = np.asarray(transform_grid(jnp.asarray(box_ids), jnp.int32(s)))
+        at = moved_lines >= 0
+        for new_cell, old in zip(np.argwhere(at), moved_lines[at]):
+            line_perm[s, old] = line_ids[new_cell[0], new_cell[1]]
+        for new_cell, old in zip(np.argwhere(moved_boxes >= 0), moved_boxes[moved_boxes >= 0]):
+            box_perm[s, old] = box_ids[new_cell[0], new_cell[1]]
+    return line_perm, box_perm

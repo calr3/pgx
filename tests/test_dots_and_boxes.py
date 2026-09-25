@@ -236,3 +236,80 @@ def test_the_greedy_baseline_takes_boxes_and_gives_none_away():
     assert sides(2, 2)[2] not in best and sides(2, 2)[3] not in best
     # Its neighbours above and below have one side each, so their lines are safe.
     assert len(best) == LINES - 2 - 2, "every other line gives nothing away"
+
+
+def _symmetry_module():
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples" / "alphazero"))
+    import symmetry
+
+    return symmetry
+
+
+def _transformed(x, line_perm, box_perm):
+    lines = np.zeros(LINES, bool)
+    lines[line_perm] = np.asarray(x.lines)
+    owner = np.full(BOXES, -1, np.int32)
+    owner[box_perm] = np.asarray(x.owner)
+    return x._replace(lines=jnp.asarray(lines), owner=jnp.asarray(owner))
+
+
+def test_the_eight_symmetries_of_the_square_preserve_the_rules():
+    sym = _symmetry_module()
+    line_perm, box_perm = sym.dots_and_boxes_permutations()
+    for s in range(8):
+        assert sorted(line_perm[s]) == list(range(LINES)), s
+        assert sorted(box_perm[s]) == list(range(BOXES)), s
+    assert (line_perm[0] == np.arange(LINES)).all()
+    # Symmetry 4 transposes, which turns horizontal lines into vertical ones.
+    assert line_perm[4, h_line(0, 0)] == v_line(0, 0)
+
+    step_x = jax.jit(game.step)
+    obs_x = jax.jit(game.observe)
+    rng = np.random.default_rng(5)
+    checked = 0
+    for depth in (10, 30, 50, 70, 83):
+        x = game.init()
+        for _ in range(depth):
+            x = step_x(x, jnp.int32(rng.choice(np.flatnonzero(np.asarray(game.legal_action_mask(x))))))
+        legal = np.flatnonzero(np.asarray(game.legal_action_mask(x)))
+        for s in range(8):
+            y = _transformed(x, line_perm[s], box_perm[s])
+            np.testing.assert_array_equal(
+                obs_x(y), sym.transform_grid(obs_x(x), jnp.int32(s)), err_msg=f"obs, sym {s}"
+            )
+            mask = np.zeros(LINES, bool)
+            mask[line_perm[s]] = np.asarray(game.legal_action_mask(x))
+            np.testing.assert_array_equal(game.legal_action_mask(y), mask)
+            for a in rng.choice(legal, size=min(6, len(legal)), replace=False):
+                after, after_y = step_x(x, jnp.int32(a)), step_x(y, jnp.int32(line_perm[s, a]))
+                expect = _transformed(after, line_perm[s], box_perm[s])
+                for field in ("lines", "owner", "color", "winner"):
+                    np.testing.assert_array_equal(
+                        getattr(after_y, field), getattr(expect, field), err_msg=f"{field}, sym {s}"
+                    )
+                np.testing.assert_array_equal(game.rewards(after_y), game.rewards(after))
+                checked += 1
+    assert checked > 150
+
+
+def test_augmentation_moves_the_policy_target_with_the_board():
+    sym = _symmetry_module()
+    line_perm, _ = sym.dots_and_boxes_permutations()
+    x = play([h_line(0, 0), v_line(2, 3), h_line(4, 1)])._x
+    obs = jnp.stack([game.observe(x)] * 64)
+    policy = jnp.stack([jnp.arange(LINES, dtype=jnp.float32)] * 64)
+    aug_obs, aug_policy = sym.augment_dots_and_boxes(jax.random.PRNGKey(0), obs, policy)
+    seen = set()
+    for i in range(64):
+        matches = [
+            s
+            for s in range(8)
+            if np.array_equal(aug_obs[i], sym.transform_grid(obs[i], jnp.int32(s)))
+            and np.array_equal(np.asarray(aug_policy[i])[line_perm[s]], np.asarray(policy[i]))
+        ]
+        assert matches, f"sample {i}: board and policy moved by different symmetries"
+        seen.update(matches)
+    assert len(seen) >= 6, "the symmetries are drawn at random"

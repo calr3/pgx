@@ -9,7 +9,8 @@ added here). What follows is what was learned the hard way.
   that file, not just the experiment log.
 - Experiment history: `examples/alphazero/GESS_EXPERIMENTS.md`,
   `examples/alphazero/EPAMINONDAS_EXPERIMENTS.md`,
-  `examples/alphazero/PIG_EXPERIMENTS.md`. The forward plan for the TPU rental
+  `examples/alphazero/PIG_EXPERIMENTS.md`,
+  `examples/alphazero/DOTS_AND_BOXES_EXPERIMENTS.md`. The forward plan for the TPU rental
   is `examples/alphazero/GESS_TPU_PLAN.md`.
 
 ## Environment

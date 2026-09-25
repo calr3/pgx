@@ -429,6 +429,31 @@ Rank g_hex checkpoints with `elo_ladder.py env_id=g_hex` - ~10 s a pair on the
 GPU, ~50 s on CPU beside a training run. The in-training match against one
 fixed opponent misranked the two E1 arms by 6-8 points at every hour.
 
+## Dots and Boxes
+
+```sh
+python3 -u examples/alphazero/train.py env_id=dots_and_boxes architecture=boardformer \
+  bf_embed_dim=128 bf_num_layers=6 bf_num_heads=4 bf_stem_channels=64 bf_stem_blocks=2 \
+  selfplay_bf16=true num_simulations=32 playout_cap_prob=0.25 \
+  fast_num_simulations=8 continue_games=true \
+  selfplay_batch_size=256 max_num_steps=384 training_batch_size=2048 \
+  num_updates_per_iter=32 replay_buffer_iters=4 \
+  learning_rate=5e-4 weight_decay=1e-4 warmup_steps=100 grad_clip_norm=1.0 \
+  lr_schedule=cosine eval_interval=20 max_num_iters=105 \
+  symmetry_augmentation=true
+```
+
+**Architecture: `boardformer` as a "DotFormer".** BoardFormer pads the odd 13x13
+lattice to 14x14, so each patch-merged token is one dot with its two lines and
+one box, and reads each line's policy logit off its own cell
+(`network.action_cells`). It beat a ResNet with the same per-line head and
+attention in its last two blocks by +77 Elo (0.609 +- 0.030 over 256 games) at
+equal wall clock (`DOTS_AND_BOXES_EXPERIMENTS.md`, D1). One pilot; the
+schedule has not been run longer yet, which is what helped Epaminondas most.
+
+**Symmetry augmentation: all 8** symmetries of the square, checked against the
+rules in `tests/test_dots_and_boxes.py`.
+
 ## Pig
 
 ```sh

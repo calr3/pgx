@@ -101,6 +101,7 @@ class AZNet(hk.Module):
         resnet_v2: bool = True,
         num_heads: int = -1,
         num_attention_layers: int = 1,
+        action_cells=None,
         name="az_net",
     ):
         super().__init__(name=name)
@@ -115,6 +116,9 @@ class AZNet(hk.Module):
         self.num_heads = num_heads
         self.num_attention_layers = num_attention_layers
         self.resnet_cls = BlockV2 if resnet_v2 else BlockV1
+        # (num_actions, 2) board cells, one per action (see `action_cells`), or
+        # None for the original dense head over the flattened board.
+        self.action_cells = action_cells
 
     def __call__(self, x, is_training, test_local_stats):
         x = _to_floating(x)
@@ -143,11 +147,18 @@ class AZNet(hk.Module):
             x = jax.nn.relu(x)
 
         # policy head
-        logits = hk.Conv2D(output_channels=2, kernel_shape=1)(x)
-        logits = hk.BatchNorm(True, True, 0.9)(logits, is_training, test_local_stats)
-        logits = jax.nn.relu(logits)
-        logits = hk.Flatten()(logits)
-        logits = hk.Linear(self.num_actions)(logits)
+        if self.action_cells is not None:
+            # One logit per board cell, read off at the cell each action names,
+            # so every action's logit comes from its own place on the board.
+            logits = hk.Conv2D(output_channels=self.num_channels // 2, kernel_shape=1)(x)
+            logits = hk.Conv2D(output_channels=1, kernel_shape=1)(jax.nn.relu(logits))[..., 0]
+            logits = logits[:, self.action_cells[:, 0], self.action_cells[:, 1]]
+        else:
+            logits = hk.Conv2D(output_channels=2, kernel_shape=1)(x)
+            logits = hk.BatchNorm(True, True, 0.9)(logits, is_training, test_local_stats)
+            logits = jax.nn.relu(logits)
+            logits = hk.Flatten()(logits)
+            logits = hk.Linear(self.num_actions)(logits)
 
         # value head
         v = hk.Conv2D(output_channels=1, kernel_shape=1)(x)
@@ -441,11 +452,15 @@ class BoardFormer(hk.Module):
         ffn_mult: float = 2.0,
         use_gab: bool = True,
         remat: bool = True,
+        action_cells=None,
         name="board_former",
     ):
         super().__init__(name=name)
         assert embed_dim % num_heads == 0
         self.num_actions = num_actions
+        # (num_actions, 2) board cells, one per action, or None when every cell
+        # is an action in row-major order (Epaminondas).
+        self.action_cells = action_cells
         self.stem_channels = stem_channels
         self.stem_blocks = stem_blocks
         self.embed_dim = embed_dim
@@ -459,8 +474,17 @@ class BoardFormer(hk.Module):
         del is_training, test_local_stats  # no BatchNorm
         x = _to_floating(x)
         b, h, w, _ = x.shape
-        assert h % 2 == 0 and w % 2 == 0, "BoardFormer needs an even-sized board"
-        assert self.num_actions == h * w, "BoardFormer expects one action per cell"
+        if h % 2 or w % 2:
+            # Pad an odd board at the bottom and right to even, and mark which
+            # cells are the board. On Dots and Boxes' 13x13 lattice this makes
+            # each 2x2 patch a dot with the lines to its right and below and
+            # the box between them, so a token is one dot's worth of board.
+            board = jnp.ones((b, h, w, 1), x.dtype)
+            x = jnp.concatenate([x, board], axis=-1)
+            x = jnp.pad(x, ((0, 0), (0, h % 2), (0, w % 2), (0, 0)))
+            h, w = h + h % 2, w + w % 2
+        if self.action_cells is None:
+            assert self.num_actions == h * w, "BoardFormer expects one action per cell"
         c, d = self.stem_channels, self.embed_dim
         th, tw = h // 2, w // 2
         num_tokens = th * tw
@@ -493,7 +517,11 @@ class BoardFormer(hk.Module):
         f = jax.nn.gelu(_layer_norm("decoder_ln")(f))
 
         logits = hk.Linear(c, name="policy_hidden")(f)
-        logits = hk.Linear(1, name="policy_out")(jax.nn.gelu(logits)).reshape(b, h * w)
+        logits = hk.Linear(1, name="policy_out")(jax.nn.gelu(logits))[..., 0]
+        if self.action_cells is not None:
+            logits = logits[:, self.action_cells[:, 0], self.action_cells[:, 1]]
+        else:
+            logits = logits.reshape(b, h * w)
         return logits, _gess_value_head(tok)
 
 
@@ -723,12 +751,27 @@ def mlp_input_features(params, config):
     return int(w.shape[0]) // per_feature
 
 
+def action_cells(env_id: str):
+    """(num_actions, 2) board cells naming where each action lives, for games
+    whose actions are some of the observation's cells rather than all of them,
+    or None. A network with them emits one logit per cell and reads each
+    action's off its cell, instead of a dense layer over the flattened board.
+    """
+    if env_id == "dots_and_boxes":
+        from pgx._src.games.dots_and_boxes import _LINE_CELLS
+
+        return np.asarray(_LINE_CELLS)
+    return None
+
+
 def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedWithState:
     """Build the (params, state) Haiku transform for `config.architecture`.
 
     `dtype` is the compute dtype: inputs are cast to it and outputs back to
     float32. For bfloat16 inference, apply with cast_floating(model, dtype).
     """
+
+    cells = action_cells(config.env_id)
 
     def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
         x = x.astype(dtype)
@@ -750,6 +793,7 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
                 ffn_mult=config.bf_ffn_mult,
                 use_gab=config.bf_gab,
                 remat=config.bf_remat,
+                action_cells=cells,
             )
         elif config.architecture == "rayformer":
             net = RayFormer(
@@ -783,6 +827,7 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
                 resnet_v2=config.resnet_v2,
                 num_heads=config.num_heads,
                 num_attention_layers=config.num_attention_layers,
+                action_cells=cells if config.cell_policy_head else None,
             )
         policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
         return policy_out.astype(jnp.float32), value_out.astype(jnp.float32)

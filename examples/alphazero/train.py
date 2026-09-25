@@ -36,7 +36,7 @@ from config import Config
 from model_tournament import TourneyConfig, build_round_runner, load_from_checkpoint
 from network import cast_floating, make_forward, make_optimizer
 from replay_buffer import ReplayBuffer
-from symmetry import augment_epaminondas, augment_gess
+from symmetry import augment_dots_and_boxes, augment_epaminondas, augment_gess
 from trajectories import PendingTrajectories, Sample
 
 # A Haiku model is a (params, state) pair, as returned by forward.init.
@@ -320,7 +320,11 @@ def train(
 ) -> tuple[Model, optax.OptState, jnp.ndarray, jnp.ndarray]:
     model_params, model_state = model
     if config.symmetry_augmentation:
-        augment = augment_gess if config.env_id == "gess" else augment_epaminondas
+        augment = {
+            "gess": augment_gess,
+            "epaminondas": augment_epaminondas,
+            "dots_and_boxes": augment_dots_and_boxes,
+        }[config.env_id]
         obs, policy_tgt = augment(rng_key, data.obs, data.policy_tgt)
         data = data._replace(obs=obs, policy_tgt=policy_tgt)
     if config.train_micro_batches == 1:
