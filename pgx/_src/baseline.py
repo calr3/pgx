@@ -267,7 +267,10 @@ def _load_baseline_model(baseline_model: BaselineModelId, basedir: str = "baseli
 
     # download baseline model if not exists
     if baseline_model == "g_hex_v0":
-        with open("checkpoints/g_hex_20260125182112/000300.ckpt", "rb") as f:
+        # g_hex E1 arm A, iteration 50: the strongest v1 model measured
+        # (G_HEX_EXPERIMENTS.md). It replaced a 300-iteration v0 checkpoint
+        # trained before triangle 10 counted the tile on 4.
+        with open("checkpoints/g_hex_20260925064902/000050.ckpt", "rb") as f:
             ckpt = pickle.load(f)
         config = ckpt["config"]
         args = {

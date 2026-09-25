@@ -397,6 +397,35 @@ Sizing notes that cost time to learn:
 Symmetry augmentation is not wired up for this env (the board is not square, so
 only the horizontal reflection applies).
 
+## g_hex
+
+```sh
+python -u examples/alphazero/train.py env_id=g_hex architecture=resnet \
+  num_channels=128 num_layers=6 selfplay_bf16=true num_simulations=32 \
+  playout_cap_prob=0.25 fast_num_simulations=8 continue_games=true \
+  selfplay_batch_size=1024 max_num_steps=256 training_batch_size=4096 \
+  num_updates_per_iter=256 replay_buffer_iters=4 \
+  learning_rate=1e-3 weight_decay=1e-4 warmup_steps=100 grad_clip_norm=1.0 \
+  lr_schedule=cosine eval_interval=10
+```
+
+**Unsolved: training past ~20 minutes makes it worse.** Under this recipe both
+E1 arms (`G_HEX_EXPERIMENTS.md`) peaked within the first half hour, level with
+a 158 h run of the old recipe, then lost ~100 Elo over the next four hours
+while every self-play curve improved. Until that is fixed, **take the model
+from an early checkpoint chosen by a ladder, not the last one**; the current
+best is `g_hex_20260925064902/000050.ckpt` (iteration 50, 20 minutes). Suspected
+cause: self-play collapses onto a few lines from the fixed empty-board start
+(value loss falls to ~0.01); untested.
+
+**`num_simulations=32`, not 96**: at equal wall clock they tie (0.518 head to
+head), and 96 costs 3x per iteration. ResNet because the 4x7 observation is not
+an even board; no symmetry augmentation.
+
+Rank g_hex checkpoints with `elo_ladder.py env_id=g_hex` - ~10 s a pair on the
+GPU, ~50 s on CPU beside a training run. The in-training match against one
+fixed opponent misranked the two E1 arms by 6-8 points at every hour.
+
 ## Pig
 
 ```sh
