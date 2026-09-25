@@ -414,10 +414,12 @@ E1 arms (`G_HEX_EXPERIMENTS.md`) peaked within the first half hour, level with
 a 158 h run of the old recipe, then lost ~100 Elo over the next four hours
 while every self-play curve improved. Until that is fixed, **take the model
 from an early checkpoint chosen by a ladder, not the last one**; the current
-best is `g_hex_20260925064902/000050.ckpt` (iteration 50, 20 minutes). Not the
-cause: opening collapse - sampling the first six self-play plies (E2) changed
-nothing. The decline lines up with how far the cosine schedule has decayed;
-a constant-LR arm is the next test.
+best is `g_hex_20260925064902/000050.ckpt` (iteration 50, 20 minutes). The
+decline is **only in lopsided positions after uniformly random opening
+moves**: from the empty board A050 and A610 draw 95% of games (0.506). Later
+models lose robustness in positions self-play stops visiting. Not fixed by a
+constant LR (E3) or by sampling openings from the search policy (E2); random
+opening plies in self-play are the next test.
 
 **`num_simulations=32`, not 96**: at equal wall clock they tie (0.518 head to
 head), and 96 costs 3x per iteration. ResNet because the 4x7 observation is not
