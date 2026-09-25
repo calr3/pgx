@@ -20,6 +20,7 @@ BaselineModelId = Literal[
     "hex_v0",
     "othello_v0",
     "pig_v0",
+    "dots_and_boxes_v0",
     "minatar-asterix_v0",
     "minatar-breakout_v0",
     "minatar-freeway_v0",
@@ -70,6 +71,8 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
           shape = (1, 4, 7, 4 + 2*11))
     elif model_id == "pig_v0":
         return _make_pig_hold_at_20_model()
+    elif model_id == "dots_and_boxes_v0":
+        return _make_dots_and_boxes_greedy_model()
     elif model_id == "epaminondas_v0":
         # E17: boardformer, v11 observation, 264 iterations of cosine schedule
         # run to the end (EPAMINONDAS_EXPERIMENTS.md), and the strongest model
@@ -204,6 +207,37 @@ def _make_pig_hold_at_20_model():
         own_total, turn_total, last_roll = obs[:, 0], obs[:, 2], obs[:, 4]
         hold = (turn_total >= 20) | (own_total + turn_total >= 100) | (last_roll <= 1)
         logits = jnp.stack([jnp.where(hold, 10.0, -10.0), jnp.where(hold, -10.0, 10.0)], axis=-1)
+        return logits, jnp.zeros(obs.shape[0], dtype=jnp.float32)
+
+    return apply
+
+
+def _make_dots_and_boxes_greedy_model():
+    """The classic greedy Dots and Boxes player, as a baseline model: take a
+    box whenever one can be taken, otherwise draw a line that gives nothing
+    away (no box left with three sides), otherwise anything. It knows nothing
+    of chains, which is what separates strong play from it, but it never
+    passes up a box nor hands one over while it has a choice - far more of a
+    yardstick than an untrained network.
+
+    It reads the observation's three-sided and two-sided box planes (4 and 5):
+    a line completes a box when a box beside it has three sides, and gives one
+    away when a box beside it has two. Ties are broken uniformly when sampled.
+    """
+    from pgx._src.games.dots_and_boxes import _LINE_CELLS
+
+    def beside(plane):
+        # Boxes sit at odd/odd lattice cells and lines next to them, so a line's
+        # boxes are its four lattice neighbours (two of which are dots, zero).
+        p = jnp.pad(plane, ((0, 0), (1, 1), (1, 1)))
+        near = p[:, :-2, 1:-1] + p[:, 2:, 1:-1] + p[:, 1:-1, :-2] + p[:, 1:-1, 2:]
+        return near[:, _LINE_CELLS[:, 0], _LINE_CELLS[:, 1]]
+
+    def apply(obs):
+        obs = obs.astype(jnp.float32)
+        takes = beside(obs[..., 4]) > 0
+        gives = beside(obs[..., 5]) > 0
+        logits = jnp.where(takes, 20.0, jnp.where(gives, 0.0, 10.0))
         return logits, jnp.zeros(obs.shape[0], dtype=jnp.float32)
 
     return apply

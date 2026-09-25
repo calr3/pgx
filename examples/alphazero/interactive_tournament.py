@@ -25,6 +25,7 @@ import jax.numpy as jnp
 import numpy as np
 import mctx
 import pgx
+import pgx.dots_and_boxes as DotsAndBoxes
 import pgx.gess
 import pgx.heckmeck as Heckmeck
 from omegaconf import OmegaConf
@@ -386,6 +387,25 @@ class PigCli(Cli):
         return "stopped" if action[0] == 0 else "rolled again"
 
 
+class DotsAndBoxesCli(Cli):
+    def get_action_id(self) -> int | None:
+        return DotsAndBoxes.parse_line(input("Line (two dots, e.g. b3-c3): ").strip().lower())
+
+    def display(self, state: pgx.State) -> None:
+        rows = DotsAndBoxes.DotsAndBoxes().pretty(unbatch(state)).splitlines()
+        files = "abcdefg"
+        print("   " + "   ".join(files))
+        for i, row in enumerate(rows):
+            print((f"{i // 2 + 1:2} " if i % 2 == 0 else "   ") + row)
+        owner = state._x.owner[0]
+        print(f"Boxes: 0={int((owner == 0).sum())}  1={int((owner == 1).sum())}   "
+              f"to move: {int(state._x.color[0])} (player {int(state.current_player[0])})")
+        print("")
+
+    def describe_action(self, action: jnp.ndarray) -> str:
+        return f"drew {DotsAndBoxes.line_name(int(action[0]))}"
+
+
 #class HeckmeckCli(Cli):
 #    def get_action_id(self) -> int | None:
 #
@@ -498,6 +518,8 @@ def get_cli(env_id: pgx.EnvId) -> Cli:
             return GHex2Cli()
         case "pig":
             return PigCli()
+        case "dots_and_boxes":
+            return DotsAndBoxesCli()
         #case "heckmeck":
         #    return HeckmeckCli()
         case _:

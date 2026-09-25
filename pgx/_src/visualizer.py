@@ -589,6 +589,22 @@ class Visualizer:
                 self.config["COLOR_SET"] = ColorSet(
                     "black", "white", "black", "black", "white", "black", ""
                 )
+        elif _state.env_id == "dots_and_boxes":
+            from pgx._src.dwg.dots_and_boxes import _make_dots_and_boxes_dwg
+
+            self.config["GRID_SIZE"] = 40
+            self.config["BOARD_WIDTH"] = 8
+            self.config["BOARD_HEIGHT"] = 9
+            self._make_dwg_group = _make_dots_and_boxes_dwg  # type:ignore
+            # p1/p2 colours fill the boxes each colour owns.
+            if self.config["COLOR_THEME"] == "dark":
+                self.config["COLOR_SET"] = ColorSet(
+                    "steelblue", "indianred", "", "", "#1e1e1e", "gainsboro", "gainsboro"
+                )
+            else:
+                self.config["COLOR_SET"] = ColorSet(
+                    "steelblue", "indianred", "", "", "white", "black", "black"
+                )
         elif _state.env_id == "pig":
             from pgx._src.dwg.pig import _make_pig_dwg
 
