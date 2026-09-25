@@ -143,3 +143,40 @@ that the decline goes away if self-play keeps visiting varied positions. Test
 by sampling the first few plies of each self-play game from the search policy
 (AlphaZero's temperature opening) or playing a few random plies, needs a
 `train.py` option; one ~2 h arm, ladder it against A050.
+
+## E2: sampled self-play openings do not stop the decline
+
+Arm A's command plus `selfplay_sample_plies=6` (the first 6 of 20 plies sampled
+from the search's improved policy), `max_num_iters=290` (a 2 h schedule), and
+`mcts_eval_opponent=` A050 every half hour. Checkpoints
+`g_hex_20260925163040`, wandb `ysvec8fb`, 1.97 h.
+
+In-training match against A050: 47.7% at 0.5 h, 44.9% at 1 h, 41.0% at 1.5 h,
+33.2% at the end. Ladder (256 games per pair, cached in `elo_g_hex_E1.json`):
+
+| player | Elo |
+|---|---|
+| **A050** | **0** |
+| E2_050 | -6 ± 10 |
+| E2_020 | -16 ± 10 |
+| E2_100 | -34 ± 10 |
+| A150 | -52 ± 10 |
+| E2_150 | -61 ± 10 |
+| E2_220 | -69 ± 10 |
+| E2_290 | -101 ± 10 |
+| A610 | -104 ± 10 |
+
+At matched iterations E2 and A are level head to head: A050 v E2_050 0.508,
+A150 v E2_150 0.508, and at the ends of their schedules A610 v E2_290 0.514.
+E2_050 beat E2_290 0.619. Value loss again fell to ~0.01.
+
+**The collapse hypothesis, in the form this option tests, is wrong**: varying
+the first six plies neither delays nor softens the decline. The option stays
+(off by default); it did no harm.
+
+**What the decline tracks.** E2 reached A's final level in half the time: -101
+at the end of a 2 h schedule, against A's -67 at 2 h and -104 at the end of its
+4 h one. Measured by fraction of the cosine schedule completed, the two runs
+coincide; measured by iterations, E2's end (-101) is well below A near 290
+(-67). So the decline may be driven by the learning rate decaying, not by the
+amount of training. Untested; the direct test is a constant-LR arm.
