@@ -68,13 +68,23 @@ class Game:
 
     def observe(self, state: GameState, color: Optional[Array] = None) -> Array:
         """Totals as seen by `color` (the player to move by default), then the
-        current turn total and last roll."""
+        current turn total and last roll, then what the mover would have banked
+        by holding now.
+
+        That last feature (v1) is the sum `own + turn_total`, capped at TARGET:
+        whether holding now wins is the threshold the game turns on, and a
+        network that one-hot encodes each feature on its own sees `own` and
+        `turn_total` separately and has to learn their sum. It is appended, so
+        the first six features are v0's and a v0 network still reads them.
+        """
         if color is None:
             color = state.color
+        own = state.totals[color]
         return jnp.hstack([
             jnp.roll(state.totals, -color),
             jnp.tile(state.turn_total, PLAYER_COUNT),
             jnp.tile(state.last_roll, PLAYER_COUNT),
+            jnp.minimum(own + state.turn_total, TARGET),
         ])
 
 

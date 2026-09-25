@@ -139,9 +139,19 @@ def recurrent_fn(
         return logits, jnp.where(s.terminated, 0.0, value)
 
     keys = jax.random.split(rng_key, config.chance_samples)
+    before = state
     state = step(keys[0])
     logits, value = evaluate_state(state)
-    if config.chance_samples > 1:
+    if config.chance_exact:
+        # Every outcome once, each as likely as the others: the edge's value and
+        # reward are their exact mean, not a sample's. The tree still descends
+        # through the sampled `state`, so the outcomes must agree on who moves
+        # next, as pig's do.
+        outcome = lambda k: jax.vmap(env.step, in_axes=(0, 0, None))(before, action, k)
+        outcomes = jax.vmap(outcome)(env.chance_keys)
+        value = jax.vmap(lambda s: evaluate_state(s)[1])(outcomes).mean(axis=0)
+        reward = outcomes.rewards[:, jnp.arange(batch), current_player].mean(axis=0)
+    elif config.chance_samples > 1:
         # mctx stores one sampled successor per edge, so an edge's value would
         # otherwise stay conditioned on a single chance outcome however many
         # simulations run - the search never resamples it. Averaging the value

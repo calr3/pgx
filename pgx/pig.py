@@ -16,7 +16,7 @@ import jax
 import jax.numpy as jnp
 
 import pgx.core as core
-from pgx._src.games.pig import Game, GameState, PLAYER_COUNT, TARGET
+from pgx._src.games.pig import Game, GameState, PLAYER_COUNT, TARGET, _roll
 from pgx._src.struct import dataclass
 from pgx._src.types import Array, PRNGKey
 
@@ -28,7 +28,7 @@ class State(core.State):
     rewards: Array = jnp.zeros(PLAYER_COUNT, jnp.float32)
     terminated: Array = jnp.bool_(False)
     truncated: Array = jnp.bool_(False)
-    observation: Array = jnp.zeros(3 * PLAYER_COUNT, dtype=jnp.int32)
+    observation: Array = jnp.zeros(3 * PLAYER_COUNT + 1, dtype=jnp.int32)
     legal_action_mask: Array = jnp.ones(2, dtype=jnp.bool_)
     _step_count: Array = jnp.int32(0)
     _x: GameState = GameState()
@@ -44,6 +44,15 @@ class Pig(core.Env):
     def __init__(self):
         super().__init__()
         self._game = Game()
+        # The die is rolled straight from the key `step` is given, so a key that
+        # rolls a face forces it. One per face, found by trying keys in turn.
+        faces = {}
+        i = 0
+        while len(faces) < 6:
+            key = jax.random.PRNGKey(i)
+            faces.setdefault(int(_roll(key)), key)
+            i += 1
+        self._chance_keys = jnp.stack([faces[r] for r in range(1, 7)])
 
     def _init(self, key: PRNGKey) -> State:
         x = self._game.init(key)
@@ -83,7 +92,16 @@ class Pig(core.Env):
 
     @property
     def version(self) -> str:
-        return "v0"
+        # v1: the observation gains a seventh feature, the total holding now
+        # would bank. The rules are v0's.
+        return "v1"
+
+    @property
+    def chance_keys(self) -> Array:
+        """Step keys for every chance outcome of a step, equally likely:
+        `chance_keys[r - 1]` rolls an `r`. Lets a search average over the die
+        exactly rather than sample it."""
+        return self._chance_keys
 
     @property
     def num_players(self) -> int:

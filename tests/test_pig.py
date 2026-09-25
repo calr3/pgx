@@ -210,11 +210,21 @@ def test_observe():
     assert (obs[2:4] == 7).all(), "elements 2-3 should be turn_total tiled"
     assert (obs[4:6] == 4).all(), "elements 4-5 should be last_roll tiled"
 
+    assert obs[6] == 37, "element 6 is what holding now would bank"
+
     # From player 1's perspective the totals should be swapped.
     x = make_x(color=1, totals=[30, 50], turn_total=7, last_roll=4)
     obs = game.observe(x)
     assert obs[0] == 50, "current player (1) should see their own total first"
     assert obs[1] == 30
+    assert obs[6] == 57, "and banks onto their own total"
+
+
+def test_observe_caps_the_banked_total_at_the_target():
+    x = make_x(color=0, totals=[90, 50], turn_total=25, last_roll=6)
+    assert game.observe(x)[6] == TARGET
+    assert env.observation_shape == (7,)
+    assert env.version == "v1"
 
 
 def test_hold_at_20_baseline():
@@ -238,3 +248,9 @@ def test_api():
     import pgx
     environment = pgx.make("pig")
     pgx.api_test(environment, 3, use_key=True)
+
+
+def test_chance_keys_roll_each_face_in_order():
+    x = make_x(color=0, totals=[10, 20], turn_total=4, last_roll=4)
+    for face, key in enumerate(env.chance_keys, start=1):
+        assert int(game.step(x, ACTION_CONTINUE, key).last_roll) == face

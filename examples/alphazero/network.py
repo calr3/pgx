@@ -707,6 +707,22 @@ class RayFormer(hk.Module):
         return _gess_policy_head(f, is_stage1, src_footprint), _gess_value_head(tok)
 
 
+def mlp_input_features(params, config):
+    """Observation features an `mlp` checkpoint was built for, or None for
+    another architecture. Read off the first layer, whose input is each feature
+    raw plus, with one-hot bins, `mlp_onehot_bins` more per feature.
+
+    Observations only ever grow at the end (pig v0 had six features, v1 seven),
+    so feeding a network the leading features it was built for shows it exactly
+    what it saw in training.
+    """
+    w = params.get("MLPNet/linear", {}).get("w") if hasattr(params, "get") else None
+    if w is None:
+        return None
+    per_feature = 1 + config.mlp_onehot_bins if config.mlp_onehot_bins > 0 else 1
+    return int(w.shape[0]) // per_feature
+
+
 def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedWithState:
     """Build the (params, state) Haiku transform for `config.architecture`.
 

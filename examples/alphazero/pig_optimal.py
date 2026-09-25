@@ -32,7 +32,7 @@ import pgx
 
 sys.path.insert(0, "examples/alphazero")
 from config import Config  # noqa: E402
-from network import make_forward  # noqa: E402
+from network import make_forward, mlp_input_features  # noqa: E402
 
 TARGET = 100
 KMAX = 121  # turn totals above this are never reached in play
@@ -81,6 +81,15 @@ def sustained_hold(actions):
     return -1
 
 
+def observation(own, opp, turn, roll):
+    """pgx pig's observation (v1) for the mover, from its four counters. Older
+    checkpoints take the leading features they were built for."""
+    xp = jnp if any(isinstance(a, jax.Array) for a in (own, opp, turn, roll)) else np
+    own, opp, turn, roll = (xp.asarray(a) for a in xp.broadcast_arrays(own, opp, turn, roll))
+    banked = xp.minimum(own + turn, TARGET)
+    return xp.stack([own, opp, turn, turn, roll, roll, banked], axis=-1)
+
+
 def optimal_action(table_roll, obs):
     """Action (0 = hold, 1 = roll) of the optimal player, from a pgx pig obs."""
     own = jnp.clip(obs[:, 0].astype(jnp.int32), 0, TARGET - 1)
@@ -114,9 +123,7 @@ def main() -> None:
     )
     live = (ii + kk) < TARGET + 6  # unreachable far above the target
     ii, jj, kk = ii[live], jj[live], kk[live]
-    obs_all = jnp.stack(
-        [ii, jj, kk, kk, np.full(ii.shape, 5), np.full(ii.shape, 5)], axis=-1
-    ).astype(jnp.float32)
+    obs_all = observation(ii, jj, kk, np.full(ii.shape, 5)).astype(jnp.float32)
     opt_all = jnp.asarray(roll_opt[kk, ii, jj]).astype(jnp.int32)
     true_v = 2.0 * jnp.asarray(win_prob[kk, ii, jj]) - 1.0  # win prob -> [-1, 1]
 
@@ -143,9 +150,11 @@ def main() -> None:
         config = Config(**ckpt["config"].__dict__)
         params, model_state = ckpt["model"]
         forward = make_forward(env.num_actions, config)
+        # The leading features this checkpoint was built for: six before pig v1.
+        features = mlp_input_features(params, config)
 
         def value_of(obs):
-            (_, value), _ = forward.apply(params, model_state, obs, is_eval=True)
+            (_, value), _ = forward.apply(params, model_state, obs[:, :features], is_eval=True)
             return value
 
         @jax.jit
@@ -162,9 +171,8 @@ def main() -> None:
 
             def mean_value(o, p, t, r):
                 """Mean value to the player to move over the six faces r."""
-                b = jnp.broadcast_arrays(o, p, t, r)
-                s = jnp.stack([b[0], b[1], b[2], b[2], b[3], b[3]], axis=-1)
-                return value_of(s.reshape(-1, 6)).reshape(-1, 6).mean(axis=-1)
+                s = observation(*jnp.broadcast_arrays(o, p, t, r))
+                return value_of(s.reshape(-1, s.shape[-1])).reshape(-1, 6).mean(axis=-1)
 
             # Rolling keeps the turn: the face lands on the turn total.
             q_roll = mean_value(own[:, None], opp[:, None], turn[:, None] + faces, faces)
@@ -181,7 +189,7 @@ def main() -> None:
 
         @jax.jit
         def policy(obs, legal):
-            (logits, value), _ = forward.apply(params, model_state, obs, is_eval=True)
+            (logits, value), _ = forward.apply(params, model_state, obs[:, :features], is_eval=True)
             logits = jnp.where(legal, logits, jnp.finfo(logits.dtype).min)
             return jnp.argmax(logits, axis=-1), value
 
@@ -201,10 +209,7 @@ def main() -> None:
         # score 0.5 here (it gives away the first move in half the games).
         wins = float((R > 0).mean())
         # The turn total at which the model first prefers holding from 0-0.
-        probe = jnp.stack(
-            [jnp.zeros(100), jnp.zeros(100), jnp.arange(1, 101), jnp.arange(1, 101),
-             jnp.full((100,), 5.0), jnp.full((100,), 5.0)], axis=-1
-        )
+        probe = observation(jnp.zeros(100), jnp.zeros(100), jnp.arange(1, 101), jnp.full((100,), 5.0))
         act, _ = policy(probe, jnp.ones((100, 2), dtype=bool))
         thr = sustained_hold(act)
         print(

@@ -117,6 +117,42 @@ The policy head still trails its own value head (0.298 vs 0.448), so there is
 more to get here - more iterations, and `chance_samples` is worth retesting now
 that its failure mode (a sign-only target) is gone.
 
+## E4 and E5: observation v1, and exact chance (150 iterations, ~1.9 h side by side)
+
+Two changes, one run each, E3's recipe otherwise and 150 iterations:
+
+- **Observation v1** (both runs): a seventh feature, `min(own + turn_total,
+  100)`, the total holding now would bank. The decision turns on that sum
+  reaching 100, and the one-hot encoding sees `own` and `turn_total` apart, so
+  the network had to learn the sum. It is appended, so v0 networks read the
+  first six (`network.mlp_input_features`); `pig_optimal.py` reproduces E3's
+  scores exactly through it.
+- **`chance_exact=True`** (E5 only): each search edge's value and reward are
+  the exact mean over the six faces (`env.chance_keys`), not one sampled roll.
+  About 1.4x the time per iteration of E4.
+
+| | agree | played | v_rmse | vs optimal | expectimax vs optimal |
+|---|---|---|---|---|---|
+| E3 iteration 60 | 0.725 | 0.754 | 0.242 | 0.298 | 0.450 |
+| E4 (v1) iteration 50 | 0.718 | 0.754 | 0.121 | 0.298 | 0.367 |
+| E4 iteration 100 | 0.710 | 0.744 | 0.127 | 0.265 | 0.464 |
+| E4 iteration 150 | 0.731 | 0.752 | 0.097 | 0.290 | 0.401 |
+| E5 (v1 + exact) iteration 50 | 0.768 | 0.796 | 0.135 | **0.385** | 0.445 |
+| E5 iteration 100 | 0.775 | 0.784 | 0.108 | 0.373 | 0.424 |
+| E5 iteration 150 | **0.781** | 0.786 | **0.100** | 0.375 | 0.451 |
+
+- **The new feature halves the value error** (0.24 -> 0.10-0.13) but does not
+  improve play: E4's policy head is E3's (0.27-0.30), and expectimax over its
+  value head swings 0.37-0.46 between checkpoints, straddling E3's 0.45. What
+  error remains is where the hold/roll gap is smallest, which is what decides.
+- **Exact chance is the policy head's biggest gain since the q-transform fix**
+  (0.29 -> 0.37-0.385 against optimal), and it is there by iteration 50: it
+  plateaus rather than climbing with more iterations.
+- Nothing beats hold-at-20 (0.461) yet, and neither policy head holds at the
+  right turn total at 0-0 (the optimum is 21; E5 ends at 47).
+- The expectimax column moves by +-0.05 between neighbouring checkpoints, so a
+  single checkpoint does not rank value heads; score several.
+
 ## Lessons that generalise
 
 - **A small action space needs `qtransform=completed_unscaled`.** mctx's default

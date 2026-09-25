@@ -95,6 +95,11 @@ class Config(BaseModel):
     # stochastic envs (e.g. pig), and it assumes every outcome of an action
     # leaves the same player to move.
     chance_samples: int = 1
+    # Average each search edge's value over *every* chance outcome, exactly,
+    # instead of over sampled draws. Needs an env that lists its outcomes as
+    # equally likely step keys (`env.chance_keys`; pig's six die faces). The
+    # tree still descends through one sampled outcome. Overrides chance_samples.
+    chance_exact: bool = False
     # How search Q values are scaled before they enter the improved policy that
     # becomes the training target.
     #   "completed_by_mix_value" - mctx's default; rescales Q to the range seen

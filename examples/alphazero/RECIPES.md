@@ -434,12 +434,16 @@ fixed opponent misranked the two E1 arms by 6-8 points at every hour.
 ```sh
 python3 -u examples/alphazero/train.py env_id=pig architecture=mlp \
   mlp_onehot_bins=101 mlp_width=256 mlp_layers=3 \
-  qtransform=completed_unscaled \
+  qtransform=completed_unscaled chance_exact=True \
   selfplay_batch_size=1024 num_simulations=32 max_num_steps=256 \
   training_batch_size=4096 replay_buffer_iters=4 \
   learning_rate=1e-3 weight_decay=1e-4 warmup_steps=200 grad_clip_norm=1.0 \
   lr_schedule=cosine max_num_iters=60
 ```
+
+Pig's observation is **v1**: v0's six counters plus the total holding now would
+bank, which halves the value head's error (`PIG_EXPERIMENTS.md`, E4). Its policy
+gains nothing past about 50 iterations with this recipe.
 
 **Architecture: `mlp`.** Pig's observation is six counters, not a board, so
 nothing convolutional applies. `mlp_onehot_bins=101` one-hot encodes each counter
@@ -453,14 +457,18 @@ actions, mctx's default rescaling of Q to the range across a node's actions
 leaves only the *sign* of the advantage in the policy target. Expect this to
 matter for any game where few actions are legal.
 
-`chance_samples` (averaging each search edge over several chance outcomes) was
-tried and **hurt** while targets were sign-quantised; it has not been retried
-since the q-transform fix. Not currently recommended.
+**`chance_exact=True`**: average each search edge over all six die faces
+exactly, rather than keep one sampled roll. It raised the policy head from 0.29
+to 0.37-0.385 against optimal (E5), at about 1.4x the time per iteration.
+`chance_samples` (averaging over sampled draws) hurt while targets were
+sign-quantised and has not been retried; `chance_exact` supersedes it where an
+env lists its outcomes (`env.chance_keys`).
 
 Scoring: `pig_optimal.py` measures against the exact solution. Reference points
 for its seat-balanced win rate: optimal 0.500, hold-at-20 0.461, always-roll
-0.000; the best model so far is 0.298 from its policy head and 0.448 when its
-value head is played by one-ply expectimax.
+0.000; the best model so far is 0.385 from its policy head (E5) and about 0.45
+when a value head is played by one-ply expectimax, which varies by +-0.05
+between neighbouring checkpoints.
 
 ## Backgammon - PROPOSAL, NOTHING RUN YET
 
