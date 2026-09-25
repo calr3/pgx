@@ -243,6 +243,13 @@ def selfplay(
         else:
             full_search = jnp.bool_(True)
             action, action_weights = search(num_simulations, key1)
+        if config.selfplay_sample_plies > 0:
+            # Illegal actions have weight 0, so they are never sampled.
+            sampled = jax.random.categorical(
+                jax.random.fold_in(key1, 1),
+                jnp.where(action_weights > 0, jnp.log(action_weights), -jnp.inf),
+            )
+            action = jnp.where(state._step_count < config.selfplay_sample_plies, sampled, action)
         actor = state.current_player
         keys = jax.random.split(key2, batch_size)
         state = jax.vmap(auto_reset(env.step, env.init))(state, action, keys)

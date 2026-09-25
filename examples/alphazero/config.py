@@ -136,6 +136,13 @@ class Config(BaseModel):
     # value target. The games and held-back steps are only checkpointed with
     # save_data_state; otherwise a resumed run starts fresh games.
     continue_games: bool = False
+    # Opening diversity (AlphaZero's temperature opening): for the first this
+    # many plies of every self-play game, play a move sampled from the search's
+    # improved policy instead of the search's chosen move. Training targets are
+    # unchanged. Gumbel noise alone stops varying the move once the policy is
+    # sharp, and self-play from a fixed start then collapses onto a few lines
+    # (g_hex E1). 0 = off.
+    selfplay_sample_plies: int = 0
     max_pending_steps: int = 1024
     # Also save the replay buffer, held-back steps and in-progress self-play
     # games (to <checkpoint dir>/data_state.pkl, overwritten at every
@@ -210,6 +217,10 @@ class Config(BaseModel):
             raise ValueError(f"replay_buffer_iters must be >= 1, got {self.replay_buffer_iters}.")
         if not 0.0 < self.playout_cap_prob <= 1.0:
             raise ValueError(f"playout_cap_prob must be in (0, 1], got {self.playout_cap_prob}.")
+        if self.selfplay_sample_plies < 0:
+            raise ValueError(
+                f"selfplay_sample_plies must be >= 0, got {self.selfplay_sample_plies}."
+            )
         if self.fast_num_simulations < 1:
             raise ValueError(f"fast_num_simulations must be >= 1, got {self.fast_num_simulations}.")
         if self.mcts_eval_opponent:

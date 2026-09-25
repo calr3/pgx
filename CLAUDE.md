@@ -200,7 +200,10 @@ Practicalities:
 - Rising `train/value_loss` is not necessarily bad: it tracked draws
   disappearing from self-play.
 - Verify every refactor of the data path is **bit-identical** on a small run
-  (params, optimizer state and RNG) before trusting it.
+  (params, optimizer state and RNG) before trusting it. Do it with
+  `JAX_PLATFORMS=cpu`: on the GPU two runs of the *same* code already differ
+  (params by up to 0.3 after three tiny iterations), so a GPU comparison
+  cannot tell a real change from noise.
 - Watch the evaluation itself: a bug that let random openings end the game gave
   both sides free wins, pinned one metric at a constant, and compressed every
   Elo gap by ~13%.
