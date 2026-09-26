@@ -773,8 +773,13 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
 
     cells = action_cells(config.env_id)
 
+    obs_planes = getattr(config, "obs_planes", 0)
+
     def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
         x = x.astype(dtype)
+        if obs_planes:
+            # Train on the leading planes only (see Config.obs_planes).
+            x = x[..., :obs_planes]
         if config.architecture == "mlp":
             net = MLPNet(
                 num_actions=num_actions,

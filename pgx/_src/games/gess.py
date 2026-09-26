@@ -331,7 +331,7 @@ def _has_ring(board: Array, stone_val: Array) -> Array:
 # ─── Observation ─────────────────────────────────────────────────────────────
 
 def _observe(state: GameState, color: Array) -> Array:
-    """Return an (18, 18, 4) float32 observation from `color`'s perspective.
+    """Return an (18, 18, 6) float32 observation from `color`'s perspective.
 
     The border ring (row/col 0 and 19) is always empty by the game rules, so
     the observation covers only the 18×18 playing area (rows/cols 1–18).
@@ -341,6 +341,16 @@ def _observe(state: GameState, color: Array) -> Array:
       1 – opponent stones
       2 – source footprint indicator (filled when stage == 1)
       3 – stage indicator (0.0 or 1.0)
+      4 – quiet clock: no_capture_turns / DRAW_NO_CAPTURE_TURNS, the same for
+          both colours (constant plane)
+      5 – signed clock: the clock times +1 if `color` has more stones, -1 if
+          fewer, 0 if level - who wins if the game ends on the clock, weighted
+          by how close that ending is (constant plane)
+
+    Planes 4 and 5 (v2) are appended, so a v1 network is shown exactly what it
+    was trained on by the leading four. Neither can leak colour: a tie is a
+    draw, so a symmetric position reads 0 in plane 5 for both sides (unlike
+    Epaminondas v7/v8, whose tiebreak favoured black in mirrored positions).
     """
     own_stone = jnp.int8(color + 1)
     opp_stone = jnp.int8(2 - color)
@@ -361,7 +371,14 @@ def _observe(state: GameState, color: Array) -> Array:
     play_size  = MAX_IDX - MIN_IDX + 1   # 18
     stage_plane = jnp.full((play_size, play_size), state.stage.astype(jnp.float32))
 
-    return jnp.stack([own, opp, in_src_fp, stage_plane], axis=-1)  # (18, 18, 4)
+    clock = state.no_capture_turns.astype(jnp.float32) / DRAW_NO_CAPTURE_TURNS
+    lead = jnp.sign(own.sum() - opp.sum())
+    clock_plane = jnp.full((play_size, play_size), clock)
+    signed_plane = jnp.full((play_size, play_size), lead * clock)
+
+    return jnp.stack(
+        [own, opp, in_src_fp, stage_plane, clock_plane, signed_plane], axis=-1
+    )  # (18, 18, 6)
 
 
 # ─── Initial position ────────────────────────────────────────────────────────

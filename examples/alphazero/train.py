@@ -33,7 +33,13 @@ from omegaconf import OmegaConf
 from pgx.experimental import auto_reset
 
 from config import Config
-from model_tournament import TourneyConfig, build_round_runner, load_from_checkpoint
+from model_tournament import (
+    TourneyConfig,
+    build_round_runner,
+    expected_obs_channels,
+    load_from_checkpoint,
+    narrow_observation,
+)
 from network import cast_floating, make_forward, make_optimizer
 from replay_buffer import ReplayBuffer
 from symmetry import augment_dots_and_boxes, augment_epaminondas, augment_gess
@@ -87,6 +93,8 @@ def _validate_config(config: Config, num_devices: int) -> None:
             f"mcts_eval_batch_size ({config.mcts_eval_batch_size}) must be divisible by "
             f"num_devices ({num_devices}) with an even per-device share (seat-swapped pairs)."
         )
+    if config.init_from and config.resume_from:
+        raise ValueError("init_from starts a new run and resume_from continues one: set only one.")
     if config.training_batch_size % (num_devices * config.train_micro_batches) != 0:
         raise ValueError(
             "training_batch_size must be divisible by num_devices * train_micro_batches. "
@@ -427,6 +435,39 @@ def evaluate(rng_key: jnp.ndarray, my_model: Model) -> tuple[jnp.ndarray, jnp.nd
 
 # Set by the SIGINT handler to request a clean shutdown: the training loop
 # finishes the current iteration, writes a checkpoint, then exits. A second
+def warm_start_params(params, init_params, obs_planes: int):
+    """`params` from an init_from checkpoint, fitted to this run's network.
+
+    Every tensor must match `init_params` (a fresh init against the current env)
+    except the stem convolution's input axis, which grows when the observation
+    gains planes. pgx appends planes, but a network may add its own after the
+    observation (GessFormer's is_border plane), so the new input channels go in
+    at index `obs_planes - added`: after the old observation planes and before
+    the network's own. Their weights are zero, so the widened network computes
+    exactly what the checkpoint did until training moves them.
+    """
+    out = {}
+    for module, entries in init_params.items():
+        if module not in params:
+            raise ValueError(f"init_from checkpoint has no module {module}")
+        out[module] = {}
+        for name, fresh in entries.items():
+            old = params[module][name]
+            if old.shape == fresh.shape:
+                out[module][name] = old
+                continue
+            added = fresh.shape[2] - old.shape[2] if old.ndim == 4 else 0
+            if not (module.endswith("stem_conv") and name == "w" and added > 0
+                    and old.shape[:2] + old.shape[3:] == fresh.shape[:2] + fresh.shape[3:]):
+                raise ValueError(f"{module}/{name}: checkpoint {old.shape} vs network {fresh.shape}")
+            at = obs_planes - added
+            zeros = np.zeros((*old.shape[:2], added, old.shape[3]), old.dtype)
+            out[module][name] = np.concatenate([old[:, :, :at], zeros, old[:, :, at:]], axis=2)
+            print(f"init_from: widened {module}/{name} {old.shape} -> {fresh.shape} "
+                  f"(zero weights for observation planes {at}..{at + added - 1})")
+    return out
+
+
 # Ctrl+C forces an immediate exit (no final checkpoint).
 _stop_requested = False
 
@@ -476,6 +517,15 @@ if __name__ == "__main__":
     hours: float = 0.0
     frames: int = 0
     rng_key = jax.random.PRNGKey(config.seed)
+
+    # Optionally warm-start the network from another run's checkpoint
+    if config.init_from:
+        print(f"Initializing network from: {config.init_from}")
+        _, init_model = load_from_checkpoint(config.init_from)
+        assert not init_model[1], "warm start supports networks without state only"
+        params = warm_start_params(init_model[0], model[0], int(env.observation_shape[-1]))
+        model = (params, model[1])
+        opt_state = optimizer.init(params=model[0])
 
     # Optionally resume from a previous checkpoint
     if ckpt is not None:
@@ -612,8 +662,13 @@ if __name__ == "__main__":
             batch_size=config.mcts_eval_batch_size,
             num_simulations=config.mcts_eval_simulations,
         )
+        # An opponent from before the observation gained planes sees its own.
+        opponent_forward = make_forward(env.num_actions, opponent_config)
+        opponent_forward = narrow_observation(
+            opponent_forward, expected_obs_channels(opponent_model, opponent_forward, env)
+        )
         mcts_eval_round = build_round_runner(
-            env, forward, make_forward(env.num_actions, opponent_config), mcts_eval_tcfg, num_devices
+            env, forward, opponent_forward, mcts_eval_tcfg, num_devices
         )
         opponent_model = jax.tree_util.tree_map(
             lambda x: jnp.broadcast_to(x, (num_devices, *x.shape)), opponent_model

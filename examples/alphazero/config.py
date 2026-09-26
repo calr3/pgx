@@ -21,6 +21,19 @@ class Config(BaseModel):
     # to instead reseed the RNG from `seed`, producing fresh self-play games
     # (model/opt_state/iteration/frames are still restored as usual).
     reseed_on_resume: bool = False
+    # Path to a .ckpt whose network weights start this run (a warm start). Unlike
+    # resume_from it is a new run: fresh optimizer, iteration 0, a new checkpoint
+    # directory and wandb run, and the LR schedule from the start. If the
+    # observation has gained planes since that checkpoint (appended, as pgx
+    # does), the stem convolution is widened with zero weights for them, so the
+    # network starts out computing exactly what the checkpoint did.
+    init_from: str = ""
+    # Give the network only the leading this-many observation planes (0 = all).
+    # Observations only grow at the end, so this trains a network on an env's
+    # older observation, e.g. gess v1's four planes under v2: a control run for a
+    # plane-adding experiment. It is stored in the config, so the network slices
+    # its input the same way wherever the checkpoint is loaded.
+    obs_planes: int = 0
     # wandb run id to resume logging into. If empty when resuming, the id stored
     # in the checkpoint (if any) is used so the original run continues.
     wandb_run_id: str = ""

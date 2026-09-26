@@ -392,6 +392,99 @@ eliminating draws. The pilot-scale ~90 Elo cost of the rule change (E12) does
 not obviously persist at full size; a v1-rules ladder of E11 vs. E13 would settle
 it.
 
+## E14. Clock planes (v2), warm-started from E13
+
+**Question.** The network cannot see the captureless-move clock, yet under v1 the
+clock decides games on stone count after only 20 turns (10 each). In the web app
+E13's search walked into short-horizon losses it had no way to anticipate. Does
+showing the network the clock help?
+
+**Setup.** pgx gess **v2** appends two constant planes to the observation (rules
+unchanged; the tdgauntlet conformance vectors regenerate identically):
+plane 4 is `no_capture_turns / 20` for both colours, plane 5 is the same value
+signed by who is ahead on stones (+ mover ahead, - behind, 0 level). Plane 5 is
+Epaminondas's v8 signed clock, but without its colour leak: in Gess a stone tie
+is a draw, so a symmetric position reads 0 for both sides. v1 checkpoints play
+on the leading four planes (model_tournament, the training MCTS eval, pgx's
+ResNet baseline and tdgauntlet's JAX client all narrow the observation).
+
+Warm start with the new `init_from`: E13's weights, with the stem convolution
+widened by zero weights for the two planes, so iteration 0 computes exactly E13
+(checked: identical logits and values; MCTS eval vs. E13 0.500). Then E13's
+full-size recipe for 24 iterations (~2.4 h), fresh optimizer, `seed=1`, cosine
+from a lower peak for a fine-tune (`learning_rate=2e-4 warmup_steps=200`), hourly
+MCTS eval vs. E13. Run `ajau3ng7`, `checkpoints/gess_20260926190427`.
+
+Afterwards: tdgauntlet, E14 it 24 vs. E13, both at 128 Gumbel MCTS sims, 200
+random 2-ply openings played both ways (`examples/gess_e14_v_e13.toml`).
+
+**Caveat.** E14 also has 2.4 h more training than E13. A gain could be training
+rather than the planes; a matched control (E13 warm-started for 24 iterations
+without the planes) would separate them.
+
+**Result.** 24 iterations in 2.33 h of training time. The training-time MCTS
+eval vs. E13 (128 games, 32 sims, fixed openings) went 0.50 (it 0), **0.25** (~1 h),
+0.59 (it 21), 0.75 (it 24): the fine-tune first knocked the network back, then
+passed E13.
+
+tdgauntlet, 128 sims, 400 games (`results/gess_e14_v_e13.json`), ~36 min:
+
+```
+player   score    Elo   counted     excluded      W-D-L
+e14      90.5%   +391       118     82 (41%)  283-25-92
+e13       9.5%   -391       118     82 (41%)  92-25-283
+```
+
+Per game that is 73.9% (+181 Elo), in line with the training eval's 0.75. The
+tdgauntlet figure is higher because it scores minimatches and drops the 41%
+where each side won one game. No seat effect: E14 scored 0.752 as black and 0.725
+as white. By how games ended: E14 went 207-57 in games ended by a broken ring
+(0.78) and 76-25-35 in games decided by the 20-move rule (0.65). So most of the
+gain is in ordinary tactical play, not only the clock endings.
+
+**Conclusion.** E14 is clearly stronger than E13 (+~180 Elo per game) and shows
+no colour leak. How much of that is the planes and how much is 2.3 h more
+training is not settled: the gain being largest in games that never reach the
+clock points at least partly to training. The matched control (E13 warm-started
+for 24 iterations under v1, same settings) would separate the two. E14 is now the
+web app's model.
+
+## E15. Control for E14: the same fine-tune without the clock planes
+
+**Question.** How much of E14's +180 Elo over E13 is the v2 planes, and how much
+is 2.3 h more training?
+
+**Setup.** E14's exact command (same seed, schedule and eval) with `obs_planes=4`:
+the new Config field makes the network read only the leading four planes of v2's
+observation, so the architecture is E13's and `init_from` loads it unchanged
+(iteration 0 reproduces E13 exactly). Started 14:23. `checkpoints/gess_20260926222338`.
+
+Afterwards: tdgauntlet round robin of E15, E14 and E13 at 128 sims, 200 random
+2-ply openings played both ways (`examples/gess_e15_three_way.toml`, started by
+`run_e15_tournament.sh`).
+
+**Result.** Training eval vs. E13 went 0.50, 0.21, 0.41, 0.68 (E14: 0.50, 0.25,
+0.59, 0.75): the same early dip, so that is the fine-tune, not the planes. The
+round robin, 400 games per pairing, ~2.3 h (`results/gess_e15_three_way.json`),
+per-game scores with 95% intervals:
+
+| pairing | W-D-L | score | Elo |
+|---|---|---|---|
+| E14 vs. E13 | 275-19-106 | 0.711 ± 0.044 | +157 |
+| E15 vs. E13 | 276-20-104 | 0.715 ± 0.044 | +160 |
+| E14 vs. E15 | 192-40-168 | 0.530 ± 0.049 | +21 |
+
+By ending, E14 vs. E15 was level in games decided by the 20-move rule (73-40-79)
+and E14's small edge came from ring-breaking games (119-89). Against E13, E15
+did better than E14 in the 20-move endings (0.775 vs. 0.665), the opposite of what
+the planes were meant to do.
+
+**Conclusion.** The clock planes are worth about +20 Elo at most, not significant
+here; E14's +160 over E13 is the extra 2.3 h of training, which the control
+reproduces exactly. Showing the network the clock did not help it play the
+clock endings. v2 stays (it is harmless, and E14 is the web app's model), but
+the planes are not a lever worth pursuing further at this strength.
+
 ---
 
 ## Infrastructure checks

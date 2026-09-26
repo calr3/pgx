@@ -32,7 +32,7 @@ class State(core.State):
     `current_player` is unchanged between the two steps of the same move.
     """
     current_player:    Array = jnp.int32(0)
-    observation:       Array = jnp.zeros((MAX_IDX - MIN_IDX + 1, MAX_IDX - MIN_IDX + 1, 4), dtype=jnp.float32)
+    observation:       Array = jnp.zeros((MAX_IDX - MIN_IDX + 1, MAX_IDX - MIN_IDX + 1, 6), dtype=jnp.float32)
     rewards:           Array = jnp.float32([0.0, 0.0])
     terminated:        Array = jnp.bool_(False)
     truncated:         Array = jnp.bool_(False)
@@ -97,7 +97,10 @@ class Gess(core.Env):
     @property
     def version(self) -> str:
         # v1: a captureless stalemate is decided on stone count (v0: a draw).
-        return "v1"
+        # v2: the observation gains two planes, the quiet clock and the clock
+        #     signed by who is ahead on stones. The rules are v1's; the planes
+        #     are appended, so v1 checkpoints play on the leading four.
+        return "v2"
 
     @property
     def num_players(self) -> int:

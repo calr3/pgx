@@ -86,7 +86,7 @@ def test_pgx_init():
     assert state.rewards.tolist() == [0.0, 0.0]
     assert state._x.stage == 0
     assert state._x.winner == -1
-    assert state.observation.shape == (MAX_IDX - MIN_IDX + 1, MAX_IDX - MIN_IDX + 1, 4)
+    assert state.observation.shape == (MAX_IDX - MIN_IDX + 1, MAX_IDX - MIN_IDX + 1, 6)
 
 
 # ─── ring detection ──────────────────────────────────────────────────────────
@@ -328,7 +328,7 @@ def test_make_gess():
     assert isinstance(env2, Gess)
     state = env2.init(jax.random.PRNGKey(0))
     assert state.legal_action_mask.shape == (N,)
-    assert state.observation.shape == (MAX_IDX - MIN_IDX + 1, MAX_IDX - MIN_IDX + 1, 4)
+    assert state.observation.shape == (MAX_IDX - MIN_IDX + 1, MAX_IDX - MIN_IDX + 1, 6)
 
 def test_mover_loses_when_both_final_rings_destroyed():
     # Black's only ring at (10,10), white's only ring at (10,14).
@@ -387,6 +387,28 @@ def test_stalemate_after_20_captureless_turns_goes_to_material():
     assert int(x.no_capture_turns) == DRAW_NO_CAPTURE_TURNS
     assert bool(game.is_terminal(x)), "game should end after 20 captureless turns"
     assert game.rewards(x).tolist() == [1.0, -1.0], "the player with more stones wins"
+
+
+def test_observation_clock_planes():
+    # Plane 4 is the quiet clock for both colours; plane 5 signs it by who is
+    # ahead on stones. _draw_test_board has 10 black stones to white's 8.
+    state = make_state(color=0, board=_draw_test_board(), stage=0, source=0)
+    state = state._replace(no_capture_turns=jnp.int32(15))
+    black, white = game.observe(state, jnp.int32(0)), game.observe(state, jnp.int32(1))
+    assert black.shape == white.shape == (MAX_IDX - MIN_IDX + 1, MAX_IDX - MIN_IDX + 1, 6)
+    assert np.allclose(black[..., 4], 0.75) and np.allclose(white[..., 4], 0.75)
+    assert np.allclose(black[..., 5], 0.75) and np.allclose(white[..., 5], -0.75)
+
+    # Level on stones: plane 5 is zero for both sides, whatever the clock.
+    level = _draw_test_board().at[idx(2, 2)].set(WHITE).at[idx(2, 3)].set(WHITE)
+    state = state._replace(board=level)
+    for color in (0, 1):
+        obs = game.observe(state, jnp.int32(color))
+        assert np.allclose(obs[..., 4], 0.75) and np.allclose(obs[..., 5], 0.0)
+
+    # The opening: clock 0, so both planes are empty.
+    obs = _init(jax.random.PRNGKey(0)).observation
+    assert np.allclose(obs[..., 4:], 0.0)
 
 
 def test_stalemate_with_equal_stones_is_a_draw():

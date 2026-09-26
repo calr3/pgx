@@ -128,8 +128,14 @@ def _make_az_baseline_model(model_id: BaselineModelId, download_dir: str = "base
         return policy_out, value_out
 
     forward = hk.without_apply_rng(hk.transform_with_state(forward_fn))
+    # Observations only grow at the end (gess v2 appended two planes to v1's
+    # four), so show the baseline the leading planes its first conv was built for.
+    first_conv = model_params.get("az_net/conv2_d", {}).get("w")
+    channels = None if first_conv is None else int(first_conv.shape[2])
 
     def apply(obs):
+        if channels is not None and obs.shape[-1] > channels:
+            obs = obs[..., :channels]
         (logits, value), _ = forward.apply(model_params, model_state, obs, is_eval=True)
         return logits, value
 
