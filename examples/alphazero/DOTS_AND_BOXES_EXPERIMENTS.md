@@ -37,3 +37,31 @@ seat (0.60 first, 0.62 second).
 
 The baseline column would have picked B: it leads at every checkpoint, and it
 cannot separate them at the end. Only the head-to-head does.
+
+## D2: DotFormer for 8.7 hours (1,800 iterations)
+
+D1's arm A unchanged but for the schedule: `max_num_iters=1800`, sized from its
+iteration time alone (15.8 s) to finish the cosine schedule in about eight
+hours, with `mcts_eval_opponent` set to D1's final DotFormer
+(`dots_and_boxes_20260926050722/000105`). Run: `dots_and_boxes_20260926090930`.
+
+Hourly score against D1's DotFormer (128 games): 0.72 at 1 h, 0.81, 0.93,
+0.95, 0.98, 0.996 at 6 h, then 0.99 to the end - saturated, so it says nothing
+about the last third. Head to head (`model_tournament.py`, 256 seat-swapped
+games from 4-ply random openings, 32 simulations each), the final checkpoint
+against:
+
+| opponent | score | Elo |
+|---|---|---|
+| D1's DotFormer | 0.988 +- 0.007 | +770 |
+| iteration 600 | 0.895 +- 0.018 | +371 |
+| iteration 1,200 | 0.709 +- 0.027 | +155 |
+| iteration 1,500 | 0.574 +- 0.028 | +52 |
+
+- **Still improving when the schedule ended**: the last 300 iterations are worth
+  +52 (about two standard errors), so a longer run should gain more.
+- **Draws rise with strength**: 0 of 256 against D1's model, 8 against
+  iteration 600, 25 against 1,200, 46 (18%) against 1,500. Close play between
+  strong models ends 18-18 far more often.
+- The fixed-opponent eval saturated by hour 6. For a longer run, move it to a
+  late checkpoint of this run (1,500 is a fair match for 1,800).

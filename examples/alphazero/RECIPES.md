@@ -439,17 +439,22 @@ python3 -u examples/alphazero/train.py env_id=dots_and_boxes architecture=boardf
   selfplay_batch_size=256 max_num_steps=384 training_batch_size=2048 \
   num_updates_per_iter=32 replay_buffer_iters=4 \
   learning_rate=5e-4 weight_decay=1e-4 warmup_steps=100 grad_clip_norm=1.0 \
-  lr_schedule=cosine eval_interval=20 max_num_iters=105 \
+  lr_schedule=cosine eval_interval=50 max_num_iters=1800 \
   symmetry_augmentation=true
 ```
+
+Size `max_num_iters` to the time budget: 1,800 is ~8 h at ~16 s an iteration
+on the 16 GB GPU alone (D2). The best model so far is D2's final checkpoint,
+`dots_and_boxes_20260926090930/001800`; it was still gaining when its schedule
+ended (+52 over its own iteration 1,500).
 
 **Architecture: `boardformer` as a "DotFormer".** BoardFormer pads the odd 13x13
 lattice to 14x14, so each patch-merged token is one dot with its two lines and
 one box, and reads each line's policy logit off its own cell
 (`network.action_cells`). It beat a ResNet with the same per-line head and
 attention in its last two blocks by +77 Elo (0.609 +- 0.030 over 256 games) at
-equal wall clock (`DOTS_AND_BOXES_EXPERIMENTS.md`, D1). One pilot; the
-schedule has not been run longer yet, which is what helped Epaminondas most.
+equal wall clock (`DOTS_AND_BOXES_EXPERIMENTS.md`, D1). Running the schedule
+17x longer then added +770 over that pilot (D2).
 
 **Symmetry augmentation: all 8** symmetries of the square, checked against the
 rules in `tests/test_dots_and_boxes.py`.
