@@ -482,8 +482,65 @@ the planes were meant to do.
 **Conclusion.** The clock planes are worth about +20 Elo at most, not significant
 here; E14's +160 over E13 is the extra 2.3 h of training, which the control
 reproduces exactly. Showing the network the clock did not help it play the
-clock endings. v2 stays (it is harmless, and E14 is the web app's model), but
-the planes are not a lever worth pursuing further at this strength.
+clock endings. v2 stays (it is harmless), but the planes are not a lever worth
+pursuing further at this strength. E15 replaced E14 as the web app's model.
+
+## E16. E15 continued for ~16 h
+
+**Question.** How far does more training take the E13 -> E15 line? E13's curve
+was still climbing at 72 iterations, and 24 more (E15) gained ~160 Elo.
+
+**Setup.** `resume_from` E15 it 24 with `max_num_iters=184` (160 more iterations,
+~16 h), E15's settings otherwise (`obs_planes=4`, peak LR 2e-4 cosine to 2e-5 over
+the whole 184). Resuming keeps the Adam state, so this should avoid the ~1 h dip
+both fine-tunes took from a fresh optimizer and empty buffer;
+`save_data_state=true` so a later continuation keeps the buffer too. Hourly MCTS
+eval vs. E15 it 24. Same run and directory as E15 (`jkdwf4m9`,
+`checkpoints/gess_20260926222338`). Started 19:52 (a 19:44 start, not detached,
+was stopped after one iteration and relaunched with `setsid`).
+
+**Result.** 160 iterations, 16.2 h of training time, no errors; finished 13:11.
+Hourly eval vs. E15: 0.15 after an hour (the dip came back despite the resume:
+the LR jumped from E15's 2e-5 floor to ~1.95e-4 with an empty buffer), 0.22-0.34
+while the LR stayed high, then 0.47 (it 105), 0.53, 0.57, 0.58, 0.67, 0.66, 0.82,
+0.79 and 0.75 (it 184) as it decayed.
+
+tdgauntlet, E16 it 184 vs. E15 it 24, 128 sims, 400 games (`results/gess_e16_v_e15.json`):
+**308-16-76, 0.790 +/- 0.040 per game (+230 Elo)**; 93.3% of counted minimatches.
+0.805 as black, 0.775 as white; 0.81 in ring-breaking games and 0.75 in games
+decided by the 20-move rule.
+
+**Conclusion.** More training still pays heavily: E13 -> E15 -> E16 is roughly
++160 then +230 Elo. The climb came almost entirely once the LR fell below ~1e-4,
+so the next extension resumes at 8e-5 rather than re-warming to the peak.
+
+## E17. E16 continued, resuming at a lower LR
+
+**Question.** Does the line keep improving, and does resuming at the LR where
+E16's climb began (instead of re-warming to the peak) avoid the dip?
+
+**Setup.** `resume_from` E16 it 184 with `save_data_state` (buffer, held-back steps
+and in-progress games all restored), 82 more iterations to `max_num_iters=266`,
+sized to finish ~23:30 from a 14:36 start. The cosine schedule is kept, but its
+parameters are solved so that at the resumed optimizer step (46,125) it reads
+8e-5 and it ends at 1e-5: `learning_rate=3.0551e-4 lr_final_ratio=0.0327` (the
+nominal peak is never reached). Hourly MCTS eval vs. E16 it 184. Same run and
+directory as E15/E16.
+
+**Result.** 82 iterations, 8.6 h of training time, finished 23:58. The resume
+restored the buffer and state and the dip was mild: hourly eval vs. E16 read
+0.40, 0.46, 0.50, 0.54, 0.59 (it 229), then 0.56, 0.52, 0.54, 0.49 and 0.51 (it 266).
+
+tdgauntlet, E17 it 266 vs. E16 it 184, 128 sims, 400 games (`results/gess_e17_v_e16.json`):
+**175-66-159, 0.520 +/- 0.049 per game (+14 Elo)**, a tie. 0.545 as black, 0.495 as
+white; 0.57 in ring-breaking games and 0.47 in 20-move endings. 208 of the 400
+games went to the 20-move rule (E16 vs. E15: 134), and draws rose to 16.5%.
+
+**Conclusion.** The line stalled. Two explanations fit and this run cannot tell
+them apart: E16's gain may need its high-LR phase (it re-warmed to ~2e-4 and ran
+16 h; E17 started at 8e-5 and ran 8.6 h), or this network at 32 sims is near its
+ceiling. A 16 h extension that re-warms to ~2e-4 would decide it; if that also
+ties, the next lever is capacity, not time. E16 stays the web app's model.
 
 ---
 

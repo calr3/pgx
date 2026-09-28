@@ -78,6 +78,23 @@ strength climbs steeply in the last third, so a schedule that does not complete
 wastes most of the run. On the 16 GB GPU an interrupted-and-resumed full-size
 run needs `train_micro_batches=2`.
 
+**Observation: v2's clock planes are optional, and `obs_planes=4` is the
+default recommendation.** v2 adds the quiet clock and the clock signed by who is
+ahead on stones. A matched pair of fine-tunes from E13, with and without them,
+played level (E14 vs. E15, 0.530 +/- 0.049 over 400 games), and the planes did not
+even help in games decided by the 20-move rule.
+
+**Extending a finished run: expect a dip.** Both `init_from` fine-tunes from E13
+(fresh optimizer, empty buffer, LR warmed up again) dropped to ~0.2 against their
+own starting point for the first hour, then passed it as the LR decayed, gaining
+~+160 Elo in 2.3 h, so more training from a finished run pays. `resume_from` with
+a larger `max_num_iters` (E16) dipped just as hard (0.15 after an hour), even
+with the Adam state kept: the cosine schedule follows the new `max_num_iters`, so
+the LR jumps from the finished run's floor (2e-5) straight back to ~peak, with no
+warmup, and without a saved buffer the replay data starts empty too. Save
+`save_data_state=true` on any run you might extend, and judge an extension only
+after its LR has decayed.
+
 ## Epaminondas
 
 ```sh
