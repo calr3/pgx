@@ -95,6 +95,14 @@ warmup, and without a saved buffer the replay data starts empty too. Save
 `save_data_state=true` on any run you might extend, and judge an extension only
 after its LR has decayed.
 
+**When an extension stalls, deepen the search.** Resuming E16 at a low LR for
+8.6 h at 32 simulations gained nothing (E17, +14 Elo). Resuming that with
+64-simulation full searches (`num_simulations=64`, fast searches still 8) and the
+LR re-warmed to 2e-4 gained **+86 Elo in 4.45 h** (E18), mostly in ring-breaking
+games. Iterations cost ~35% more. Which of the two changes did it is not yet
+separated. Unlike Epaminondas, where 64 lost to 32 at equal time from scratch,
+this is late in a long run, when the network's prior is already strong.
+
 ## Epaminondas
 
 ```sh

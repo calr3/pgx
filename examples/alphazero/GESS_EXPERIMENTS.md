@@ -542,6 +542,42 @@ them apart: E16's gain may need its high-LR phase (it re-warmed to ~2e-4 and ran
 ceiling. A 16 h extension that re-warms to ~2e-4 would decide it; if that also
 ties, the next lever is capacity, not time. E16 stays the web app's model.
 
+## E18. E17 continued with 64-simulation searches and the LR re-warmed
+
+**Question.** Is the E17 plateau a ceiling of 32-simulation training targets?
+Each Gess move is two search decisions, so 32 simulations look at only about a
+dozen full moves; deeper searches should give targets that see refutations the
+network's prior misses. A 5 h validation run.
+
+**Setup.** `resume_from` E17 it 266 with `save_data_state` (buffer, held-back steps
+and in-progress games restored), 32 more iterations to `max_num_iters=298`.
+Full searches (a quarter of moves, `playout_cap_prob=0.25`) at 48 simulations for
+iterations 267-270, then 64: `num_simulations=64 sim_schedule=48@0,64@271`; fast
+searches stay at 8. The LR jumps back to 2e-4 at the resumed step (68,096) and
+decays to 1e-5 by the end, via solved cosine parameters
+`learning_rate=6.7167e-3 lr_final_ratio=1.489e-3` (nominal peak never reached).
+Hourly MCTS eval vs. E17 it 266 (32 sims). Otherwise E17's settings. Same run and
+directory as E15-E17. Started 18:53.
+
+**Result.** 32 iterations, 4.45 h of training time, no errors; finished 23:42.
+Iterations took ~7.5 min at 48 simulations and ~8.3 min at 64 (E17: ~6.2 min at
+32); GPU memory stayed at 14.8 of 16 GB. Hourly eval vs. E17: 0.36 (it 273, the
+dip after the LR jump), 0.49, 0.48, 0.59 and 0.59 (it 298). Policy loss rose
+from 0.64 to 0.95 while the LR was high (sharper targets) and ended at 0.75.
+
+tdgauntlet, E18 it 298 vs. E17 it 266, 128 sims, 400 games (`results/gess_e18_v_e17.json`):
+**213-71-116, 0.621 +/- 0.043 per game (+86 Elo)**. 0.645 as first player, 0.598
+as second; 0.72 in the 211 ring-breaking games and 0.51 in the 189 20-move endings.
+Draws 17.8%.
+
+**Conclusion.** The plateau was not the network's ceiling: 4.45 h of this recipe
+gained +86 Elo where E17's 8.6 h gained +14. The run changed two things at once,
+so it does not say whether the deeper search or the re-warmed LR did it. The gain
+is almost entirely in games decided by breaking a ring, i.e. tactics, which is
+what deeper targets should improve; 20-move endings stayed level. E18 replaces
+E16 as the web app's model. Next: a longer run on the same settings, or a
+re-warm at 32 simulations to separate the two causes.
+
 ---
 
 ## Infrastructure checks
