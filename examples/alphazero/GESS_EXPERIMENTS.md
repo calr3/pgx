@@ -578,6 +578,42 @@ what deeper targets should improve; 20-move endings stayed level. E18 replaces
 E16 as the web app's model. Next: a longer run on the same settings, or a
 re-warm at 32 simulations to separate the two causes.
 
+## E19/E20. Clock planes again, as a matched pair from E18
+
+**Question.** With ~half of match games now ending by the 20-move rule and E18's
+gain confined to ring-breaking games, do the v2 clock planes help at this
+strength? (E14 vs. E15 tested them at E13's level: level.)
+
+**Setup.** Two new runs from E18 it 298 (`resume_as_new_run=true`, which restores
+E18's buffer and games but writes elsewhere), each 34 iterations to 332 on E18's
+settings (64-simulation full searches, LR re-warmed to 2e-4, cosine to 1e-5:
+`learning_rate=7.3815e-3 lr_final_ratio=1.355e-3`). E19: `obs_planes=6`, the stem
+widened on resume with zero weights and zero Adam moments for the two new planes
+(checked on CPU: outputs identical to E18's). E20: `obs_planes=4`. Hourly eval vs.
+E18. New metric `selfplay/clock_end_rate` (share of finished games ending by the
+20-move rule). E19 `checkpoints/gess_20260929163401`, E20
+`checkpoints/gess_20260929214955` (wandb `jwkrka8y`). `run_e19_e20.sh`.
+
+**Result.** Both finished without errors, 4.81 h (E19) and 4.78 h (E20) of training
+time, so the planes cost almost nothing per iteration. Hourly eval vs. E18 at
+the end: E19 0.72, E20 0.54 (128 games each at 32 sims; noisy). E19's clock-plane
+weights stayed tiny all run (RMS ~0.003-0.004 against 0.12-0.20 for the other
+inputs). Self-play clock endings fell from ~28-31% to 21% (E19) and 27% (E20).
+
+tdgauntlet E19 vs. E20 (`examples/gess_e19_v_e20.toml`, 128 sims): the first
+attempt crashed WSL after 262 of 400 games, at **119-26-117 (0.504)**; a rerun was
+stopped at 123 games, 59-16-48 (0.545). No full result.
+
+**Conclusion.** Any benefit from the planes is small at this strength; the
+network barely uses them. Kept anyway (user decision): they cost under 1% of
+training time and may pay off in a stronger network, so the line continues from
+E19 with `obs_planes=6`; E18 stays the web app's model until a successor is
+matched against it. Replaying
+E18 vs. E17's 20-move endings showed why they are hard to exploit: the loser's
+last move usually had no capture that kept their own ring, and a self-capture only
+widens the deficit, so the search rightly sees these positions as lost; in 4 of
+118 games a levelling capture was missed.
+
 ---
 
 ## Infrastructure checks

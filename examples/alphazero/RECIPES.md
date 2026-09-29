@@ -78,11 +78,16 @@ strength climbs steeply in the last third, so a schedule that does not complete
 wastes most of the run. On the 16 GB GPU an interrupted-and-resumed full-size
 run needs `train_micro_batches=2`.
 
-**Observation: v2's clock planes are optional, and `obs_planes=4` is the
-default recommendation.** v2 adds the quiet clock and the clock signed by who is
-ahead on stones. A matched pair of fine-tunes from E13, with and without them,
-played level (E14 vs. E15, 0.530 +/- 0.049 over 400 games), and the planes did not
-even help in games decided by the 20-move rule.
+**Observation: keep v2's clock planes (the default, `obs_planes=0` = all six).**
+v2 adds the quiet clock and the clock signed by who is ahead on stones. They have
+not yet shown a clear gain: a matched pair of fine-tunes from E13 played level
+(E14 vs. E15, 0.530 +/- 0.049 over 400 games), and a matched pair from E18 was
+~0.50-0.55 over two partial matches (E19 vs. E20), with the network leaving their
+weights near zero. But they cost under 1% of training time (4.81 h vs. 4.78 h),
+and they carry the one thing the board cannot show, so they stay in case a
+stronger network learns to use them. Only a control run needs `obs_planes=4`.
+A 4-plane checkpoint can move to six with `resume_from` (zero-widened, see
+config.py's `obs_planes`).
 
 **Extending a finished run: expect a dip.** Both `init_from` fine-tunes from E13
 (fresh optimizer, empty buffer, LR warmed up again) dropped to ~0.2 against their
