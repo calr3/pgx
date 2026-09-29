@@ -30,7 +30,6 @@ import optax
 import pgx
 import wandb
 from omegaconf import OmegaConf
-from pgx.experimental import auto_reset
 
 from config import Config
 from model_tournament import (
@@ -95,6 +94,8 @@ def _validate_config(config: Config, num_devices: int) -> None:
         )
     if config.init_from and config.resume_from:
         raise ValueError("init_from starts a new run and resume_from continues one: set only one.")
+    if config.resume_as_new_run and not config.resume_from:
+        raise ValueError("resume_as_new_run needs resume_from.")
     if config.training_batch_size % (num_devices * config.train_micro_batches) != 0:
         raise ValueError(
             "training_batch_size must be divisible by num_devices * train_micro_batches. "
@@ -206,6 +207,43 @@ class SelfplayOutput(NamedTuple):
     discount: jnp.ndarray
     # False for fast-search steps under playout cap randomization.
     policy_mask: jnp.ndarray
+    # The game ended here on a move clock rather than by a win (Gess's 20
+    # captureless turns); always False for envs without one. Only logged.
+    clock_end: jnp.ndarray
+
+
+def ended_by_clock(state: pgx.State) -> jnp.ndarray:
+    """Whether a just-terminated state ended on the env's move clock."""
+    x = getattr(state, "_x", None)
+    if x is None or not hasattr(x, "no_capture_turns") or not hasattr(x, "winner"):
+        return jnp.zeros_like(state.terminated)
+    # Gess: a terminal state without a ring winner is the clock ending.
+    return state.terminated & (x.winner < 0)
+
+
+def step_and_reset(state: pgx.State, action: jnp.ndarray, key: jnp.ndarray):
+    """pgx.experimental.auto_reset(env.step, env.init), which it matches exactly
+    (same keys, same result), but also returning ended_by_clock of the terminal
+    state before the reset replaces it."""
+    key1, key2 = jax.random.split(key)
+    state = jax.lax.cond(
+        state.terminated | state.truncated,
+        lambda: state.replace(
+            terminated=jnp.bool_(False), truncated=jnp.bool_(False),
+            rewards=jnp.zeros_like(state.rewards),
+        ),
+        lambda: state,
+    )
+    state = env.step(state, action, key1)
+    clock_end = ended_by_clock(state)
+    state = jax.lax.cond(
+        state.terminated | state.truncated,
+        lambda: env.init(key2).replace(
+            terminated=state.terminated, truncated=state.truncated, rewards=state.rewards
+        ),
+        lambda: state,
+    )
+    return state, clock_end
 
 
 # num_simulations is a static (broadcast, not mapped) argument so it can be
@@ -270,7 +308,7 @@ def selfplay(
             action = jnp.where(state._step_count < config.selfplay_sample_plies, sampled, action)
         actor = state.current_player
         keys = jax.random.split(key2, batch_size)
-        state = jax.vmap(auto_reset(env.step, env.init))(state, action, keys)
+        state, clock_end = jax.vmap(step_and_reset)(state, action, keys)
         # +1 when the same player is still to move (multi-stage turn), -1 when
         # the opponent is now to move (normal alternating case), 0 at terminal.
         discount = jnp.where(state.current_player == actor, 1.0, -1.0)
@@ -282,6 +320,7 @@ def selfplay(
             terminated=state.terminated,
             discount=discount,
             policy_mask=jnp.full(batch_size, full_search),
+            clock_end=clock_end,
         )
 
     # Run selfplay for max_num_steps by batch
@@ -435,7 +474,7 @@ def evaluate(rng_key: jnp.ndarray, my_model: Model) -> tuple[jnp.ndarray, jnp.nd
 
 # Set by the SIGINT handler to request a clean shutdown: the training loop
 # finishes the current iteration, writes a checkpoint, then exits. A second
-def warm_start_params(params, init_params, obs_planes: int):
+def warm_start_params(params, init_params, obs_planes: int, label: str = "init_from"):
     """`params` from an init_from checkpoint, fitted to this run's network.
 
     Every tensor must match `init_params` (a fresh init against the current env)
@@ -449,7 +488,7 @@ def warm_start_params(params, init_params, obs_planes: int):
     out = {}
     for module, entries in init_params.items():
         if module not in params:
-            raise ValueError(f"init_from checkpoint has no module {module}")
+            raise ValueError(f"{label} checkpoint has no module {module}")
         out[module] = {}
         for name, fresh in entries.items():
             old = params[module][name]
@@ -463,9 +502,38 @@ def warm_start_params(params, init_params, obs_planes: int):
             at = obs_planes - added
             zeros = np.zeros((*old.shape[:2], added, old.shape[3]), old.dtype)
             out[module][name] = np.concatenate([old[:, :, :at], zeros, old[:, :, at:]], axis=2)
-            print(f"init_from: widened {module}/{name} {old.shape} -> {fresh.shape} "
+            print(f"{label}: widened {module}/{name} {old.shape} -> {fresh.shape} "
                   f"(zero weights for observation planes {at}..{at + added - 1})")
     return out
+
+
+def widen_resumed(model: Model, opt_state: optax.OptState, fresh_params, obs_planes: int):
+    """A resumed checkpoint's model and optimizer state, fitted to this run's
+    network when the observation it reads has gained planes (see
+    warm_start_params). Adam's moments for the new stem weights start at zero,
+    like the weights themselves; everything else, the step count included, is
+    kept, so the LR schedule and buffer continue as for any resume."""
+    params, net_state = model
+    if jax.tree_util.tree_structure(params) == jax.tree_util.tree_structure(fresh_params) and all(
+        a.shape == b.shape
+        for a, b in zip(jax.tree_util.tree_leaves(params), jax.tree_util.tree_leaves(fresh_params))
+    ):
+        return model, opt_state
+    params = warm_start_params(params, fresh_params, obs_planes, label="resume_from")
+
+    def widen(tree):
+        # optax states are (named) tuples whose params-shaped entries are dicts
+        # keyed like the params.
+        if isinstance(tree, dict) and tree.keys() == fresh_params.keys():
+            return warm_start_params(tree, fresh_params, obs_planes, label="resume_from (optimizer)")
+        if isinstance(tree, tuple):
+            items = [widen(t) for t in tree]
+            return type(tree)(*items) if hasattr(tree, "_fields") else tuple(items)
+        if isinstance(tree, list):
+            return [widen(t) for t in tree]
+        return tree
+
+    return (params, net_state), widen(opt_state)
 
 
 # Ctrl+C forces an immediate exit (no final checkpoint).
@@ -497,7 +565,7 @@ if __name__ == "__main__":
 
     # Resume the original wandb run when possible
     wandb_run_id = config.wandb_run_id
-    if not wandb_run_id and ckpt is not None:
+    if not wandb_run_id and ckpt is not None and not config.resume_as_new_run:
         wandb_run_id = ckpt.get("wandb_run_id", "")
     wandb.init(
         project=f"pgx-az-{config.env_id}",
@@ -529,8 +597,9 @@ if __name__ == "__main__":
 
     # Optionally resume from a previous checkpoint
     if ckpt is not None:
-        model = ckpt["model"]
-        opt_state = ckpt["opt_state"]
+        model, opt_state = widen_resumed(
+            ckpt["model"], ckpt["opt_state"], model[0], int(env.observation_shape[-1])
+        )
         iteration = ckpt["iteration"]
         frames = ckpt["frames"]
         hours = ckpt["hours"]
@@ -549,8 +618,9 @@ if __name__ == "__main__":
     )
 
     # Prepare checkpoint dir. When resuming, keep writing into the original
-    # checkpoint's directory; otherwise create a fresh timestamped one.
-    if config.resume_from:
+    # checkpoint's directory (unless resume_as_new_run); otherwise create a fresh
+    # timestamped one.
+    if config.resume_from and not config.resume_as_new_run:
         ckpt_dir = os.path.dirname(config.resume_from)
     else:
         now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
@@ -624,13 +694,18 @@ if __name__ == "__main__":
         jax.random.split(jax.random.fold_in(jax.random.PRNGKey(config.seed), 1), num_devices)
     )
 
-    # When resuming, restore the training data state saved with the checkpoint.
-    if ckpt is not None and os.path.exists(data_state_path):
-        with open(data_state_path, "rb") as f:
+    # When resuming, restore the training data state saved with the checkpoint
+    # (from the checkpoint's own directory, which differs from ckpt_dir under
+    # resume_as_new_run).
+    resumed_data_state_path = (
+        os.path.join(os.path.dirname(config.resume_from), "data_state.pkl") if ckpt is not None else ""
+    )
+    if ckpt is not None and os.path.exists(resumed_data_state_path):
+        with open(resumed_data_state_path, "rb") as f:
             data_state = pickle.load(f)
         if data_state["iteration"] != iteration:
             print(
-                f"Ignoring {os.path.relpath(data_state_path)}: saved at iteration "
+                f"Ignoring {os.path.relpath(resumed_data_state_path)}: saved at iteration "
                 f"{data_state['iteration']}, resuming from iteration {iteration}."
             )
         else:
@@ -645,7 +720,7 @@ if __name__ == "__main__":
                 restored += f", {trajectories.num_pending} held-back steps and in-progress games"
             else:
                 restored += " (selfplay_batch_size changed: starting fresh games)"
-            print(f"Restored {restored} from {os.path.relpath(data_state_path)}")
+            print(f"Restored {restored} from {os.path.relpath(resumed_data_state_path)}")
         del data_state
 
     # Initialize logging dict
@@ -762,6 +837,7 @@ if __name__ == "__main__":
         # finished game (approximates game length in env steps once stationary).
         games_finished = data.terminated.sum().item()
         games_drawn = (data.terminated & (data.reward == 0)).sum().item()
+        games_clock_ended = data.clock_end.sum().item()
         full_search_fraction = data.policy_mask.mean().item()
 
         # Compute value targets and fill the replay buffer on the host, so only
@@ -830,6 +906,7 @@ if __name__ == "__main__":
                 "selfplay/games_finished": games_finished,
                 "selfplay/full_search_fraction": full_search_fraction,
                 "selfplay/draw_rate": games_drawn / max(games_finished, 1),
+                "selfplay/clock_end_rate": games_clock_ended / max(games_finished, 1),
                 "selfplay/steps_per_game": data_steps / max(games_finished, 1),
                 "hours": hours,
                 "frames": frames,

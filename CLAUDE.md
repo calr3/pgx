@@ -72,7 +72,11 @@ added here). What follows is what was learned the hard way.
   the replay buffer, held-back steps and in-progress games (verified
   bit-identical to an uninterrupted run). On the 16 GB GPU a resumed full-size
   run needs `train_micro_batches=2`, or the batch-4096 training step fails to
-  find a ~10 GB block.
+  find a ~10 GB block. `resume_as_new_run=true` branches instead: same weights,
+  optimizer, buffer and schedule, but a new checkpoint directory and wandb run,
+  so several runs can continue from one checkpoint without overwriting its
+  `data_state.pkl`. Resuming with more observation planes than the checkpoint
+  read zero-widens the stem (and its Adam moments).
 - JAX preallocates ~75% of the GPU; a single large allocation can fail even when
   totals look fine. Keep sample data on the host (the replay buffer and
   minibatch gathering already do).
