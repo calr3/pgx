@@ -163,7 +163,10 @@ def expected_obs_channels(
     if trained is None:
         return None
     start = env.init(jax.random.PRNGKey(0))
-    reference, _ = forward.init(jax.random.PRNGKey(0), start.observation[None])
+    moves = getattr(start, "_moves", None)
+    reference, _ = forward.init(
+        jax.random.PRNGKey(0), start.observation[None], moves=None if moves is None else moves[None]
+    )
     provided = stem_inputs(reference)
     if provided is None:
         return None
@@ -207,7 +210,10 @@ def make_recurrent_fn(env: pgx.Env, forward: hk.TransformedWithState) -> mctx.Re
         # Keys let stochastic envs resolve chance events inside the search tree.
         state = jax.vmap(env.step)(state, action, jax.random.split(rng_key, action.shape[0]))
 
-        (logits, value), _ = forward.apply(model_params, model_state, state.observation, is_eval=True)
+        (logits, value), _ = forward.apply(
+            model_params, model_state, state.observation, is_eval=True,
+            moves=getattr(state, "_moves", None),
+        )
         logits = jnp.where(state.legal_action_mask, logits, jnp.finfo(logits.dtype).min)
 
         reward = state.rewards[jnp.arange(state.rewards.shape[0]), current_player]
@@ -296,7 +302,10 @@ def build_round_runner(
     ) -> jnp.ndarray:
         """One model's full-batch search; returns the chosen action per game."""
         model_params, model_state = model
-        (logits, value), _ = forward.apply(model_params, model_state, state.observation, is_eval=True)
+        (logits, value), _ = forward.apply(
+            model_params, model_state, state.observation, is_eval=True,
+            moves=getattr(state, "_moves", None),
+        )
         root = mctx.RootFnOutput(prior_logits=logits, value=value, embedding=state)
         policy_output = mctx.gumbel_muzero_policy(
             params=model,

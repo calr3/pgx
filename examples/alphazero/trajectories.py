@@ -21,11 +21,14 @@ class Sample(NamedTuple):
     # samples pickled before these fields existed loadable.
     aux_win: np.ndarray | None = None
     aux_valid: np.ndarray | None = None
+    # env gess_joint: the position's move list, which the policy target's slots
+    # index (None for other envs).
+    moves: np.ndarray | None = None
 
 
 _FIELDS = ("obs", "action_weights", "reward", "discount", "terminated", "policy_mask")
 # Present only when the auxiliary immediate-win target is on.
-_AUX_FIELDS = ("aux_win", "aux_valid")
+_AUX_FIELDS = ("aux_win", "aux_valid", "moves")
 
 
 class PendingTrajectories:
@@ -118,4 +121,5 @@ class PendingTrajectories:
             policy_mask=steps["policy_mask"][emit],
             aux_win=steps["aux_win"][emit] if "aux_win" in steps else None,
             aux_valid=steps["aux_valid"][emit] if "aux_valid" in steps else None,
+            moves=steps["moves"][emit] if "moves" in steps else None,
         )

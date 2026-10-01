@@ -41,7 +41,7 @@ from model_tournament import (
 )
 from network import cast_floating, make_forward, make_optimizer
 from replay_buffer import ReplayBuffer
-from symmetry import augment_dots_and_boxes, augment_epaminondas, augment_gess
+from symmetry import augment_dots_and_boxes, augment_epaminondas, augment_gess, augment_gess_joint
 from pgx._src.games.gess import winning_actions as gess_winning_actions
 from trajectories import PendingTrajectories, Sample
 
@@ -129,6 +129,17 @@ qtransform = {
 
 # The auxiliary immediate-win target (Config.aux_win_weight).
 AUX_WIN = config.aux_win_weight > 0
+# env gess_joint: one action per move, from a per-position move list that the
+# network needs alongside the observation.
+JOINT = config.env_id == "gess_joint"
+if JOINT and AUX_WIN:
+    raise ValueError("aux_win_weight is not implemented for gess_joint")
+
+
+def moves_of(state):
+    """The move list a gess_joint network needs with the observation (None otherwise)."""
+    return getattr(state, "_moves", None)
+
 if AUX_WIN and (config.env_id != "gess" or config.architecture != "gessformer"):
     raise ValueError("aux_win_weight needs env_id=gess and architecture=gessformer")
 
@@ -162,7 +173,7 @@ def recurrent_fn(
 
     def evaluate_state(s):
         (logits, value), _ = selfplay_forward.apply(
-            model_params, model_state, s.observation, is_eval=True
+            model_params, model_state, s.observation, is_eval=True, moves=moves_of(s)
         )
         return logits, jnp.where(s.terminated, 0.0, value)
 
@@ -235,6 +246,10 @@ class SelfplayOutput(NamedTuple):
     aux_win: jnp.ndarray | None = None
     aux_valid: jnp.ndarray | None = None
     aux_missed: jnp.ndarray | None = None
+    # env gess_joint: the position's move list (the policy's slots index it), and
+    # whether the list overflowed (logged only).
+    moves: jnp.ndarray | None = None
+    overflow: jnp.ndarray | None = None
 
 
 def ended_by_clock(state: pgx.State) -> jnp.ndarray:
@@ -293,7 +308,7 @@ def selfplay(
         observation = state.observation
 
         (logits, value), _ = selfplay_forward.apply(
-            model_params, model_state, state.observation, is_eval=True
+            model_params, model_state, state.observation, is_eval=True, moves=moves_of(state)
         )
         root = mctx.RootFnOutput(prior_logits=logits, value=value, embedding=state)
 
@@ -332,6 +347,7 @@ def selfplay(
             )
             action = jnp.where(state._step_count < config.selfplay_sample_plies, sampled, action)
         actor = state.current_player
+        before_step = state
         if AUX_WIN:
             # In chunks: labelling a whole batch at once makes multi-GB temporaries.
             chunk = min(batch_size, 64)
@@ -355,6 +371,8 @@ def selfplay(
             aux_win=aux_win if AUX_WIN else None,
             aux_valid=jnp.ones(batch_size, jnp.bool_) if AUX_WIN else None,
             aux_missed=aux_missed if AUX_WIN else None,
+            moves=moves_of(before_step) if JOINT else None,
+            overflow=before_step._overflow if JOINT else None,
         )
 
     # Run selfplay for max_num_steps by batch
@@ -382,7 +400,7 @@ def loss_fn(
         )
     else:
         (logits, value), model_state = forward.apply(
-            model_params, model_state, samples.obs, is_eval=False
+            model_params, model_state, samples.obs, is_eval=False, moves=samples.moves
         )
 
     policy_loss = optax.softmax_cross_entropy(logits, samples.policy_tgt)
@@ -416,7 +434,10 @@ def train(
     model: Model, opt_state: optax.OptState, data: Sample, rng_key: jnp.ndarray
 ) -> tuple[Model, optax.OptState, jnp.ndarray, jnp.ndarray]:
     model_params, model_state = model
-    if config.symmetry_augmentation:
+    if config.symmetry_augmentation and JOINT:
+        obs, moves = augment_gess_joint(rng_key, data.obs, data.moves)
+        data = data._replace(obs=obs, moves=moves)
+    elif config.symmetry_augmentation:
         augment = {
             "gess": augment_gess,
             "epaminondas": augment_epaminondas,
@@ -487,7 +508,7 @@ def evaluate(rng_key: jnp.ndarray, my_model: Model) -> tuple[jnp.ndarray, jnp.nd
         # getting stepped (until every game terminates) but must not contribute.
         alive = (~state.terminated).astype(jnp.float32)
         (my_logits, my_value), _ = forward.apply(
-            my_model_params, my_model_state, state.observation, is_eval=True
+            my_model_params, my_model_state, state.observation, is_eval=True, moves=moves_of(state)
         )
         opp_logits, _ = baseline(state.observation)
         is_my_turn = state.current_player == my_player
@@ -645,7 +666,9 @@ if __name__ == "__main__":
     # Initialize model and opt_state
     dummy_state = jax.vmap(env.init)(jax.random.split(jax.random.PRNGKey(0), 2))
     dummy_input = dummy_state.observation
-    model = forward.init(jax.random.PRNGKey(0), dummy_input, aux=AUX_WIN)  # (params, state)
+    model = forward.init(  # (params, state)
+        jax.random.PRNGKey(0), dummy_input, aux=AUX_WIN, moves=moves_of(dummy_state)
+    )
     opt_state = optimizer.init(params=model[0])
 
     # Logging/training state (may be overwritten when resuming from a checkpoint)
@@ -913,6 +936,8 @@ if __name__ == "__main__":
         games_finished = data.terminated.sum().item()
         games_drawn = (data.terminated & (data.reward == 0)).sum().item()
         games_clock_ended = data.clock_end.sum().item()
+        if JOINT:
+            move_list_overflow = data.overflow.mean().item()
         if AUX_WIN:
             win_available = data.aux_win.any(axis=-1).mean().item()
             win_missed = data.aux_missed.sum().item() / max(data.aux_win.any(axis=-1).sum().item(), 1)
@@ -988,6 +1013,7 @@ if __name__ == "__main__":
                 "selfplay/full_search_fraction": full_search_fraction,
                 "selfplay/draw_rate": games_drawn / max(games_finished, 1),
                 "selfplay/clock_end_rate": games_clock_ended / max(games_finished, 1),
+                **({"selfplay/move_list_overflow": move_list_overflow} if JOINT else {}),
                 **({"selfplay/win_available": win_available,
                     "selfplay/win_missed": win_missed} if AUX_WIN else {}),
                 "selfplay/steps_per_game": data_steps / max(games_finished, 1),

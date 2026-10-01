@@ -572,7 +572,7 @@ class Visualizer:
                 self.config["COLOR_SET"] = ColorSet(
                     "white", "black", "lightgray", "white", "white", "black", "black"
                 )
-        elif _state.env_id == "gess":
+        elif _state.env_id in ("gess", "gess_joint"):
             from pgx._src.dwg.gess import _make_gess_dwg
 
             self.config["GRID_SIZE"] = 25

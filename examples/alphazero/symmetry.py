@@ -9,6 +9,7 @@
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from pgx._src.games.epaminondas import MIRROR_DIR_PERM, NUM_DIRS
 
@@ -40,6 +41,31 @@ def augment_gess(
     obs = jax.vmap(transform_grid)(obs, syms)
     policy = jax.vmap(transform_grid)(policy_tgt.reshape(b, side, side), syms)
     return obs, policy.reshape(b, side * side)
+
+
+# gess_joint (one action per move from a per-position list): each symmetry is
+# a permutation of the 20x20 cells; _GESS_NEW_CELL[sym, old] is where cell `old`
+# lands. Move lists hold source * 400 + destination, -1 for padding.
+_GESS_NEW_CELL = np.stack([
+    np.argsort(np.asarray(transform_grid(jnp.arange(400).reshape(20, 20), jnp.int32(sym))).reshape(-1))
+    for sym in range(NUM_SYMMETRIES)
+]).astype(np.int32)
+
+
+def augment_gess_joint(
+    rng_key: jnp.ndarray, obs: jnp.ndarray, moves: jnp.ndarray
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """As augment_gess, for gess_joint: the observation is transformed and every
+    listed move's source and destination remapped; the policy target, which is
+    per list slot, stays as it is."""
+    b = obs.shape[0]
+    syms = jax.random.randint(rng_key, (b,), 0, NUM_SYMMETRIES)
+    obs = jax.vmap(transform_grid)(obs, syms)
+    table = jnp.asarray(_GESS_NEW_CELL)[syms][:, None, :]                     # (b, 1, 400)
+    m = jnp.where(moves >= 0, moves, 0)
+    src = jnp.take_along_axis(table, (m // 400)[..., None], axis=-1)[..., 0]
+    dst = jnp.take_along_axis(table, (m % 400)[..., None], axis=-1)[..., 0]
+    return obs, jnp.where(moves >= 0, src * 400 + dst, -1)
 
 
 # Epaminondas has one symmetry, not eight. The board is 12x14 rather than

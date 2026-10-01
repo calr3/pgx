@@ -14,6 +14,7 @@ BaselineModelId = Literal[
     "g_hex_v0",
     "g_hex2_v0",
     "gess_v0",
+    "gess_joint_v0",
     "gardner_chess_v0",
     "go_9x9_v0",
     "heckmeck_v0",
@@ -86,6 +87,18 @@ def make_baseline_model(model_id: BaselineModelId, download_dir: str = "baseline
         return _make_trained_baseline_model(
             "checkpoints/epaminondas_20260922033505/000252.ckpt", 14 * 12
         )
+    elif model_id == "gess_joint_v0":
+        # Untrained: a near-uniform policy over the move list's slots.
+        from pgx.gess_joint import MAX_MOVES
+
+        return _make_untrained_baseline_model(
+          model_args = {
+            "num_actions": MAX_MOVES,
+            "num_channels": 64,
+            "num_layers": 2,
+            "resnet_v2": True,
+          },
+          shape = (1, 18, 18, 6))
     elif model_id == "gess_v0":
         return _make_untrained_baseline_model(
            model_args = {

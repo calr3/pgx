@@ -54,6 +54,7 @@ EnvId = Literal[
     "go_9x9",
     "go_19x19",
     "gess",
+    "gess_joint",
     "heckmeck",
     "hex",
     "kuhn_poker",
@@ -401,6 +402,10 @@ def make(env_id: EnvId):  # noqa: C901
         from pgx.gess import Gess
 
         return Gess()
+    elif env_id == "gess_joint":
+        from pgx.gess_joint import GessJoint
+
+        return GessJoint()
     elif env_id == "heckmeck":
         from pgx.heckmeck import Heckmeck
 

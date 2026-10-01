@@ -441,6 +441,39 @@ def _gess_joint_policy(f, is_stage1, src_footprint, logits, version=2):
     return logits + jnp.where(is_stage1[:, None], stage1, stage0)
 
 
+def _gess_move_policy(f, moves):
+    """Logits for a list of whole moves (env ``gess_joint``): moves (b, M) holds
+    source * 400 + destination per slot, -1 for padding.
+
+    logit = piece(s) - log(#listed moves of s) + q_s . k_d / sqrt(c) + rel[d - s].
+    piece() is ``gess``'s stage-0 head (same parameter names, so a ``gess``
+    network's piece choice carries over), and the query starts at zero (and rel),
+    so a warm-started network begins with exactly its piece distribution, split
+    evenly over each piece's destinations. Padding slots get -1e9.
+    """
+    b, g, _, c = f.shape
+    n = g * g
+    piece = hk.Linear(c, name="policy0_hidden")(f)
+    piece = hk.Linear(1, name="policy0_out")(jax.nn.gelu(piece)).reshape(b, n)
+    flat = f.reshape(b, n, c)
+    q = hk.Linear(c, w_init=jnp.zeros, name="move_query")(flat)
+    k = hk.Linear(c, name="move_key")(flat)
+    rel = jnp.asarray(hk.get_parameter("move_rel", (_REL_SIDE * _REL_SIDE,), init=jnp.zeros), f.dtype)
+
+    valid = moves >= 0
+    m = jnp.where(valid, moves, 0)
+    src, dst = m // n, m % n
+    take = jax.vmap(lambda a, i: a[i])
+    count = jax.vmap(lambda s_, v: jnp.zeros(n, f.dtype).at[s_].add(v.astype(f.dtype)))(src, valid)
+    logits = (
+        take(piece, src)
+        - jnp.log(jnp.maximum(take(count, src), 1.0))
+        + jnp.einsum("bmk,bmk->bm", take(q, src), take(k, dst)) / math.sqrt(c)
+        + rel[jnp.asarray(_REL_INDEX)[src, dst]]
+    )
+    return jnp.where(valid, logits, jnp.asarray(-1e9, f.dtype))
+
+
 def _gess_win_head(f, tok):
     """Auxiliary head (training only; see Config.aux_win_weight): logits for
     which actions win at once (b, 400), and for whether any does (b,)."""
@@ -478,10 +511,15 @@ class GessFormer(hk.Module):
         use_gab: bool = True,
         remat: bool = True,
         joint_head: int = 0,
+        whole_moves: bool = False,
         name="gess_former",
     ):
         super().__init__(name=name)
-        assert num_actions == _GESS_GRID**2, "GessFormer expects the 20x20 Gess action grid"
+        # whole_moves: env gess_joint, one action per move from a list (see
+        # _gess_move_policy); num_actions is then the list's length.
+        if not whole_moves:
+            assert num_actions == _GESS_GRID**2, "GessFormer expects the 20x20 Gess action grid"
+        self.whole_moves = whole_moves
         assert embed_dim % num_heads == 0
         self.num_actions = num_actions
         self.stem_channels = stem_channels
@@ -494,7 +532,7 @@ class GessFormer(hk.Module):
         self.remat = remat
         self.joint_head = joint_head
 
-    def __call__(self, x, is_training=False, test_local_stats=False, aux=False):
+    def __call__(self, x, is_training=False, test_local_stats=False, aux=False, moves=None):
         del is_training, test_local_stats  # no BatchNorm
         x, is_stage1, src_footprint = _gess_input(x)
         b = x.shape[0]
@@ -530,6 +568,10 @@ class GessFormer(hk.Module):
         f = ConvBlock(c, name="decoder_block")(f)
         f = jax.nn.gelu(_layer_norm("decoder_ln")(f))  # (b, 20, 20, c)
 
+        if self.whole_moves:
+            if moves is None:
+                raise ValueError("a whole-move GessFormer needs the position's move list")
+            return _gess_move_policy(f, moves), _gess_value_head(tok)
         logits = _gess_policy_head(f, is_stage1, src_footprint)
         if self.joint_head:
             logits = _gess_joint_policy(f, is_stage1, src_footprint, logits, int(self.joint_head))
@@ -884,7 +926,13 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
 
     obs_planes = getattr(config, "obs_planes", 0)
 
-    def forward_fn(x: jnp.ndarray, is_eval: bool = False, aux: bool = False) -> tuple[jnp.ndarray, ...]:
+    whole_moves = config.env_id == "gess_joint"
+    if whole_moves and config.architecture != "gessformer":
+        raise ValueError("env gess_joint needs architecture=gessformer (its move-list policy head)")
+
+    def forward_fn(
+        x: jnp.ndarray, is_eval: bool = False, aux: bool = False, moves: jnp.ndarray | None = None
+    ) -> tuple[jnp.ndarray, ...]:
         x = x.astype(dtype)
         if obs_planes:
             # Train on the leading planes only (see Config.obs_planes).
@@ -933,6 +981,7 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
                 use_gab=config.gf_gab,
                 remat=config.gf_remat,
                 joint_head=int(getattr(config, "gf_joint_head", 0)),
+                whole_moves=whole_moves,
             )
         else:
             net = AZNet(
@@ -950,7 +999,11 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
                 raise ValueError("auxiliary outputs exist only for architecture=gessformer")
             outs = net(x, is_training=not is_eval, test_local_stats=False, aux=True)
             return tuple(o.astype(jnp.float32) for o in outs)
-        policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
+        if whole_moves:
+            # env gess_joint: logits for the position's list of moves.
+            policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False, moves=moves)
+        else:
+            policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
         return policy_out.astype(jnp.float32), value_out.astype(jnp.float32)
 
     return hk.without_apply_rng(hk.transform_with_state(forward_fn))

@@ -302,9 +302,12 @@ class Config(BaseModel):
 
     @model_validator(mode="after")
     def _check_gess_architectures(self):
-        if self.symmetry_augmentation and self.env_id not in ("gess", "epaminondas", "dots_and_boxes"):
+        if self.symmetry_augmentation and self.env_id not in (
+            "gess", "gess_joint", "epaminondas", "dots_and_boxes"
+        ):
             raise ValueError(
-                "symmetry_augmentation requires env_id=gess, epaminondas or dots_and_boxes, got "
+                "symmetry_augmentation requires env_id=gess, gess_joint, epaminondas or "
+                "dots_and_boxes, got "
                 f"{self.env_id!r}."
             )
         if self.architecture == "boardformer" and self.bf_embed_dim % self.bf_num_heads != 0:
@@ -312,10 +315,12 @@ class Config(BaseModel):
                 f"bf_embed_dim ({self.bf_embed_dim}) must be divisible by "
                 f"bf_num_heads ({self.bf_num_heads})."
             )
-        if self.architecture in ("gessformer", "rayformer") and self.env_id != "gess":
+        if self.architecture == "gessformer" and self.env_id not in ("gess", "gess_joint"):
             raise ValueError(
-                f"architecture={self.architecture} requires env_id=gess, got {self.env_id!r}."
+                f"architecture=gessformer requires env_id=gess or gess_joint, got {self.env_id!r}."
             )
+        if self.architecture == "rayformer" and self.env_id != "gess":
+            raise ValueError(f"architecture=rayformer requires env_id=gess, got {self.env_id!r}.")
         if self.architecture == "rayformer" and self.rf_embed_dim % self.rf_num_heads != 0:
             raise ValueError(
                 f"rf_embed_dim ({self.rf_embed_dim}) must be divisible by "
