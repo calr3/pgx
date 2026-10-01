@@ -381,6 +381,81 @@ def _observe(state: GameState, color: Array) -> Array:
     )  # (18, 18, 6)
 
 
+# ─── Immediate wins (a training aid, not part of the rules) ──────────────────
+
+# Most own rings tracked when testing whether the mover keeps one (see below).
+_MAX_OWN_RINGS = 4
+_CELL_R = jnp.arange(N, dtype=jnp.int32) // BOARD_SIZE
+_CELL_C = jnp.arange(N, dtype=jnp.int32) % BOARD_SIZE
+# _NEAR2[d, c]: cells d and c are within 2 rows and 2 columns of each other.
+_NEAR2 = jnp.asarray(np.maximum(
+    np.abs(np.arange(N)[:, None] // BOARD_SIZE - np.arange(N)[None, :] // BOARD_SIZE),
+    np.abs(np.arange(N)[:, None] % BOARD_SIZE - np.arange(N)[None, :] % BOARD_SIZE)) <= 2)
+
+
+def _ring_centres(board: Array, stone_val: Array) -> Array:
+    """(N,) bool: the centres of `stone_val`'s rings (see _has_ring)."""
+    b = board.reshape(BOARD_SIZE, BOARD_SIZE)
+    own = jnp.pad(b == stone_val, 1)
+    surround = jnp.ones((BOARD_SIZE, BOARD_SIZE), dtype=jnp.bool_)
+    for dr in (-1, 0, 1):
+        for dc in (-1, 0, 1):
+            if dr or dc:
+                surround = surround & own[1 + dr: BOARD_SIZE + 1 + dr, 1 + dc: BOARD_SIZE + 1 + dc]
+    rr = jnp.arange(BOARD_SIZE)[:, None]
+    cc = jnp.arange(BOARD_SIZE)[None, :]
+    inside = (rr >= MIN_IDX) & (rr <= MAX_IDX) & (cc >= MIN_IDX) & (cc <= MAX_IDX)
+    return (surround & (b == 0) & inside).reshape(-1)
+
+
+def winning_actions(state: GameState) -> Array:
+    """(N,) bool: the actions available now that win the game on the spot by
+    breaking the opponent's last ring - at stage 0 the pieces that have such a
+    move, at stage 1 the chosen piece's destinations that are one.
+
+    Not used by the rules; it labels positions for an auxiliary training target.
+    It relies on two facts about a move: it can only remove opponent stones (in
+    the destination footprint), never create an opponent ring, so it breaks a
+    ring exactly when the destination is within 2 rows and 2 columns of the
+    ring's centre; and the mover keeps a ring if one is touched by neither the
+    source footprint (lifted) nor the destination footprint (overwritten). It
+    misses the rare win where the mover's only remaining ring is one the move
+    itself re-forms, and counts at most _MAX_OWN_RINGS own rings. Wins on the
+    20-move clock are not included.
+    """
+    mover = jnp.int8(state.color + 1)
+    opp = jnp.int8(2 - state.color)
+    opp_rings = _ring_centres(state.board, opp)
+    own_rings = _ring_centres(state.board, mover)
+
+    def cheb(a, b):  # (..., N) x (K,) distances between flat cells
+        return jnp.maximum(jnp.abs(_CELL_R[a] - _CELL_R[b]), jnp.abs(_CELL_C[a] - _CELL_C[b]))
+
+    # Destinations that break every opponent ring: (N,)
+    breaks_all = (_NEAR2 & opp_rings[None, :]).sum(axis=1) == opp_rings.sum()
+    breaks_all = breaks_all & jnp.any(opp_rings)
+
+    # The mover's rings (up to _MAX_OWN_RINGS), and whether one survives a move
+    # from s to d: touched by neither footprint.
+    _, own_idx = jax.lax.top_k(own_rings.astype(jnp.int32), _MAX_OWN_RINGS)
+    own_valid = own_rings[own_idx]                                          # (K,)
+    src_clear = cheb(jnp.arange(N)[:, None], own_idx[None, :]) > 2          # (N, K)
+
+    def wins_from(s, dests, dests_ok):
+        dst_clear = cheb(dests[:, None], own_idx[None, :]) > 2              # (D, K)
+        keeps = jnp.any(own_valid[None, :] & src_clear[s][None, :] & dst_clear, axis=1)
+        return _legal_dest_mask(state, s)[dests] & dests_ok & keeps
+
+    # Stage 0 only needs the destinations that break every ring: at most the 25
+    # cells around one ring centre (5x5), so test those, not all 400.
+    _, cand = jax.lax.top_k(breaks_all.astype(jnp.int32), 25)
+    cand_ok = breaks_all[cand]
+    cells = jnp.arange(N)
+    stage0 = _legal_source_mask(state) & jax.vmap(lambda s: jnp.any(wins_from(s, cand, cand_ok)))(cells)
+    stage1 = wins_from(state.source, cells, breaks_all)
+    return jnp.where(state.stage == 0, stage0, stage1)
+
+
 # ─── Initial position ────────────────────────────────────────────────────────
 
 def _make_init_board() -> Array:

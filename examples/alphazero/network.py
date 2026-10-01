@@ -354,6 +354,108 @@ def _gess_policy_head(f, is_stage1, src_footprint):
     return jnp.where(is_stage1[:, None], stage1, stage0)
 
 
+# Constant geometry for the joint policy term: for each (source, destination)
+# pair of grid cells, the index of their relative offset in a (39, 39) table, and
+# whether the destination lies on one of the source's eight lines (rows, columns,
+# diagonals), the only places a piece can move to.
+_REL = np.arange(_GESS_GRID**2)
+_DR = _REL[None, :] // _GESS_GRID - _REL[:, None] // _GESS_GRID
+_DC = _REL[None, :] % _GESS_GRID - _REL[:, None] % _GESS_GRID
+_REL_SIDE = 2 * _GESS_GRID - 1
+_REL_INDEX = (_DR + _GESS_GRID - 1) * _REL_SIDE + (_DC + _GESS_GRID - 1)  # (400, 400)
+_ON_LINE = ((_DR == 0) | (_DC == 0) | (np.abs(_DR) == np.abs(_DC))) & ~((_DR == 0) & (_DC == 0))
+# The cells of the 20x20 grid whose 3x3 footprint lies in the 18x18 playing
+# area, counted per possible centre (for recovering the source centre below).
+_PLAY_IN_FP = np.pad(np.ones((_GESS_GRID - 2, _GESS_GRID - 2)), 1)
+_PLAY_IN_FP = sum(
+    np.roll(np.roll(np.pad(_PLAY_IN_FP, 1), dr, 0), dc, 1)[1:-1, 1:-1]
+    for dr in (-1, 0, 1) for dc in (-1, 0, 1)
+)
+
+
+def _source_centre(src_footprint):
+    """One-hot (b, 400) of the selected source's centre, from its footprint.
+
+    The observation marks the footprint only where it overlaps the playing
+    area, so a centre on or next to the border shows a partial 3x3. The centre
+    is the one cell whose footprint covers every marked cell and no unmarked
+    playing cell: it alone scores 2 * marked - playing = |marked| (the maximum).
+    """
+    b, g, _ = src_footprint.shape
+    m = jnp.pad(src_footprint, ((0, 0), (1, 1), (1, 1)))
+    marked = sum(
+        m[:, 1 + dr: g + 1 + dr, 1 + dc: g + 1 + dc] for dr in (-1, 0, 1) for dc in (-1, 0, 1)
+    )
+    score = (2 * marked - jnp.asarray(_PLAY_IN_FP, marked.dtype)).reshape(b, g * g)
+    return (score >= score.max(axis=1, keepdims=True)).astype(src_footprint.dtype)
+
+
+# Number of destinations on each source's lines, for the stage-0 log-mean-exp.
+_LOG_LINE_COUNT = np.log(_ON_LINE.sum(axis=1)).astype(np.float32)
+
+
+def _gess_joint_policy(f, is_stage1, src_footprint, logits, version=2):
+    """Add the joint piece->destination term to the policy `logits` (b, 400).
+
+    J[s, d] = q_s . k_d / sqrt(k) + rel[d - s]. Stage 0 adds, per source, a
+    soft maximum of J[s, d] over the destinations on its lines (a piece scores
+    highly when any of its moves does); stage 1 adds the chosen source's row
+    J[s, :]. Either way the term is zero at initialisation, so it can be added
+    to a trained network without changing its outputs.
+
+    version 2: the query projection starts at zero (and the offset bias rel), the
+      key at a normal init, and stage 0 uses the log-mean-exp, which is then 0.
+      The query and rel get gradients from the first update (as in LoRA).
+    version 1 (E21): both projections at a small init, the term scaled by two
+      gates starting at zero, and a log-sum-exp. Not recommended: gate and score
+      are both ~0 at the start, so neither gets a useful gradient and the term
+      never switched on (the gates were ~0.001 after 34 iterations).
+    """
+    b, g, _, c = f.shape
+    n = g * g
+    f = f.reshape(b, n, c)
+    if version == 1:
+        q = hk.Linear(c, w_init=_TF_INIT, name="joint_query")(f)
+        k = hk.Linear(c, w_init=_TF_INIT, name="joint_key")(f)
+    else:
+        q = hk.Linear(c, w_init=jnp.zeros, name="joint_query")(f)
+        k = hk.Linear(c, name="joint_key")(f)
+    rel = hk.get_parameter("joint_rel", (_REL_SIDE * _REL_SIDE,), init=jnp.zeros)
+    rel = rel.astype(f.dtype)[_REL_INDEX]  # (400, 400)
+    neg = jnp.asarray(np.where(_ON_LINE, 0.0, -1e4), f.dtype)
+
+    # Stage 0: every source's soft maximum over its line destinations.
+    joint = jnp.einsum("bsk,bdk->bsd", q, k) / math.sqrt(c) + rel + neg
+    stage0 = jax.nn.logsumexp(joint.astype(jnp.float32), axis=-1)
+    if version != 1:
+        stage0 = stage0 - _LOG_LINE_COUNT
+    stage0 = stage0.astype(f.dtype)
+    # Stage 1: the chosen source's row, computed from its query alone. No line
+    # mask here: squares off the source's lines are never legal destinations.
+    centre = _source_centre(src_footprint)
+    q_src = jnp.einsum("bs,bsk->bk", centre, q)
+    stage1 = jnp.einsum("bk,bdk->bd", q_src, k) / math.sqrt(c) + centre @ rel
+    if version == 1:
+        gates = hk.get_parameter("joint_gates", (2,), init=jnp.zeros).astype(f.dtype)
+        stage0, stage1 = gates[0] * stage0, gates[1] * stage1
+    return logits + jnp.where(is_stage1[:, None], stage1, stage0)
+
+
+def _gess_win_head(f, tok):
+    """Auxiliary head (training only; see Config.aux_win_weight): logits for
+    which actions win at once (b, 400), and for whether any does (b,)."""
+    b, g, _, c = f.shape
+    m = jax.nn.gelu(hk.Linear(c, name="aux_win_hidden")(f))
+    # Output biases start at the labels' base rates (~0.3% of actions win at
+    # once, in ~10% of positions), so a fresh head starts near its final loss
+    # instead of swamping the shared trunk's gradient while it learns them.
+    m = hk.Linear(1, b_init=hk.initializers.Constant(-6.0), name="aux_win_out")(m).reshape(b, g * g)
+    a = _layer_norm("aux_any_ln")(tok.mean(axis=1))
+    a = jax.nn.gelu(hk.Linear(128, name="aux_any_hidden")(a))
+    a = hk.Linear(1, b_init=hk.initializers.Constant(-2.2), name="aux_any_out")(a).reshape((-1,))
+    return m, a
+
+
 def _gess_value_head(tok):
     """Scalar value from tokens (b, n, d): mean-pool -> LN -> MLP -> tanh."""
     v = _layer_norm("value_ln")(tok.mean(axis=1))
@@ -375,6 +477,7 @@ class GessFormer(hk.Module):
         ffn_mult: float = 2.0,
         use_gab: bool = True,
         remat: bool = True,
+        joint_head: int = 0,
         name="gess_former",
     ):
         super().__init__(name=name)
@@ -389,8 +492,9 @@ class GessFormer(hk.Module):
         self.ffn_mult = ffn_mult
         self.use_gab = use_gab
         self.remat = remat
+        self.joint_head = joint_head
 
-    def __call__(self, x, is_training=False, test_local_stats=False):
+    def __call__(self, x, is_training=False, test_local_stats=False, aux=False):
         del is_training, test_local_stats  # no BatchNorm
         x, is_stage1, src_footprint = _gess_input(x)
         b = x.shape[0]
@@ -426,7 +530,12 @@ class GessFormer(hk.Module):
         f = ConvBlock(c, name="decoder_block")(f)
         f = jax.nn.gelu(_layer_norm("decoder_ln")(f))  # (b, 20, 20, c)
 
-        return _gess_policy_head(f, is_stage1, src_footprint), _gess_value_head(tok)
+        logits = _gess_policy_head(f, is_stage1, src_footprint)
+        if self.joint_head:
+            logits = _gess_joint_policy(f, is_stage1, src_footprint, logits, int(self.joint_head))
+        if aux:
+            return (logits, _gess_value_head(tok)) + _gess_win_head(f, tok)
+        return logits, _gess_value_head(tok)
 
 # ─── BoardFormer ─────────────────────────────────────────────────────────────
 #
@@ -775,7 +884,7 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
 
     obs_planes = getattr(config, "obs_planes", 0)
 
-    def forward_fn(x: jnp.ndarray, is_eval: bool = False) -> tuple[jnp.ndarray, jnp.ndarray]:
+    def forward_fn(x: jnp.ndarray, is_eval: bool = False, aux: bool = False) -> tuple[jnp.ndarray, ...]:
         x = x.astype(dtype)
         if obs_planes:
             # Train on the leading planes only (see Config.obs_planes).
@@ -823,6 +932,7 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
                 ffn_mult=config.gf_ffn_mult,
                 use_gab=config.gf_gab,
                 remat=config.gf_remat,
+                joint_head=int(getattr(config, "gf_joint_head", 0)),
             )
         else:
             net = AZNet(
@@ -834,6 +944,12 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
                 num_attention_layers=config.num_attention_layers,
                 action_cells=cells if config.cell_policy_head else None,
             )
+        if aux:
+            # Auxiliary outputs (training only): GessFormer's immediate-win head.
+            if config.architecture != "gessformer":
+                raise ValueError("auxiliary outputs exist only for architecture=gessformer")
+            outs = net(x, is_training=not is_eval, test_local_stats=False, aux=True)
+            return tuple(o.astype(jnp.float32) for o in outs)
         policy_out, value_out = net(x, is_training=not is_eval, test_local_stats=False)
         return policy_out.astype(jnp.float32), value_out.astype(jnp.float32)
 

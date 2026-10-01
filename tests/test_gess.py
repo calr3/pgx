@@ -23,7 +23,7 @@ from pgx._src.games.gess import (
     BOARD_SIZE, N, MIN_IDX, MAX_IDX, DRAW_NO_CAPTURE_TURNS,
     Game, GameState,
     _apply_move, _has_ring, _legal_source_mask, _legal_dest_mask,
-    _make_init_board,
+    _make_init_board, winning_actions,
 )
 
 env   = Gess()
@@ -541,3 +541,65 @@ def test_mover_wins_when_own_nonfinal_ring_and_opp_final_ring_destroyed():
         "black should win: ring B survives even though ring A and white's only ring "
         "were both destroyed"
     )
+
+
+# ─── winning_actions (training aid) ──────────────────────────────────────────
+
+_cells = jnp.arange(N)
+
+
+@jax.jit
+def _brute_dest_wins(x):
+    """At stage 1: the legal destinations whose move wins at once."""
+    wins = jax.vmap(lambda d: (lambda y: game.is_terminal(y) & (y.winner == x.color))(game.step(x, d)))(_cells)
+    return game.legal_action_mask(x) & wins
+
+
+@jax.jit
+def _brute_wins(x):
+    """winning_actions by playing out every legal move."""
+    if_stage0 = game.legal_action_mask(x) & jax.vmap(
+        lambda s: jnp.any(_brute_dest_wins(game.step(x, s))))(_cells)
+    return jnp.where(x.stage == 0, if_stage0, _brute_dest_wins(x))
+
+
+def _ring(val, r, c):
+    return [(val, r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
+
+
+def test_winning_actions_slide_onto_last_ring():
+    # Black (to move) has a ring at (15,10) and a piece centred on (12,10) with
+    # a stone to its north and its centre, so it slides north without limit
+    # until it lands on white's only ring, at (5,10): from (7,10) on.
+    board = make_board(*_ring(WHITE, 5, 10), *_ring(BLACK, 15, 10), (BLACK, 12, 10), (BLACK, 11, 10))
+    x = make_state(color=0, board=board)
+    wins = winning_actions(x)
+    assert bool(wins[idx(12, 10)])
+    assert np.array_equal(np.asarray(wins), np.asarray(_brute_wins(x)))
+    x1 = game.step(x, jnp.int32(idx(12, 10)))
+    wins1 = winning_actions(x1)
+    assert bool(wins1[idx(7, 10)])
+    assert np.array_equal(np.asarray(wins1), np.asarray(_brute_wins(x1)))
+
+
+def test_winning_actions_not_when_the_move_lifts_the_last_own_ring():
+    # As above, but black's only ring is the moving piece's own surroundings:
+    # lifting it breaks black's ring, so breaking white's loses instead.
+    board = make_board(*_ring(WHITE, 5, 10), *_ring(BLACK, 12, 10), (BLACK, 12, 10))
+    x = make_state(color=0, board=board)
+    assert not bool(jnp.any(winning_actions(x)))
+    assert not bool(jnp.any(_brute_wins(x)))
+
+
+def test_winning_actions_matches_brute_force_in_play():
+    # Positions from a few games where each side plays a random move that keeps
+    # its ring, at both stages.
+    rng = np.random.default_rng(0)
+    for _ in range(3):
+        x = GameState(board=_make_init_board())
+        for _ in range(30):
+            assert np.array_equal(np.asarray(winning_actions(x)), np.asarray(_brute_wins(x)))
+            moves = np.nonzero(np.asarray(game.legal_action_mask(x)))[0]
+            x = game.step(x, jnp.int32(rng.choice(moves)))
+            if bool(game.is_terminal(x)):
+                break

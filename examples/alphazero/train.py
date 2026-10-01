@@ -42,6 +42,7 @@ from model_tournament import (
 from network import cast_floating, make_forward, make_optimizer
 from replay_buffer import ReplayBuffer
 from symmetry import augment_dots_and_boxes, augment_epaminondas, augment_gess
+from pgx._src.games.gess import winning_actions as gess_winning_actions
 from trajectories import PendingTrajectories, Sample
 
 # A Haiku model is a (params, state) pair, as returned by forward.init.
@@ -125,6 +126,24 @@ qtransform = {
     "completed_unscaled": partial(mctx.qtransform_completed_by_mix_value, rescale_values=False),
     "by_min_max": partial(mctx.qtransform_by_min_max, min_value=-1.0, max_value=1.0),
 }[config.qtransform]
+
+# The auxiliary immediate-win target (Config.aux_win_weight).
+AUX_WIN = config.aux_win_weight > 0
+if AUX_WIN and (config.env_id != "gess" or config.architecture != "gessformer"):
+    raise ValueError("aux_win_weight needs env_id=gess and architecture=gessformer")
+
+if config.value_scale_by_stage:
+    # Per-stage value_scale (see Config.value_scale_by_stage). mctx calls the
+    # qtransform on one unbatched tree at a time, so the node's stage can be read
+    # from its embedding (the env state stored at that node).
+    if config.qtransform == "by_min_max":
+        raise ValueError("value_scale_by_stage needs a completed_* qtransform")
+    _stage_scales = jnp.array([float(v) for v in config.value_scale_by_stage.split(",")])
+    _base_qtransform = qtransform
+
+    def qtransform(tree, node_index):
+        stage = jnp.clip(tree.embeddings._x.stage[node_index], 0, _stage_scales.shape[0] - 1)
+        return _base_qtransform(tree, node_index, value_scale=_stage_scales[stage])
 
 
 def recurrent_fn(
@@ -210,6 +229,12 @@ class SelfplayOutput(NamedTuple):
     # The game ended here on a move clock rather than by a win (Gess's 20
     # captureless turns); always False for envs without one. Only logged.
     clock_end: jnp.ndarray
+    # Auxiliary immediate-win target (Config.aux_win_weight; None when off): the
+    # actions that win at once in this step's position, that the label exists,
+    # and (logged only) whether a win was available but the search did not take it.
+    aux_win: jnp.ndarray | None = None
+    aux_valid: jnp.ndarray | None = None
+    aux_missed: jnp.ndarray | None = None
 
 
 def ended_by_clock(state: pgx.State) -> jnp.ndarray:
@@ -307,6 +332,12 @@ def selfplay(
             )
             action = jnp.where(state._step_count < config.selfplay_sample_plies, sampled, action)
         actor = state.current_player
+        if AUX_WIN:
+            # In chunks: labelling a whole batch at once makes multi-GB temporaries.
+            chunk = min(batch_size, 64)
+            xs = jax.tree_util.tree_map(lambda a: a.reshape((-1, chunk) + a.shape[1:]), state._x)
+            aux_win = jax.lax.map(jax.vmap(gess_winning_actions), xs).reshape(batch_size, -1)
+            aux_missed = aux_win.any(axis=1) & ~aux_win[jnp.arange(batch_size), action]
         keys = jax.random.split(key2, batch_size)
         state, clock_end = jax.vmap(step_and_reset)(state, action, keys)
         # +1 when the same player is still to move (multi-stage turn), -1 when
@@ -321,6 +352,9 @@ def selfplay(
             discount=discount,
             policy_mask=jnp.full(batch_size, full_search),
             clock_end=clock_end,
+            aux_win=aux_win if AUX_WIN else None,
+            aux_valid=jnp.ones(batch_size, jnp.bool_) if AUX_WIN else None,
+            aux_missed=aux_missed if AUX_WIN else None,
         )
 
     # Run selfplay for max_num_steps by batch
@@ -341,10 +375,15 @@ def init_selfplay_state(rng_key: jnp.ndarray) -> pgx.State:
 
 def loss_fn(
     model_params: hk.Params, model_state: hk.State, samples: Sample
-) -> tuple[jnp.ndarray, tuple[hk.State, jnp.ndarray, jnp.ndarray]]:
-    (logits, value), model_state = forward.apply(
-        model_params, model_state, samples.obs, is_eval=False
-    )
+) -> tuple[jnp.ndarray, tuple[hk.State, jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+    if AUX_WIN:
+        (logits, value, win_logits, any_logit), model_state = forward.apply(
+            model_params, model_state, samples.obs, is_eval=False, aux=True
+        )
+    else:
+        (logits, value), model_state = forward.apply(
+            model_params, model_state, samples.obs, is_eval=False
+        )
 
     policy_loss = optax.softmax_cross_entropy(logits, samples.policy_tgt)
     if config.playout_cap_prob < 1.0:
@@ -358,7 +397,18 @@ def loss_fn(
     value_loss = optax.l2_loss(value, samples.value_tgt)
     value_loss = jnp.mean(value_loss * samples.mask)  # mask if the episode is truncated
 
-    return policy_loss + value_loss, (model_state, policy_loss, value_loss)
+    aux_loss = jnp.float32(0.0)
+    if AUX_WIN:
+        # Per action: summed over the 400 cells, so the rare winning cells count
+        # (a mean would be ~0 whatever the head did). Plus "any action wins".
+        valid = samples.aux_valid.astype(jnp.float32)
+        tgt = samples.aux_win.astype(jnp.float32)
+        cell = optax.sigmoid_binary_cross_entropy(win_logits, tgt).sum(axis=-1)
+        any_ = optax.sigmoid_binary_cross_entropy(any_logit, tgt.max(axis=-1))
+        aux_loss = jnp.sum((cell + any_) * valid) / jnp.maximum(jnp.sum(valid), 1)
+
+    total = policy_loss + value_loss + config.aux_win_weight * aux_loss
+    return total, (model_state, policy_loss, value_loss, aux_loss)
 
 
 @partial(jax.pmap, axis_name="i")
@@ -373,9 +423,13 @@ def train(
             "dots_and_boxes": augment_dots_and_boxes,
         }[config.env_id]
         obs, policy_tgt = augment(rng_key, data.obs, data.policy_tgt)
+        if AUX_WIN:
+            # The same key gives the same symmetry per sample.
+            _, aux_win = augment(rng_key, data.obs, data.aux_win.astype(jnp.float32))
+            data = data._replace(aux_win=aux_win > 0.5)
         data = data._replace(obs=obs, policy_tgt=policy_tgt)
     if config.train_micro_batches == 1:
-        grads, (model_state, policy_loss, value_loss) = jax.grad(loss_fn, has_aux=True)(
+        grads, (model_state, policy_loss, value_loss, aux_loss) = jax.grad(loss_fn, has_aux=True)(
             model_params, model_state, data
         )
     else:
@@ -386,22 +440,22 @@ def train(
         micro = jax.tree_util.tree_map(lambda x: x.reshape((k, -1) + x.shape[1:]), data)
 
         def accumulate(carry, mb):
-            grads, model_state, policy_loss, value_loss = carry
-            g, (model_state, p, v) = jax.grad(loss_fn, has_aux=True)(model_params, model_state, mb)
+            grads, model_state, policy_loss, value_loss, aux_loss = carry
+            g, (model_state, p, v, a) = jax.grad(loss_fn, has_aux=True)(model_params, model_state, mb)
             grads = jax.tree_util.tree_map(jnp.add, grads, g)
-            return (grads, model_state, policy_loss + p, value_loss + v), None
+            return (grads, model_state, policy_loss + p, value_loss + v, aux_loss + a), None
 
         zeros = jax.tree_util.tree_map(jnp.zeros_like, model_params)
-        (grads, model_state, policy_loss, value_loss), _ = jax.lax.scan(
-            accumulate, (zeros, model_state, 0.0, 0.0), micro
+        (grads, model_state, policy_loss, value_loss, aux_loss), _ = jax.lax.scan(
+            accumulate, (zeros, model_state, 0.0, 0.0, 0.0), micro
         )
         grads = jax.tree_util.tree_map(lambda g: g / k, grads)
-        policy_loss, value_loss = policy_loss / k, value_loss / k
+        policy_loss, value_loss, aux_loss = policy_loss / k, value_loss / k, aux_loss / k
     grads = jax.lax.pmean(grads, axis_name="i")
     updates, opt_state = optimizer.update(grads, opt_state, model_params)
     model_params = optax.apply_updates(model_params, updates)
     model = (model_params, model_state)
-    return model, opt_state, policy_loss, value_loss
+    return model, opt_state, policy_loss, value_loss, aux_loss
 
 
 @jax.pmap
@@ -474,7 +528,7 @@ def evaluate(rng_key: jnp.ndarray, my_model: Model) -> tuple[jnp.ndarray, jnp.nd
 
 # Set by the SIGINT handler to request a clean shutdown: the training loop
 # finishes the current iteration, writes a checkpoint, then exits. A second
-def warm_start_params(params, init_params, obs_planes: int, label: str = "init_from"):
+def warm_start_params(params, init_params, obs_planes: int, label: str = "init_from", zeros: bool = False):
     """`params` from an init_from checkpoint, fitted to this run's network.
 
     Every tensor must match `init_params` (a fresh init against the current env)
@@ -484,13 +538,25 @@ def warm_start_params(params, init_params, obs_planes: int, label: str = "init_f
     at index `obs_planes - added`: after the old observation planes and before
     the network's own. Their weights are zero, so the widened network computes
     exactly what the checkpoint did until training moves them.
+
+    Parameters the checkpoint lacks entirely (a module added since, such as
+    GessFormer's joint policy term, which is zero at init) take their fresh
+    values, or zeros with `zeros` (for optimizer moments). Parameters the
+    network no longer has (such a module turned off) are dropped.
     """
+    for module, entries in params.items():
+        for name in entries:
+            if name not in init_params.get(module, {}):
+                print(f"{label}: dropped parameter {module}/{name}")
     out = {}
     for module, entries in init_params.items():
-        if module not in params:
-            raise ValueError(f"{label} checkpoint has no module {module}")
         out[module] = {}
         for name, fresh in entries.items():
+            if name not in params.get(module, {}):
+                out[module][name] = np.zeros_like(fresh) if zeros else fresh
+                print(f"{label}: new parameter {module}/{name} {np.shape(fresh)} "
+                      f"({'zeros' if zeros else 'fresh init'})")
+                continue
             old = params[module][name]
             if old.shape == fresh.shape:
                 out[module][name] = old
@@ -500,8 +566,8 @@ def warm_start_params(params, init_params, obs_planes: int, label: str = "init_f
                     and old.shape[:2] + old.shape[3:] == fresh.shape[:2] + fresh.shape[3:]):
                 raise ValueError(f"{module}/{name}: checkpoint {old.shape} vs network {fresh.shape}")
             at = obs_planes - added
-            zeros = np.zeros((*old.shape[:2], added, old.shape[3]), old.dtype)
-            out[module][name] = np.concatenate([old[:, :, :at], zeros, old[:, :, at:]], axis=2)
+            pad = np.zeros((*old.shape[:2], added, old.shape[3]), old.dtype)
+            out[module][name] = np.concatenate([old[:, :, :at], pad, old[:, :, at:]], axis=2)
             print(f"{label}: widened {module}/{name} {old.shape} -> {fresh.shape} "
                   f"(zero weights for observation planes {at}..{at + added - 1})")
     return out
@@ -509,10 +575,10 @@ def warm_start_params(params, init_params, obs_planes: int, label: str = "init_f
 
 def widen_resumed(model: Model, opt_state: optax.OptState, fresh_params, obs_planes: int):
     """A resumed checkpoint's model and optimizer state, fitted to this run's
-    network when the observation it reads has gained planes (see
-    warm_start_params). Adam's moments for the new stem weights start at zero,
-    like the weights themselves; everything else, the step count included, is
-    kept, so the LR schedule and buffer continue as for any resume."""
+    network when the observation it reads has gained planes or the network has
+    gained parameters (see warm_start_params). Adam's moments for anything new
+    start at zero; everything else, the step count included, is kept, so the LR
+    schedule and buffer continue as for any resume."""
     params, net_state = model
     if jax.tree_util.tree_structure(params) == jax.tree_util.tree_structure(fresh_params) and all(
         a.shape == b.shape
@@ -523,9 +589,11 @@ def widen_resumed(model: Model, opt_state: optax.OptState, fresh_params, obs_pla
 
     def widen(tree):
         # optax states are (named) tuples whose params-shaped entries are dicts
-        # keyed like the params.
-        if isinstance(tree, dict) and tree.keys() == fresh_params.keys():
-            return warm_start_params(tree, fresh_params, obs_planes, label="resume_from (optimizer)")
+        # keyed like the params (by module, perhaps not the same modules as the
+        # network has now).
+        if (isinstance(tree, dict) and tree and tree.keys() & fresh_params.keys()
+                and all(isinstance(v, dict) for v in tree.values())):
+            return warm_start_params(tree, fresh_params, obs_planes, label="resume_from (optimizer)", zeros=True)
         if isinstance(tree, tuple):
             items = [widen(t) for t in tree]
             return type(tree)(*items) if hasattr(tree, "_fields") else tuple(items)
@@ -577,7 +645,7 @@ if __name__ == "__main__":
     # Initialize model and opt_state
     dummy_state = jax.vmap(env.init)(jax.random.split(jax.random.PRNGKey(0), 2))
     dummy_input = dummy_state.observation
-    model = forward.init(jax.random.PRNGKey(0), dummy_input)  # (params, state)
+    model = forward.init(jax.random.PRNGKey(0), dummy_input, aux=AUX_WIN)  # (params, state)
     opt_state = optimizer.init(params=model[0])
 
     # Logging/training state (may be overwritten when resuming from a checkpoint)
@@ -710,6 +778,13 @@ if __name__ == "__main__":
             )
         else:
             replay_buffer.load_state_dict(data_state["replay_buffer"])
+            if AUX_WIN and replay_buffer._data is not None and replay_buffer._data.aux_win is None:
+                # Samples from before the auxiliary target: no labels (aux_valid False).
+                cap = replay_buffer.capacity
+                replay_buffer._data = replay_buffer._data._replace(
+                    aux_win=np.zeros((cap, env.num_actions), np.bool_),
+                    aux_valid=np.zeros(cap, np.bool_),
+                )
             restored = f"replay buffer ({replay_buffer.num_samples} samples)"
             if data_state["selfplay_batch_size"] == config.selfplay_batch_size:
                 trajectories.load_state_dict(data_state["trajectories"])
@@ -838,6 +913,9 @@ if __name__ == "__main__":
         games_finished = data.terminated.sum().item()
         games_drawn = (data.terminated & (data.reward == 0)).sum().item()
         games_clock_ended = data.clock_end.sum().item()
+        if AUX_WIN:
+            win_available = data.aux_win.any(axis=-1).mean().item()
+            win_missed = data.aux_missed.sum().item() / max(data.aux_win.any(axis=-1).sum().item(), 1)
         full_search_fraction = data.policy_mask.mean().item()
 
         # Compute value targets and fill the replay buffer on the host, so only
@@ -873,7 +951,7 @@ if __name__ == "__main__":
             ).reshape(num_updates, -1)
 
         # Training
-        policy_losses, value_losses = [], []
+        policy_losses, value_losses, aux_losses = [], [], []
         for i in range(num_updates):
             minibatch: Sample = jax.tree_util.tree_map(
                 lambda x: x.reshape((num_devices, -1) + x.shape[1:]),
@@ -884,12 +962,15 @@ if __name__ == "__main__":
                 aug_keys = jax.random.split(subkey, num_devices)
             else:
                 aug_keys = no_aug_keys  # unused; keeps rng_key's stream unchanged
-            model, opt_state, policy_loss, value_loss = train(model, opt_state, minibatch, aug_keys)
+            model, opt_state, policy_loss, value_loss, aux_loss = train(model, opt_state, minibatch, aug_keys)
             policy_losses.append(policy_loss.mean().item())
             value_losses.append(value_loss.mean().item())
+            aux_losses.append(aux_loss.mean().item())
         if num_updates > 0:
             log["train/policy_loss"] = sum(policy_losses) / num_updates
             log["train/value_loss"] = sum(value_losses) / num_updates
+            if AUX_WIN:
+                log["train/aux_win_loss"] = sum(aux_losses) / num_updates
 
         et = time.time()
         hours += (et - st) / 3600
@@ -907,6 +988,8 @@ if __name__ == "__main__":
                 "selfplay/full_search_fraction": full_search_fraction,
                 "selfplay/draw_rate": games_drawn / max(games_finished, 1),
                 "selfplay/clock_end_rate": games_clock_ended / max(games_finished, 1),
+                **({"selfplay/win_available": win_available,
+                    "selfplay/win_missed": win_missed} if AUX_WIN else {}),
                 "selfplay/steps_per_game": data_steps / max(games_finished, 1),
                 "hours": hours,
                 "frames": frames,

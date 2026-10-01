@@ -82,6 +82,15 @@ class Config(BaseModel):
     gf_gab: bool = True
     # Rematerialize transformer blocks in the backward pass to save memory.
     gf_remat: bool = True
+    # Add a joint piece->destination policy term (network._gess_joint_policy):
+    # a score for every (source, destination) pair on a shared line, from the
+    # two cells' features plus a learned bias per relative offset. Stage 0 adds
+    # each source's soft maximum over its destinations, stage 1 the chosen
+    # source's row. 0 = off; 2 = current; 1 = E21's version, whose zero gates
+    # kept it from ever learning (older checkpoints stored True, i.e. 1). It is
+    # zero at initialisation, so turning it on when resuming a checkpoint
+    # without it leaves the network's outputs unchanged at first.
+    gf_joint_head: int = 0
     # "rayformer" (network.RayFormer): full-resolution transformer for Gess
     # with attention along rows, columns and diagonals; configured by rf_*.
     # Defaults roughly match gessformer's inference cost (self-play dominates);
@@ -140,6 +149,24 @@ class Config(BaseModel):
     qtransform: Literal["completed_by_mix_value", "completed_unscaled", "by_min_max"] = (
         "completed_by_mix_value"
     )
+    # Self-play only: value_scale of the "completed_*" qtransforms per turn
+    # stage, as a comma-separated list indexed by the node's stage (the env's
+    # `_x.stage`; multi-stage turns such as Gess's piece-then-destination).
+    # Empty = mctx's default 0.1 everywhere. E.g. "0.1,2.0" lets the search's
+    # evaluations dominate Gess's destination targets, where every destination
+    # is searched, while piece targets (a few visits per piece) keep the
+    # default. A larger value_scale makes the improved policy follow Q more
+    # strongly: at 0.1 a move can gain at most ~7 logits over its prior.
+    value_scale_by_stage: str = ""
+    # Gess only: weight of an auxiliary training target, "which actions win the
+    # game at once (by breaking the opponent's last ring)", labelled exactly by
+    # the rules (pgx gess.winning_actions) for every self-play position and
+    # predicted by an extra GessFormer head. Training only: the head is never
+    # used in play. It is meant to teach the shared trunk, and so the value
+    # head, to see ring-breaking threats, which the search otherwise misses
+    # (the network rated positions with an opponent mate-in-one as winning).
+    # 0 = off.
+    aux_win_weight: float = 0.0
     # Run the self-play network in bfloat16 (weights cast per call; training and
     # evaluation stay float32). ~2x faster inference for gessformer.
     selfplay_bf16: bool = False

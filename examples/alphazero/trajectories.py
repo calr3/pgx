@@ -15,9 +15,17 @@ class Sample(NamedTuple):
     mask: np.ndarray
     # Whether policy_tgt came from a full search (playout cap randomization).
     policy_mask: np.ndarray
+    # Auxiliary immediate-win target (Config.aux_win_weight): which actions win
+    # at once, and whether that label exists (False for steps generated before
+    # the target was turned on). None when the target is off; defaults keep
+    # samples pickled before these fields existed loadable.
+    aux_win: np.ndarray | None = None
+    aux_valid: np.ndarray | None = None
 
 
 _FIELDS = ("obs", "action_weights", "reward", "discount", "terminated", "policy_mask")
+# Present only when the auxiliary immediate-win target is on.
+_AUX_FIELDS = ("aux_win", "aux_valid")
 
 
 class PendingTrajectories:
@@ -60,11 +68,16 @@ class PendingTrajectories:
         self._tail_pending = state["tail_pending"]
 
     def process(self, data: Any, carry: bool) -> Sample:
-        steps = {f: np.asarray(getattr(data, f)) for f in _FIELDS if hasattr(data, f)}
+        fields = _FIELDS + tuple(f for f in _AUX_FIELDS if getattr(data, f, None) is not None)
+        steps = {f: np.asarray(getattr(data, f)) for f in fields if hasattr(data, f)}
         steps.setdefault("policy_mask", np.ones(steps["terminated"].shape, dtype=bool))
         pending = np.ones(steps["terminated"].shape, dtype=bool)
         if self._tail is not None:
-            steps = {f: np.concatenate([self._tail[f], steps[f]]) for f in _FIELDS}
+            tail_len = self._tail["terminated"].shape[0]
+            for f in fields:
+                if f not in self._tail:  # held back before the aux target was on
+                    self._tail[f] = np.zeros((tail_len, *steps[f].shape[1:]), steps[f].dtype)
+            steps = {f: np.concatenate([self._tail[f], steps[f]]) for f in fields}
             pending = np.concatenate([self._tail_pending, pending])
         length = pending.shape[0]
 
@@ -91,7 +104,7 @@ class PendingTrajectories:
         if hold.any():
             first = int(np.argmax(hold.any(axis=1)))
             # Copy so the tail does not keep the whole concatenated window alive.
-            self._tail = {f: steps[f][first:].copy() for f in _FIELDS}
+            self._tail = {f: steps[f][first:].copy() for f in fields}
             self._tail_pending = hold[first:].copy()
         else:
             self._tail = None
@@ -103,4 +116,6 @@ class PendingTrajectories:
             value_tgt=value_tgt[emit],
             mask=resolved[emit],
             policy_mask=steps["policy_mask"][emit],
+            aux_win=steps["aux_win"][emit] if "aux_win" in steps else None,
+            aux_valid=steps["aux_valid"][emit] if "aux_valid" in steps else None,
         )
