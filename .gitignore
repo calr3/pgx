@@ -72,3 +72,6 @@ g_hex_E3.log
 gess_*_tournament.log
 gess_*_runner.log
 gess_*_match.log
+gess_*_followup.log
+gess_slide_*.json
+gess_slide_*.log

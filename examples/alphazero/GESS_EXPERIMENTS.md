@@ -614,6 +614,107 @@ last move usually had no capture that kept their own ring, and a self-capture on
 widens the deficit, so the search rightly sees these positions as lost; in 4 of
 118 games a levelling capture was missed.
 
+## The long-capture benchmark
+
+`gess_slide_diag.py` (CPU, ~20 min): 2000 positions sampled with a fixed seed from
+`tdgauntlet/results/gess_e18_v_e17.json`; every capturing move (opponent stones
+taken, own ring kept) and the move played are scored by a 64-simulation search of
+the resulting position with the checkpoint's own network, and the raw network's
+ranks of each capture's piece (stage 0) and destination (stage 1) are reported by
+slide distance (`gess_slide_report.py`). E19 (`gess_slide_e19.json`): for captures
+at least as good as the move played, the capturing destination was the network's
+first choice for its piece 92-94% of the time at distances 1-3, **13% at 4-6 and 0%
+at 7+** (median rank 7th of 8, 12th of 14). In 323 of 2000 positions a capture was
+clearly better (>= 0.2) than the move E18/E17 played; 285 of those were slides of 4+.
+A 512-simulation recheck of 160 of them kept 92% at >= 0.2 better.
+
+Supervised fine-tuning from E19 on these captures (CPU, 300 updates) taught the
+network to rank held-out long captures first 100% of the time with or without a
+joint policy head, so the architecture could represent them: the self-play
+training signal was the problem (E22).
+
+## E21. Joint piece->destination policy head (version 1), from E19
+
+**Question.** Does a policy term scoring (source, destination) pairs (features of
+both cells plus a learned bias per relative offset; stage 0 takes a log-sum-exp
+over a source's destinations, stage 1 its row) fix the long-capture blind spot?
+
+**Setup.** `resume_as_new_run` from E19 it 332, `gf_joint_head=1` (the term scaled
+by two gates starting at zero), 34 iterations to 366 on E19's settings,
+`train_micro_batches=4`. Interrupted at 346 for a reboot and resumed. Run
+`wg0172pa`, `checkpoints/gess_20260930055738`.
+
+**Result.** The gates never moved (~0.001 after 34 iterations): gate and score were
+both ~0 at the start, so neither had a useful gradient. The benchmark was unchanged
+(4-6: 12.8% first). E21 vs. E19, 400 games: **198-51-151, 0.559 per game (+41 Elo)**
+- in effect a plain 5 h continuation, the control for later runs. Version 2 (query
+projection at zero, key at a normal init, no gates, log-mean-exp; LoRA-style)
+starts function-preserving and trains, but the supervised test above showed it is
+not needed. Both stay as options (`gf_joint_head`), off by default.
+
+## E22. Destination targets follow the search: per-stage value_scale
+
+**Question.** Why does self-play never teach long captures? Probe (64-sim searches
+from E21 on 256 positions with a confirmed good long capture, piece already
+chosen): the training target ranked the capture first in 2% at mctx's default
+`value_scale=0.1`, 6% at 0.5, 36% at 1.0, 58% at 2.0. At 0.1 a move can gain at most
+~7 logits over its prior, and these captures start further down. But a large
+value_scale at the piece step makes those targets near-one-hot on ~3 noisy visits
+(median KL from the 0.1 target 5.5 at 2.0); at the destination step, where every
+destination is searched, it moved ordinary targets little (KL 0.15).
+
+**Setup.** `value_scale_by_stage=0.1,2.0` (self-play only; the node's stage is read
+from the tree's embeddings): 2.0 at destination nodes, 0.1 at piece nodes; checked
+on CPU (destination targets rank the capture first 56%, piece targets KL 0.01).
+`resume_as_new_run` from E21 it 366 (joint head dropped), 34 iterations to 400,
+E19's settings. Run `kibrn1oc`, `checkpoints/gess_20260930235206`.
+
+**Result.** No dip: hourly eval vs. E21 0.66, 0.73, 0.82, 0.92, 0.81. Self-play games
+ending on the 20-move rule fell from ~16% to ~4%, draws to 1-2%. Benchmark: capturing
+destination first for its piece at 4-6 **83%** (E21 13%), 7+ **76%** (0%); pieces in the
+top 16 98-100%. E22 vs. E21, 400 games: **380-0-20**, median game 30 moves (E22 plays
+long slides from the opening; E21's eval stays ~0 until it collapses). E22 vs. E18:
+79-1. Deployed to gesstest (replacing E18).
+
+**Against an outside opponent.** The web app's negamax engine at 2 s a move
+(single-threaded; `tdgauntlet/clients/gess_negamax`, depth ~5): E22 at 128 sims
+0.375 (80 games) and 0.56 (32) on other openings, E18 0.125 (80) - so E22 is ~+250
+Elo over E18 measured through negamax, far less than 79-1 suggests, and still below
+negamax. More search did not help: 512 sims 0.50, 2048 sims 0.38 (32 games each,
++/-0.17). Refereeing E22's 50 losses with negamax (comparing its move with
+negamax's best at the same depth, opponent to move in both): 44 contained a move
+into a forced loss, 24 of them a mate-in-one, with E22's own eval median +0.56 at
+the blunder. E22's network ranked the opponent's killing reply well (piece top 16
+84%, destination first 68%), but its 64-sim search playing that side found it only
+32% (46% for immediate wins): a candidate piece gets ~1 visit, which only reaches
+the "piece selected" node and is judged by the value head. Two levels per move puts
+a ring-breaking win at depth 2 and its refutation at depth 4.
+
+## E23. Auxiliary immediate-win target
+
+**Question.** Can a rules-labelled training target teach the network (and through
+the shared trunk, the value head) to see ring-breaking wins?
+
+**Setup.** `aux_win_weight=1.0`: pgx `gess.winning_actions` labels, for every
+self-play position, the actions that win at once by breaking the opponent's last
+ring (exact against brute force on 800 positions; 9 ms per 1024 positions on the
+GPU); an extra GessFormer head (training only) predicts them per action plus "any",
+with output biases at the base rates. `resume_as_new_run` from E22 it 400, 34
+iterations to 434, otherwise E22's settings. Run `p5ggab6z`,
+`checkpoints/gess_20261001235654`.
+
+**Result.** Aux loss 0.138 -> 0.012. Self-play's missed immediate wins
+(`selfplay/win_missed`) fell from 6.8% to 2.1% of positions with one. Hourly eval vs.
+E22: 0.39, 0.50, 0.72, 0.68. tdgauntlet, 128 sims, 60 openings x both colours
+(`results/gess_e23_negamax.json`): E23 v E22 **88-1-31 (0.74)**; E23 v negamax
+**51-69 (0.43)**; E22 v negamax 55-65 (0.46) - level against negamax (+/-0.09).
+
+**Conclusion.** The target did its job inside self-play but not against negamax.
+Since E22, gains within the line (head to head) have not transferred to the outside
+yardstick; judge future runs against negamax first. Next: make one simulation cover
+a whole move (piece + destination), so the search sees as far in moves as its depth
+suggests.
+
 ---
 
 ## Infrastructure checks

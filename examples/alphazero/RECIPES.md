@@ -108,6 +108,26 @@ games. Iterations cost ~35% more. Which of the two changes did it is not yet
 separated. Unlike Epaminondas, where 64 lost to 32 at equal time from scratch,
 this is late in a long run, when the network's prior is already strong.
 
+**Use `value_scale_by_stage=0.1,2.0` (E22).** With mctx's default value_scale of
+0.1 everywhere, a destination the network ranks low gains at most ~7 logits in the
+training target however good the search finds it, so long sliding captures were
+never learned (ranked first for their piece 0-13% of the time). 2.0 at destination
+nodes, where every destination is searched, fixed that (76-83%) and was the largest
+single gain since the full-size recipe: +250 Elo over E18 measured against the app's
+negamax. Keep 0.1 at piece nodes: each candidate piece gets ~3 visits, and a large
+scale makes those targets near-one-hot on noise.
+
+**Measure against negamax, not just the previous model.** `tdgauntlet/clients/
+gess_negamax` plays the web app's negamax engine. Since E22, head-to-head wins within
+this line (79-1, 380-20, 0.74) have not shown up against negamax (E22 0.46, E23 0.43
+at 128 sims vs. 2 s): the line learns to beat its own habits. Also run the
+long-capture benchmark (`gess_slide_diag.py`) on new checkpoints.
+
+**Not adopted:** the joint piece->destination head (`gf_joint_head`; the network
+learns long captures without it once the targets allow) and the auxiliary
+immediate-win target (`aux_win_weight`; it cut self-play's missed wins from 6.8% to
+2.1% but did not help against negamax). Both work and stay as options.
+
 ## Epaminondas
 
 ```sh
