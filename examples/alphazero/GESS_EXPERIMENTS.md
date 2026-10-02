@@ -715,6 +715,43 @@ yardstick; judge future runs against negamax first. Next: make one simulation co
 a whole move (piece + destination), so the search sees as far in moves as its depth
 suggests.
 
+## E24. One action per whole move (env gess_joint), from E23
+
+**Question.** Two tree levels per move put a ring-breaking win at depth 2 and its
+refutation at depth 4, and a candidate piece's ~1 visit only reached the "piece
+selected" node. Does searching whole moves fix that?
+
+**Setup.** New env `gess_joint` (pgx/gess_joint.py): Gess's rules, one action per
+move; each position lists its legal moves as source * 400 + destination, sorted,
+padded to 768 (9,433 strong-play positions: median 354, p99 502, max 528). The
+observation is gess's at stage 0, so a gess trunk reads it unchanged. GessFormer's
+whole-move policy head scores each listed move: the gess piece head, minus log(the
+piece's move count), plus a query-key score of source and destination and an offset
+bias, with the query at zero. `convert_gess_joint.py` turned E23 it 434 into
+`checkpoints/gess_joint_e23/000000.ckpt`: E23's piece distribution exactly (to 4e-7),
+destinations uniform within a piece. A probe on that network: with the default
+value_scale 0.1 the search's target ranked a good long capture first 45% of the time
+(two-step tree: 2%), and larger scales only made ordinary targets noisy (KL 3-12),
+so 0.1 everywhere. `init_from` the converted E23 (fresh optimizer and buffer), LR
+warmup to 2e-4 then cosine to 1e-5, 28 iterations, otherwise E23's settings; hourly
+eval vs. the converted E23. Run `ra3tbn52`, `checkpoints/gess_joint_20261002072552`.
+
+**Result.** 28 iterations in 5.98 h (~10 min each: the move lists cost little). Each
+self-play step is a whole move, so an iteration finished ~3,600 games (two-step:
+~1,300); games ~57 moves; no move list overflowed. Policy loss 2.67 -> 1.33 as the
+destinations were learned. Hourly eval vs. the converted E23 0.92-0.98 (inflated: its
+destinations are uniform). tdgauntlet, 128 sims, 60 openings x both colours
+(`results/gess_e24_negamax.json`): **E24 v negamax 65-55 (0.54 +/- 0.09)**, E23 v
+negamax 58-62 (0.48), **E24 v E23 99-1-20 (0.83)**. Median think time per move: E24
+**0.78 s**, negamax 2.0 s, E23 2.6 s - at equal "sims" the two-step player runs two
+searches per move.
+
+**Conclusion.** The first model in the line to score above 0.5 against negamax, at
+a third of E23's time per move; the gain over E23 against negamax (+0.06) is within
+the noise of 120 games, but the direction agrees with head to head this time. Next:
+does whole-move search turn more simulations into strength (the two-step tree did
+not), and a long run of this line.
+
 ---
 
 ## Infrastructure checks

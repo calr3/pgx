@@ -123,6 +123,13 @@ this line (79-1, 380-20, 0.74) have not shown up against negamax (E22 0.46, E23 
 at 128 sims vs. 2 s): the line learns to beat its own habits. Also run the
 long-capture benchmark (`gess_slide_diag.py`) on new checkpoints.
 
+**Try whole moves (env `gess_joint`, E24).** One action per move from a per-position
+legal-move list, with GessFormer's whole-move policy head; convert a gess checkpoint
+with `convert_gess_joint.py` and `init_from` it. 6 h from E23 scored 0.54 against
+negamax (E23 0.48) at 0.78 s a move against E23's 2.6 s, and beat E23 0.83. Use the
+default value_scale there (no per-stage setting: every node is a whole move). The
+web app does not play gess_joint networks yet.
+
 **Not adopted:** the joint piece->destination head (`gf_joint_head`; the network
 learns long captures without it once the targets allow) and the auxiliary
 immediate-win target (`aux_win_weight`; it cut self-play's missed wins from 6.8% to
