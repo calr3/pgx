@@ -11,7 +11,8 @@ added here). What follows is what was learned the hard way.
   `examples/alphazero/EPAMINONDAS_EXPERIMENTS.md`,
   `examples/alphazero/PIG_EXPERIMENTS.md`,
   `examples/alphazero/DOTS_AND_BOXES_EXPERIMENTS.md`. The forward plan for the TPU rental
-  is `examples/alphazero/GESS_TPU_PLAN.md`.
+  is `examples/alphazero/GESS_TPU_PLAN.md`; ideas not yet run on the Gess line are in
+  `examples/alphazero/GESS_PLAN.md`.
 
 ## Environment
 
