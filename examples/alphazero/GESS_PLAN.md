@@ -12,13 +12,25 @@ the line have not reliably shown up against negamax.
   28 -> 183), LR re-warmed to 2e-4 and decayed to 1e-5. Afterwards: negamax matches on a
   series of its checkpoints, for a strength curve.
 
-## Yardstick: negamax v1 (tdgauntlet `clients/gess_negamax_rs`)
+## Yardstick: negamax v0 (the app's engine), not v1
 
-The app's negamax, ported to native Rust (identical to the app with its own weights, "v0", and
-1.7x faster), with refitted evaluation weights `weights/v1.json` that beat v0 0.82 per game at
-depth 4 (see its `TUNING.md`). Measure checkpoints against **v1** from now on, and v0 too while
-comparing with E22-E25's results. Still to do: a timed (2 s) confirmation once the GPU run is
-finished, and E25's checkpoint curve against both.
+tdgauntlet's `clients/gess_negamax_rs` ports the app's negamax to native Rust (identical to the
+app with its own weights, "v0"; 1.7x faster, but at 2 s both reach depth ~5) and refitted its
+weights ("v1", `weights/v1.json`). v1 beats v0 head to head (0.82 per game at depth 4, 0.67 at
+2 s), **but plays the networks worse**: in tdgauntlet `examples/gess_e25_negamax.toml` (2 s a
+move, 50 openings x both colours, 128 sims) the models scored 90-94% against v1 and 67-86%
+against v0. So v0 remains the yardstick for checkpoints. Results at 2 s a move:
+
+| model | vs v0 (app .wasm) | vs v1 (native) |
+|---|---|---|
+| E25 it 183 | 79.8% | 93.8% |
+| E25 it 120 | 85.7% | 93.9% |
+| E25 it 60 | 78.6% | 91.2% |
+| E24 it 28 | 66.7% | 90.0% |
+
+(~26-34 counted minimatches each, so +/- 8-9 points.) E25 beats E24 against v0 but is flat from
+iteration 60 to 183. A second round of evaluation ideas (new terms, 288 piece patterns,
+quiescence) also failed to beat v1; see `TUNING.md` there.
 
 ## Next, after E25
 
