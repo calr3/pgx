@@ -564,19 +564,29 @@ def warm_start_params(params, init_params, obs_planes: int, label: str = "init_f
     GessFormer's joint policy term, which is zero at init) take their fresh
     values, or zeros with `zeros` (for optimizer moments). Parameters the
     network no longer has (such a module turned off) are dropped.
+
+    A transformer block the checkpoint lacks entirely (the network made deeper,
+    e.g. gf_num_layers 6 -> 8) gets zero residual output projections (attn_out,
+    ffn_out): the block then adds nothing, so the deeper network computes
+    exactly what the checkpoint did until training grows them.
     """
     for module, entries in params.items():
         for name in entries:
             if name not in init_params.get(module, {}):
                 print(f"{label}: dropped parameter {module}/{name}")
+    old_blocks = {m.split("/block_")[0] + "/block_" + m.split("/block_")[1].split("/")[0]
+                  for m in params if "/block_" in m}
     out = {}
     for module, entries in init_params.items():
         out[module] = {}
+        new_block = ("/block_" in module and module.rsplit("/", 1)[-1] in ("attn_out", "ffn_out")
+                     and module.rsplit("/", 1)[0] not in old_blocks)
         for name, fresh in entries.items():
             if name not in params.get(module, {}):
-                out[module][name] = np.zeros_like(fresh) if zeros else fresh
-                print(f"{label}: new parameter {module}/{name} {np.shape(fresh)} "
-                      f"({'zeros' if zeros else 'fresh init'})")
+                zero = zeros or new_block
+                out[module][name] = np.zeros_like(fresh) if zero else fresh
+                why = "zeros" if zeros else "zeros: a new block starts as the identity" if zero else "fresh init"
+                print(f"{label}: new parameter {module}/{name} {np.shape(fresh)} ({why})")
                 continue
             old = params[module][name]
             if old.shape == fresh.shape:

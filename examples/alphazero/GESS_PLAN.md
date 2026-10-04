@@ -37,10 +37,11 @@ quiescence) also failed to beat v1; see `TUNING.md` there.
 
 ## Next, after E25
 
-- **Does whole-move search turn simulations into strength?** E25 at 128 / 512 / 2048 sims
-  against negamax. The two-step tree did not improve with more search (E22: 0.50, 0.50, 0.38);
-  a whole-move tree spends each simulation on a whole move. Also compare at equal think time:
-  E24 took 0.78 s a move at 128 sims, E23 2.6 s.
+- **Whole-move search and simulations: measured.** E25 it 183 against negamax v0 won 70% /
+  75% / 79% of games at 128 / 512 / 2048 sims (the two-step E22: flat or worse), at 1.5 / 10 /
+  201 s a move. A little gain, at a steep price; more self-play simulations are a weak lever.
+- **Capacity: E26 (running).** E25 made two transformer layers deeper (6 -> 8), the new
+  layers starting as the identity; see GESS_EXPERIMENTS.md.
 - **Web app support for gess_joint networks.** The app's search (`gess-mcts.ts`) and encoder
   are two-step; it needs a legal-move list per node and the whole-move policy head's output
   (export: ONNX takes the move list as a second input). Only once a gess_joint model is the

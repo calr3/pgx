@@ -752,6 +752,41 @@ the noise of 120 games, but the direction agrees with head to head this time. Ne
 does whole-move search turn more simulations into strength (the two-step tree did
 not), and a long run of this line.
 
+## E25. E24 continued for ~33 h
+
+**Setup.** `resume_from` E24 it 28 with `resume_as_new_run=true` (E24's buffer and games
+restored), 155 more iterations to 183 on E24's settings: 64-simulation full searches on a
+quarter of moves (`playout_cap_prob=0.25`), 8 otherwise; LR re-warmed to 2e-4 at the resumed
+step and cosine to 1e-5 (`learning_rate=2.1086e-4 lr_final_ratio=0.04742`). Hourly eval vs.
+E24. Run `dcc03c2q`, `checkpoints/gess_joint_20261002213102`.
+
+**Result.** 183 iterations, 38.6 h on the clock (32.7 h of it E25's, ~12.6 min an iteration).
+Policy loss 1.35 -> 0.96, value loss 0.38 -> 0.37. tdgauntlet, 128 sims against negamax at 2 s,
+50 openings x both colours (`results/gess_e25_negamax.json`): against the app's negamax (v0)
+E25 it 60 / 120 / 183 scored 78.6 / 85.7 / 79.8% (E24 66.7%), and 91-94% against v1 (the
+refitted native negamax, which beats v0 head to head but plays the networks worse). Round
+robin at 128 sims (`results/gess_neural_round_robin.json`): **E25 it 183 beats E25 it 120
+64.8%, E24 96%, E23 100%, E22 98.9%** - the strongest network so far; each run beats its
+predecessor decisively. More search helps a little (`results/gess_e25_sims_v_negamax.json`,
+40 openings x both colours vs. v0): games won 70% / 75% / 79% at 128 / 512 / 2048 sims
+(E22's two-step tree: flat or worse), at 1.5 / 10 / 201 s a move.
+
+**Conclusion.** Still improving head to head at the end, but flat against negamax after it 60
+and the LR fully decayed. More search buys little per second, so the next lever is capacity.
+
+## E26. E25 two transformer layers deeper (6 -> 8)
+
+**Question.** Is the 6-layer, 192-wide GessFormer the limit? (Policy loss flattening near 0.96.)
+
+**Setup.** `resume_from` E25 it 183, `resume_as_new_run=true`, `gf_num_layers=8`. The two new
+blocks (`block_6`, `block_7`, after the old six) start with zero residual output projections
+(`attn_out`, `ffn_out`) and fresh inner weights, so each adds nothing and the network computes
+exactly E25's outputs (checked on CPU over 32 positions: largest policy-logit and value
+difference 0.0); their Adam moments start at zero, everything else is kept (step 46,427). LR
+re-warmed to 2e-4 at that step and cosine to 1e-5 at it 279 (`learning_rate=7.0254e-4
+lr_final_ratio=0.014234`), 96 iterations, ~24 h if an iteration takes ~15 min. Otherwise E25's
+settings. Hourly eval vs. E25 it 183. Started 16:17 Sun 4 Oct.
+
 ---
 
 ## Infrastructure checks
