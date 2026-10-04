@@ -29,7 +29,10 @@ against v0. So v0 remains the yardstick for checkpoints. Results at 2 s a move:
 | E24 it 28 | 66.7% | 90.0% |
 
 (~26-34 counted minimatches each, so +/- 8-9 points.) E25 beats E24 against v0 but is flat from
-iteration 60 to 183. A second round of evaluation ideas (new terms, 288 piece patterns,
+iteration 60 to 183. Head to head (tdgauntlet `examples/gess_neural_round_robin.toml`, all at 128
+sims, 50 openings x both colours), **E25 it 183 is the strongest network so far**: it beats E25
+it 120 64.8% (27 counted minimatches), E24 96.0%, E23 100% and E22 98.9%, and each run beats
+its predecessor decisively (E23 v E22 89%, E24 v E23 92%). A second round of evaluation ideas (new terms, 288 piece patterns,
 quiescence) also failed to beat v1; see `TUNING.md` there.
 
 ## Next, after E25
