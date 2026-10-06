@@ -30,23 +30,93 @@ import jax
 import jax.numpy as jnp
 
 import pgx.core as core
-from pgx._src.games.gess import (
-    N,
-    Game,
-    GameState,
-    _legal_dest_mask,
-    _legal_source_mask,
-)
+from pgx._src.games.gess import Game, GameState, N, _legal_dest_mask, _legal_source_mask
 from pgx._src.struct import dataclass
 from pgx._src.types import Array, PRNGKey
 
 MAX_MOVES = 768
 _CELLS = jnp.arange(N, dtype=jnp.int32)
+_SIDE = 20  # the 20x20 grid of cells (pgx/_src/games/gess.py: BOARD_SIZE)
+_DIRS = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
+_STEPS = range(1, _SIDE)
+
+# A centre's candidate moves, one per (direction, step), in ascending order of
+# the destination's flat offset from the source. The order does not depend on
+# the source, so a source-major (N, len(_CANDIDATES)) table of these comes out
+# sorted by source * N + destination. Two candidates may share an offset (e.g.
+# 19 steps east and one step south-west), but never both lie on the board for
+# the same source, so at most one of them is ever a legal move.
+_CANDIDATES = sorted(((dr * _SIDE + dc) * k, d, k) for d, (dr, dc) in enumerate(_DIRS) for k in _STEPS)
+_CANDIDATE_OFFSETS = jnp.int32([o for o, _, _ in _CANDIDATES])
+
+
+def _padded(a: Array) -> Array:
+    """`a` (20x20) padded with False by _SIDE on every side, for _shift."""
+    return jnp.pad(a, _SIDE, constant_values=False)
+
+
+def _shift(pad: Array, dr: int, dc: int) -> Array:
+    """b[r, c] = a[r + dr, c + dc], False off the grid, from pad = _padded(a)."""
+    return pad[_SIDE + dr : 2 * _SIDE + dr, _SIDE + dc : 2 * _SIDE + dc]
 
 
 def legal_moves(x: GameState) -> tuple[Array, Array]:
     """(moves (MAX_MOVES,) int32, overflow bool) for a stage-0 game state: the
-    legal moves as source * N + destination, ascending, padded with -1."""
+    legal moves as source * N + destination, ascending, padded with -1.
+
+    The same rules as gess's _legal_dest_mask, for all 400 centres at once as
+    shifted 20x20 planes rather than by per-centre gathers: a direction is open
+    if an own stone sits there in the piece; step k is reachable if no earlier
+    step's destination block holds a stone outside the source's own block, and
+    k <= 3 unless an own stone is at the centre. Beyond two steps the two blocks
+    cannot overlap, so "a stone in the destination block" is a shifted 3x3
+    dilation of the occupancy. legal_moves_reference is the per-centre version;
+    tests check that the two agree.
+    """
+    board = x.board.reshape(_SIDE, _SIDE)
+    own = board == (x.color + 1).astype(board.dtype)
+    occ = board != 0
+    src = _legal_source_mask(x).reshape(_SIDE, _SIDE)
+    far = src & own  # an own stone at the centre: any distance
+
+    own_p, occ_p = _padded(own), _padded(occ)
+    on_grid_p = _padded(jnp.ones((_SIDE, _SIDE), jnp.bool_))
+    occ3 = jnp.zeros((_SIDE, _SIDE), jnp.bool_)
+    for a in (-1, 0, 1):
+        for b in (-1, 0, 1):
+            occ3 = occ3 | _shift(occ_p, a, b)
+    occ3_p = _padded(occ3)
+
+    valid = {}
+    for d, (dr, dc) in enumerate(_DIRS):
+        open_ = src & _shift(own_p, dr, dc)
+        blocked_before = jnp.zeros((_SIDE, _SIDE), jnp.bool_)
+        for k in _STEPS:
+            on_grid = _shift(on_grid_p, k * dr, k * dc)
+            ok = open_ & ~blocked_before & on_grid
+            valid[(d, k)] = ok if k <= 3 else ok & far
+            if k > 2:
+                hit = _shift(occ3_p, k * dr, k * dc)
+            else:
+                hit = jnp.zeros((_SIDE, _SIDE), jnp.bool_)
+                for a in (-1, 0, 1):
+                    for b in (-1, 0, 1):
+                        r, c = k * dr + a, k * dc + b
+                        if abs(r) > 1 or abs(c) > 1:  # outside the source's block
+                            hit = hit | _shift(occ_p, r, c)
+            blocked_before = blocked_before | hit
+
+    table = jnp.stack([valid[(d, k)].reshape(-1) for _, d, k in _CANDIDATES], axis=1)  # (N, C)
+    flat = table.reshape(-1)
+    (idx,) = jnp.nonzero(flat, size=MAX_MOVES, fill_value=-1)
+    c = len(_CANDIDATES)
+    source = idx // c
+    moves = source * N + source + _CANDIDATE_OFFSETS[idx % c]
+    return jnp.where(idx >= 0, moves, -1).astype(jnp.int32), flat.sum() > MAX_MOVES
+
+
+def legal_moves_reference(x: GameState) -> tuple[Array, Array]:
+    """legal_moves by gess's per-centre destination masks (the original version)."""
     src = _legal_source_mask(x)
     table = jax.vmap(lambda s: _legal_dest_mask(x, s))(_CELLS) & src[:, None]  # (N, N)
     flat = table.reshape(-1)
