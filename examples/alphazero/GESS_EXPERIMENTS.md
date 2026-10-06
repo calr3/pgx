@@ -786,6 +786,28 @@ difference 0.0); their Adam moments start at zero, everything else is kept (step
 re-warmed to 2e-4 at that step and cosine to 1e-5 at it 279 (`learning_rate=7.0254e-4
 lr_final_ratio=0.014234`), 96 iterations, ~24 h if an iteration takes ~15 min. Otherwise E25's
 settings. Hourly eval vs. E25 it 183. Started 16:17 Sun 4 Oct.
+Run `xa7a789t`, `checkpoints/gess_joint_20261005001759`.
+
+**Result.** 96 iterations in 23.1 h (~14.5 min each; the two layers cost ~15% of an
+iteration, and ~9% of think time in play). Policy loss rose after the LR re-warm to ~1.13
+and fell to 0.94 by the end (E25: 0.96); value loss 0.37-0.38. Hourly eval vs. E25 (32 sims):
+0.56 on average from it 187 to 275 and flat, unlike E25's climb against E24 (0.56 -> 0.65-0.75).
+tdgauntlet, 128 sims, 60 openings x both colours (`results/gess_e26_negamax.json`): **E26 v
+E25 72-6-42 (0.625; minimatches 78.8%)**, E26 v negamax v0 86-34 (0.717), E25 v v0 77-43
+(0.642, as in its own match).
+
+**Conclusion.** The strongest network so far, by about +90 Elo over E25 at 128 sims, but this
+does not separate depth from 96 more iterations of training. E27 tests that.
+
+## E27. E25 four transformer layers deeper (6 -> 10): a matched branch to E26
+
+**Question.** With E26 as the 8-layer branch from the same start, does more depth help more?
+
+**Setup.** Identical to E26 except `gf_num_layers=10`: `resume_from` E25 it 183, the four new
+blocks (`block_6`..`block_9`) starting as the identity (checked on CPU: outputs equal to E25's
+exactly), the same LR schedule (2e-4 at the resumed step, cosine to 1e-5 at it 279), the same
+96 iterations, hourly eval vs. E25 it 183. Compare E27 with E26 head to head and against
+negamax v0 at the end. Started 08:45 Tue 6 Oct.
 
 ---
 

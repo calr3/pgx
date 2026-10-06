@@ -40,8 +40,9 @@ quiescence) also failed to beat v1; see `TUNING.md` there.
 - **Whole-move search and simulations: measured.** E25 it 183 against negamax v0 won 70% /
   75% / 79% of games at 128 / 512 / 2048 sims (the two-step E22: flat or worse), at 1.5 / 10 /
   201 s a move. A little gain, at a steep price; more self-play simulations are a weak lever.
-- **Capacity: E26 (running).** E25 made two transformer layers deeper (6 -> 8), the new
-  layers starting as the identity; see GESS_EXPERIMENTS.md.
+- **Capacity: E26 and E27.** E25 made two (E26) and four (E27, running) transformer layers
+  deeper, the new layers starting as the identity, as matched branches from E25 it 183. E26
+  beat E25 0.625 head to head; see GESS_EXPERIMENTS.md.
 - **Web app support for gess_joint networks.** The app's search (`gess-mcts.ts`) and encoder
   are two-step; it needs a legal-move list per node and the whole-move policy head's output
   (export: ONNX takes the move list as a second input). Only once a gess_joint model is the
@@ -72,6 +73,33 @@ question; don't bundle them into one run.
   network now has to infer from the stones. Whether this is still "pure" AlphaZero is the
   user's call (they ruled out tactical guards in play; input features are a different
   question, not yet decided).
+
+## pgx performance (self-play throughput)
+
+Self-play was ~95% of an iteration when last measured (E5). Most of it is believed to be the
+environment: `gess_joint`'s step rebuilds the legal-move list (`legal_moves`) at every MCTS
+expansion, checking all 400 cells as piece centres x 8 directions x 19 steps x 9 footprint
+cells by gather (~550k indexed reads a position), for 1024 games x 64 simulations. Measured on
+~29k positions from tdgauntlet games: legal piece centres median 139, max 164 (any block free of
+opponent stones with an own stone round its centre is a piece); legal moves median 452, p99
+511, max 541.
+
+1. **Profile first** (~10 min of GPU between runs): one self-play iteration under the JAX
+   profiler, splitting env step / network / mctx bookkeeping. Not measurable on CPU.
+2. **Move generation by whole-board shifts** (in progress): per direction and step, blocked
+   and reachable centres for all 400 at once as shifted 20x20 planes (beyond 2 steps a
+   destination's block never overlaps the source's, so it is a shifted 3x3 dilation of
+   occupancy), and the candidates of a centre taken in a fixed offset order so the list comes
+   out sorted without the 160,000-cell table. Exactly the same move lists (CPU equivalence
+   test on real and random positions); speed measured on GPU in the gap after E27.
+   (Restricting the gather version to legal centres would save at most ~2.4x, as 139 of 400
+   centres are legal: not worth it alone.)
+3. **Shorter move list** (768 -> 576): policy head, tree arrays and buffer all scale with it;
+   max seen 541. Needs a new env version and an overflow check.
+4. **tdgauntlet JAX client at high simulation counts** is bound by one CPU core (2048 sims:
+   98% CPU, 201 s a move): the search loop is driven from Python. Matches only, not training.
+5. Smaller: one fused step instead of gess's two stage steps per move; check the GAB
+   projection and attention in the profile (unlikely to dominate at 100 tokens).
 
 ## Ideas tried and parked
 
