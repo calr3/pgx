@@ -271,16 +271,39 @@ class TransformerBlock(hk.Module):
     block can be wrapped in hk.remat.
     """
 
-    def __init__(self, num_heads, ffn_mult, use_gab, out_init, name="TransformerBlock"):
+    def __init__(
+        self,
+        num_heads,
+        ffn_mult,
+        use_gab,
+        out_init,
+        name="TransformerBlock",
+        rel_bias=False,
+        line_mask=False,
+        fused=False,
+    ):
         super().__init__(name=name)
         self.num_heads = num_heads
         self.ffn_mult = ffn_mult
         self.use_gab = use_gab
         self.out_init = out_init
+        # One token per cell of the 20x20 Gess grid (GessFormer patch=1) only:
+        # rel_bias replaces the static/GAB bias with a learned bias per head
+        # indexed by the (row, column) offset between the two cells; line_mask
+        # lets each cell attend only along its row, column and diagonals (and to
+        # itself). fused: jax.nn.dot_product_attention (cuDNN on GPU) instead of
+        # an explicit score matrix.
+        self.rel_bias = rel_bias
+        self.line_mask = line_mask
+        self.fused = fused
 
     def _attention_bias(self, x, gab_w, gab_b):
         b, n, _ = x.shape
         h = self.num_heads
+        if self.rel_bias:
+            assert n == _GESS_GRID**2, "rel_bias needs one token per cell of the 20x20 grid"
+            table = hk.get_parameter("rel_bias", (h, _REL_SIDE**2), init=jnp.zeros)
+            return table[:, jnp.asarray(_REL_INDEX)][None]  # (1, h, n, n)
         bias = hk.get_parameter("static_bias", (h, n, n), init=jnp.zeros)[None]
         if self.use_gab:
             # Compress the board into a summary, then produce one template
@@ -303,11 +326,18 @@ class TransformerBlock(hk.Module):
         y = _layer_norm("attn_ln")(x)
         qkv = hk.Linear(3 * d, w_init=_TF_INIT, name="qkv")(y)
         q, kk, v = jnp.split(qkv.reshape(b, n, 3, h, k), 3, axis=2)
-        q, kk, v = (t.squeeze(2).transpose(0, 2, 1, 3) for t in (q, kk, v))  # (b, h, n, k)
-        logits = (q @ kk.transpose(0, 1, 3, 2)) / math.sqrt(k)
-        logits = logits + self._attention_bias(y, gab_w, gab_b)
-        attn = jax.nn.softmax(logits, axis=-1) @ v
-        attn = attn.transpose(0, 2, 1, 3).reshape(b, n, d)
+        bias = self._attention_bias(y, gab_w, gab_b).astype(qkv.dtype)
+        mask = jnp.asarray(_LINE_MASK)[None, None] if self.line_mask else None
+        if self.fused:
+            q, kk, v = (t.squeeze(2) for t in (q, kk, v))  # (b, n, h, k)
+            attn = jax.nn.dot_product_attention(q, kk, v, bias=bias, mask=mask).reshape(b, n, d)
+        else:
+            q, kk, v = (t.squeeze(2).transpose(0, 2, 1, 3) for t in (q, kk, v))  # (b, h, n, k)
+            logits = (q @ kk.transpose(0, 1, 3, 2)) / math.sqrt(k) + bias
+            if mask is not None:
+                logits = jnp.where(mask, logits, jnp.asarray(-1e9, logits.dtype))
+            attn = jax.nn.softmax(logits, axis=-1) @ v
+            attn = attn.transpose(0, 2, 1, 3).reshape(b, n, d)
         x = x + hk.Linear(d, w_init=self.out_init, name="attn_out")(attn)
 
         # FFN
@@ -364,6 +394,8 @@ _DC = _REL[None, :] % _GESS_GRID - _REL[:, None] % _GESS_GRID
 _REL_SIDE = 2 * _GESS_GRID - 1
 _REL_INDEX = (_DR + _GESS_GRID - 1) * _REL_SIDE + (_DC + _GESS_GRID - 1)  # (400, 400)
 _ON_LINE = ((_DR == 0) | (_DC == 0) | (np.abs(_DR) == np.abs(_DC))) & ~((_DR == 0) & (_DC == 0))
+# Line attention (GessFormer patch=1, line_attention): a cell sees its lines and itself.
+_LINE_MASK = _ON_LINE | np.eye(_GESS_GRID**2, dtype=bool)
 # The cells of the 20x20 grid whose 3x3 footprint lies in the 18x18 playing
 # area, counted per possible centre (for recovering the source centre below).
 _PLAY_IN_FP = np.pad(np.ones((_GESS_GRID - 2, _GESS_GRID - 2)), 1)
@@ -512,6 +544,10 @@ class GessFormer(hk.Module):
         remat: bool = True,
         joint_head: int = 0,
         whole_moves: bool = False,
+        patch: int = 2,
+        attn_bias: str = "gab",
+        line_attention: bool = False,
+        fused_attention: bool = False,
         name="gess_former",
     ):
         super().__init__(name=name)
@@ -531,6 +567,21 @@ class GessFormer(hk.Module):
         self.use_gab = use_gab
         self.remat = remat
         self.joint_head = joint_head
+        # patch: 2 = 2x2 patches, 100 tokens (the original); 1 = one token per
+        # cell of the 20x20 grid, 400 tokens, which needs attn_bias="rel" (GAB's
+        # n^2 projection is infeasible at 400 tokens).
+        if patch not in (1, 2):
+            raise ValueError(f"GessFormer patch must be 1 or 2, got {patch}")
+        if patch == 1 and attn_bias != "rel":
+            raise ValueError("GessFormer patch=1 needs attn_bias='rel'")
+        if attn_bias == "rel" and patch != 1:
+            raise ValueError("attn_bias='rel' needs patch=1 (one token per grid cell)")
+        if line_attention and patch != 1:
+            raise ValueError("line_attention needs patch=1")
+        self.patch = patch
+        self.attn_bias = attn_bias
+        self.line_attention = line_attention
+        self.fused_attention = fused_attention
 
     def __call__(self, x, is_training=False, test_local_stats=False, aux=False, moves=None):
         del is_training, test_local_stats  # no BatchNorm
@@ -544,26 +595,44 @@ class GessFormer(hk.Module):
         for i in range(self.stem_blocks):
             s = ConvBlock(c, name=f"stem_block_{i}")(s)
 
-        # Patch merge to 10x10 tokens.
-        tok = hk.Conv2D(d, kernel_shape=2, stride=2, padding="VALID", name="patch_merge")(s)
-        tok = tok.reshape(b, _GESS_NUM_TOKENS, d)
-        tok = tok + hk.get_parameter("pos_emb", (_GESS_NUM_TOKENS, d), init=_TF_INIT)
+        if self.patch == 2:
+            # Patch merge to 10x10 tokens.
+            tok = hk.Conv2D(d, kernel_shape=2, stride=2, padding="VALID", name="patch_merge")(s)
+            tok = tok.reshape(b, _GESS_NUM_TOKENS, d)
+            tok = tok + hk.get_parameter("pos_emb", (_GESS_NUM_TOKENS, d), init=_TF_INIT)
+            gab_w = hk.get_parameter("gab_shared_w", (_GAB_D3, _GESS_NUM_TOKENS**2), init=_TF_INIT)
+            gab_b = hk.get_parameter("gab_shared_b", (_GESS_NUM_TOKENS**2,), init=jnp.zeros)
+        else:
+            # One token per cell of the 20x20 grid.
+            n = _GESS_GRID**2
+            tok = hk.Linear(d, name="cell_embed")(s).reshape(b, n, d)
+            tok = tok + hk.get_parameter("cell_pos_emb", (n, d), init=_TF_INIT)
+            gab_w = gab_b = jnp.zeros(())  # unused: the blocks use the relative bias
 
         # Transformer encoder.
-        gab_w = hk.get_parameter("gab_shared_w", (_GAB_D3, _GESS_NUM_TOKENS**2), init=_TF_INIT)
-        gab_b = hk.get_parameter("gab_shared_b", (_GESS_NUM_TOKENS**2,), init=jnp.zeros)
         out_init = hk.initializers.TruncatedNormal(stddev=0.02 / math.sqrt(2.0 * self.num_layers))
         for i in range(self.num_layers):
             block = TransformerBlock(
-                self.num_heads, self.ffn_mult, self.use_gab, out_init, name=f"block_{i}"
+                self.num_heads,
+                self.ffn_mult,
+                self.use_gab and self.patch == 2,
+                out_init,
+                name=f"block_{i}",
+                rel_bias=self.attn_bias == "rel",
+                line_mask=self.line_attention,
+                fused=self.fused_attention,
             )
             block_fn = hk.remat(block) if self.remat else block
             tok = block_fn(tok, gab_w, gab_b)
         tok = _layer_norm("final_ln")(tok)
 
-        # Decoder: upsample tokens back to the 20x20 grid with the stem skip.
-        f = tok.reshape(b, t, t, d)
-        f = jnp.repeat(jnp.repeat(f, 2, axis=1), 2, axis=2)
+        # Decoder: back to the 20x20 grid (upsampled from 10x10 when patched)
+        # with the stem skip.
+        if self.patch == 2:
+            f = tok.reshape(b, t, t, d)
+            f = jnp.repeat(jnp.repeat(f, 2, axis=1), 2, axis=2)
+        else:
+            f = tok.reshape(b, _GESS_GRID, _GESS_GRID, d)
         f = hk.Linear(c, name="upsample_proj")(f) + s
         f = ConvBlock(c, name="decoder_block")(f)
         f = jax.nn.gelu(_layer_norm("decoder_ln")(f))  # (b, 20, 20, c)
@@ -982,6 +1051,10 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
                 remat=config.gf_remat,
                 joint_head=int(getattr(config, "gf_joint_head", 0)),
                 whole_moves=whole_moves,
+                patch=int(getattr(config, "gf_patch", 2)),
+                attn_bias=getattr(config, "gf_attn_bias", "gab"),
+                line_attention=bool(getattr(config, "gf_line_attention", False)),
+                fused_attention=bool(getattr(config, "gf_fused_attention", False)),
             )
         else:
             net = AZNet(

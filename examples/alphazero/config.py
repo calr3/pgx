@@ -91,6 +91,20 @@ class Config(BaseModel):
     # zero at initialisation, so turning it on when resuming a checkpoint
     # without it leaves the network's outputs unchanged at first.
     gf_joint_head: int = 0
+    # Tokens: 2 = 2x2 patches of the 20x20 grid, 100 tokens (the original); 1 =
+    # one token per cell, 400 tokens. patch=1 needs gf_attn_bias="rel": GAB's
+    # projection to n^2 biases a head is infeasible at 400 tokens.
+    gf_patch: int = 2
+    # Attention bias: "gab" (Geometric Attention Bias plus a static n x n bias,
+    # the original) or "rel" (a learned bias per head for each (row, column)
+    # offset between two cells; patch=1 only).
+    gf_attn_bias: Literal["gab", "rel"] = "gab"
+    # patch=1 only: each cell attends only along its row, column and diagonals
+    # (and to itself), as RayFormer, the lines a Gess piece moves along.
+    gf_line_attention: bool = False
+    # Compute attention with jax.nn.dot_product_attention (cuDNN on GPU, no
+    # explicit n x n score matrix) instead of an explicit softmax.
+    gf_fused_attention: bool = False
     # "rayformer" (network.RayFormer): full-resolution transformer for Gess
     # with attention along rows, columns and diagonals; configured by rf_*.
     # Defaults roughly match gessformer's inference cost (self-play dominates);

@@ -1,6 +1,6 @@
 """GPU benchmark for the gess_joint move generator and self-play.
 
-  python examples/alphazero/bench_gess_selfplay.py <new|old> <positions.npz> <ckpt> [train.py config overrides...]
+  python examples/alphazero/bench_gess_selfplay.py <new|old> <positions.npz> <ckpt|init> [train.py config overrides...]
 
 Run from pgx's root. positions.npz holds `boards` (n, 400) int8 and `colors` (n,) int32 of
 real positions (at least the self-play batch); the config overrides are the run's own, with
@@ -52,7 +52,11 @@ colors = jnp.asarray(d["colors"][:B])
 gen = jax.jit(jax.vmap(lambda b, c: gj.legal_moves(GameState(color=c, board=b))))
 timed(f"legal_moves x{B}", gen, boards, colors)
 
-ckpt = pickle.load(open(ckpt_path, "rb"))
+if ckpt_path == "init":  # freshly initialised weights for the configured network (timing only)
+    _s = jax.vmap(train.env.init)(jax.random.split(jax.random.PRNGKey(0), 2))
+    ckpt = {"model": train.forward.init(jax.random.PRNGKey(0), _s.observation, moves=train.moves_of(_s))}
+else:
+    ckpt = pickle.load(open(ckpt_path, "rb"))
 model = ckpt["model"]
 s0 = jax.vmap(train.env.init)(jax.random.split(jax.random.PRNGKey(0), B))
 fwd = jax.jit(lambda m, s: train.selfplay_forward.apply(

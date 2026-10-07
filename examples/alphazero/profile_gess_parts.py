@@ -2,7 +2,7 @@
 forward pass and of the env step at the self-play batch (in a compiled loop, so no Python
 dispatch is counted), and of one training update as configured.
 
-  python examples/alphazero/profile_gess_parts.py <ckpt> [train.py config overrides...]
+  python examples/alphazero/profile_gess_parts.py <ckpt|init> [train.py config overrides...]
 
 Run from pgx's root with the run's own config overrides and resume_as_new_run=False. Compare
 with bench_gess_selfplay.py's time per self-play step: per simulation, the rest is mctx.
@@ -40,7 +40,11 @@ def device_ms(label, body, carry):
     return ms
 
 
-ckpt = pickle.load(open(ckpt_path, "rb"))
+if ckpt_path == "init":  # freshly initialised weights for the configured network (timing only)
+    _s = jax.vmap(train.env.init)(jax.random.split(jax.random.PRNGKey(0), 2))
+    ckpt = {"model": train.forward.init(jax.random.PRNGKey(0), _s.observation, moves=train.moves_of(_s))}
+else:
+    ckpt = pickle.load(open(ckpt_path, "rb"))
 model = train.cast_floating(ckpt["model"], train.selfplay_dtype)
 
 # Positions some way into games.

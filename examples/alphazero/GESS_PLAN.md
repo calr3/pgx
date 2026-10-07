@@ -75,6 +75,36 @@ question; don't bundle them into one run.
   user's call (they ruled out tactical guards in play; input features are a different
   question, not yet decided).
 
+## Next experiment: no 2x2 patching (one token per cell)
+
+Asked for after E28 (user, 7 Oct). The 2x2 patch merge squeezes 4 cells into each of 100
+tokens; a direct representation is one token per cell, 400 tokens. Tried before as E4's
+RayFormer (line attention, one token per cell): +185 Elo over GessFormer at equal games but
+-189 at equal time, its iterations ~50% slower; parked "until its self-play speed gap is
+closed". So efficiency first.
+
+Rough cost per position, 8 layers (multiply-adds): today ~0.7 G, of which the per-layer GAB
+projection (128 -> 100^2 per head) is ~30%. At 400 tokens with GAB unchanged ~5.5 G (~8x; GAB
+alone 160,000 outputs a head a layer, and a 2.6 GB bias tensor a layer at the self-play
+batch); with a relative-position bias instead of GAB ~2.9 G (~4x); with line attention ~2.1 G
+(~3x); line attention at width 128 ~1 G (~1.4x).
+
+A. Efficiency (CPU now, GPU benchmark after E28):
+   1. Relative-position attention bias (a learned (dr, dc) table per head) in place of GAB:
+      cheap at any token count and geometric. Prerequisite: GAB is infeasible at 400 tokens.
+   2. Fused attention (`jax.nn.dot_product_attention`, cuDNN, bfloat16): no 400x400 score
+      matrix in memory.
+   3. Size to an equal-cost budget: full attention with the offset bias, and line attention
+      (RayFormer-style), at widths 192 and 128; `profile_gess_parts.py` /
+      `bench_gess_selfplay.py` pick.
+   4. Training memory: remat where needed, with train_bf16.
+B. The 400-token network for gess_joint: no patch merge, no upsampling; the whole-move head
+   reads the per-cell tokens directly. CPU tests of shapes and move/cell alignment.
+C. The test: either a partial warm start from E26 (stem, layer weights at width 192, heads;
+   new positional parameters) - approximate - or, cleaner, equal-time runs from scratch of
+   the 400-token network and a 100-token GessFormer on today's pipeline (E2-E7's method).
+   Go ahead only if the benchmark puts a 400-token network within ~1.5x today's iteration.
+
 ## pgx performance (self-play throughput)
 
 Self-play was ~95% of an iteration when last measured (E5). Most of it is believed to be the
