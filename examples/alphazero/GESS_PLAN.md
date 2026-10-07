@@ -85,8 +85,16 @@ cells by gather (~550k indexed reads a position), for 1024 games x 64 simulation
 opponent stones with an own stone round its centre is a piece); legal moves median 452, p99
 511, max 541.
 
-1. **Profile first** (~10 min of GPU between runs): one self-play iteration under the JAX
-   profiler, splitting env step / network / mctx bookkeeping. Not measurable on CPU.
+1. **Profile: done** (`profile_gess_parts.py`, E26's 8-layer network, GPU). Per self-play
+   simulation at batch 1024 (62 ms, from `bench_gess_selfplay.py`): network forward 36.5 ms
+   (bf16), env step 11.8 ms (new move generator), mctx's own work the remaining ~14 ms. A
+   training update (batch 4096, float32) takes 1.10 s as configured (2 micro-batches, remat):
+   4.7 min an iteration. So an iteration is now ~5.7 min self-play (network ~60%, env ~20%,
+   mctx ~20%) + ~4.7 min training + eval. Remat off fits with 8 micro-batches and is faster:
+   0.89 s an update (-19%, ~0.9 min an iteration; the same maths, so use it:
+   `gf_remat=False train_micro_batches=8`); remat off with 1 or 2 micro-batches runs out of
+   memory. Next levers: the network in both phases (bfloat16 training; the per-layer GAB bias
+   and the move head's 768-way gather), then the shorter move list (item 3).
 2. **Move generation by whole-board shifts** (in progress): per direction and step, blocked
    and reachable centres for all 400 at once as shifted 20x20 planes (beyond 2 steps a
    destination's block never overlaps the source's, so it is a shifted 3x3 dilation of
