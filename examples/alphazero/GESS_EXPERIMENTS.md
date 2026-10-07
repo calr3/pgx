@@ -807,7 +807,19 @@ does not separate depth from 96 more iterations of training. E27 tests that.
 blocks (`block_6`..`block_9`) starting as the identity (checked on CPU: outputs equal to E25's
 exactly), the same LR schedule (2e-4 at the resumed step, cosine to 1e-5 at it 279), the same
 96 iterations, hourly eval vs. E25 it 183. Compare E27 with E26 head to head and against
-negamax v0 at the end. Started 08:45 Tue 6 Oct.
+negamax v0 at the end. Started 08:45 Tue 6 Oct. Run `1nijsg1n`,
+`checkpoints/gess_joint_20261006164404`.
+
+**Result.** 96 iterations in ~27 h (~16.8 min each, ~15% slower than E26's). Hourly eval vs.
+E25: below E26 at first (0.44-0.51 to it 211, as four zero-initialised layers came in) and 0.56
+on average over the second half, as E26; policy loss 0.940 at it 277 (E26 0.942). tdgauntlet,
+128 sims, 60 openings x both colours (`results/gess_e27_negamax.json`): **E27 v E26 53-4-63
+(0.458; minimatches 39.6%)**; against negamax v0 both 82-38 (0.683).
+
+**Conclusion.** No gain from 10 layers over 8 at this training budget; E26 stays the best
+network. Since E27 matches E26 against negamax and E26's lead over E25 is about what a
+continued 6-layer run gained early on (E25 v E24), most of E26's gain is probably the further
+training rather than the depth. Depth is not the lever here; width is untried.
 
 ---
 

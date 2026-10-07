@@ -40,9 +40,10 @@ quiescence) also failed to beat v1; see `TUNING.md` there.
 - **Whole-move search and simulations: measured.** E25 it 183 against negamax v0 won 70% /
   75% / 79% of games at 128 / 512 / 2048 sims (the two-step E22: flat or worse), at 1.5 / 10 /
   201 s a move. A little gain, at a steep price; more self-play simulations are a weak lever.
-- **Capacity: E26 and E27.** E25 made two (E26) and four (E27, running) transformer layers
-  deeper, the new layers starting as the identity, as matched branches from E25 it 183. E26
-  beat E25 0.625 head to head; see GESS_EXPERIMENTS.md.
+- **Capacity: E26 and E27, done.** Matched branches from E25 it 183 with two (E26) and four
+  (E27) more transformer layers, starting as the identity. E26 beat E25 0.625 head to head;
+  E27 did not beat E26 (0.458) and both scored 0.683 against negamax. Depth stops paying at 8
+  layers here; width is untried. E26 is the best network.
 - **Web app support for gess_joint networks.** The app's search (`gess-mcts.ts`) and encoder
   are two-step; it needs a legal-move list per node and the whole-move policy head's output
   (export: ONNX takes the move list as a second input). Only once a gess_joint model is the
@@ -94,6 +95,12 @@ opponent stones with an own stone round its centre is a piece); legal moves medi
    test on real and random positions); speed measured on GPU in the gap after E27.
    (Restricting the gather version to legal centres would save at most ~2.4x, as 139 of 400
    centres are legal: not worth it alone.)
+   **Done** (`legal_moves`; the gather version kept as `legal_moves_reference`). GPU, batch
+   1024 (`bench_gess_selfplay.py`, E26's network): the generator alone 52 -> 33 ms; a
+   self-play step 6.31 -> 3.97 s at 64 sims (1.59x) and 0.83 -> 0.46 s at 8 sims (1.80x). At
+   E26's playout cap (64 sims on a quarter of steps, 8 otherwise, 256 steps) self-play is
+   ~9.4 -> ~5.7 min an iteration, so an iteration ~14.5 -> ~11 min; training (256 updates at
+   batch 4096) is then ~5 of those 11 minutes - no longer the ~5% it was in E5.
 3. **Shorter move list** (768 -> 576): policy head, tree arrays and buffer all scale with it;
    max seen 541. Needs a new env version and an overflow check.
 4. **tdgauntlet JAX client at high simulation counts** is bound by one CPU core (2048 sims:
