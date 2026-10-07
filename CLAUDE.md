@@ -175,7 +175,10 @@ JAX pitfalls hit while writing envs:
   per cell (used for Epaminondas).
 
 Only LayerNorm, so `model_state` stays empty and checkpoints are just params.
-`selfplay_bf16=true` runs search inference in bfloat16 (training stays float32).
+`selfplay_bf16=true` runs search inference in bfloat16; `train_bf16=true` trains in mixed
+precision (bfloat16 compute, float32 weights, optimizer and loss) - checked against float32 on
+E26's replay buffer: gradient cosine 0.99, held-out loss within 0.003 over 240 updates
+(`check_train_bf16.py`), ~2x faster updates.
 
 ## Getting a strong model
 
@@ -199,8 +202,11 @@ beats game count).
 
 Practicalities:
 
-- Self-play is ~95% of iteration time at full size, and network inference is
-  essentially all of self-play. Optimise throughput there, not the optimiser.
+- Where an iteration's time goes changes as the network grows; measure it rather than assume
+  (`profile_gess_parts.py`, `bench_gess_selfplay.py`). E5's small network: self-play ~95%.
+  E26 (8-layer GessFormer, gess_joint): self-play ~9.4 min (network ~60%, env ~20%, mctx
+  ~20%) and training ~4.7 min of a 14.5-min iteration, before the shift-based move generator
+  and bfloat16 training brought them to ~5.7 and ~2.2 min.
 - Size `max_num_iters` so the cosine schedule finishes inside the time budget;
   strength climbs steeply in the last third.
 - Rising `train/value_loss` is not necessarily bad: it tracked draws

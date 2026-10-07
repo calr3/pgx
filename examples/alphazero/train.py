@@ -116,6 +116,9 @@ forward = make_forward(env.num_actions, config)
 # per self-play call; training and evaluation stay float32.
 selfplay_dtype = jnp.bfloat16 if config.selfplay_bf16 else jnp.float32
 selfplay_forward = make_forward(env.num_actions, config, dtype=selfplay_dtype)
+# Training network: optionally bfloat16 compute on float32 weights (train_bf16).
+train_dtype = jnp.bfloat16 if config.train_bf16 else jnp.float32
+train_forward = make_forward(env.num_actions, config, dtype=train_dtype) if config.train_bf16 else forward
 optimizer = make_optimizer(config)
 
 
@@ -394,13 +397,16 @@ def init_selfplay_state(rng_key: jnp.ndarray) -> pgx.State:
 def loss_fn(
     model_params: hk.Params, model_state: hk.State, samples: Sample
 ) -> tuple[jnp.ndarray, tuple[hk.State, jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+    # With train_bf16 the cast is part of the graph, so gradients come back to
+    # the float32 weights; outputs (and so the loss) are float32 either way.
+    params = cast_floating(model_params, train_dtype) if config.train_bf16 else model_params
     if AUX_WIN:
-        (logits, value, win_logits, any_logit), model_state = forward.apply(
-            model_params, model_state, samples.obs, is_eval=False, aux=True
+        (logits, value, win_logits, any_logit), model_state = train_forward.apply(
+            params, model_state, samples.obs, is_eval=False, aux=True
         )
     else:
-        (logits, value), model_state = forward.apply(
-            model_params, model_state, samples.obs, is_eval=False, moves=samples.moves
+        (logits, value), model_state = train_forward.apply(
+            params, model_state, samples.obs, is_eval=False, moves=samples.moves
         )
 
     policy_loss = optax.softmax_cross_entropy(logits, samples.policy_tgt)

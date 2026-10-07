@@ -95,6 +95,11 @@ opponent stones with an own stone round its centre is a piece); legal moves medi
    `gf_remat=False train_micro_batches=8`); remat off with 1 or 2 micro-batches runs out of
    memory. Next levers: the network in both phases (bfloat16 training; the per-layer GAB bias
    and the move head's 768-way gather), then the shorter move list (item 3).
+   **bfloat16 training: done** (`train_bf16=true`, `check_train_bf16.py`). An update 1.10 s
+   -> 0.52 s (remat off, 4 micro-batches; remat off now fits even at 2). On E26's replay
+   buffer: gradients' cosine with float32's 0.986-0.992 (two float32 batches: -0.08 to
+   0.12), policy loss +0.15%, value loss equal; 240 updates from E26 at LR 2e-4 track
+   float32's held-out loss within 0.003. First run with it: E28.
 2. **Move generation by whole-board shifts** (in progress): per direction and step, blocked
    and reachable centres for all 400 at once as shifted 20x20 planes (beyond 2 steps a
    destination's block never overlaps the source's, so it is a shifted 3x3 dilation of

@@ -170,6 +170,10 @@ class Config(BaseModel):
     # Run the self-play network in bfloat16 (weights cast per call; training and
     # evaluation stay float32). ~2x faster inference for gessformer.
     selfplay_bf16: bool = False
+    # Train in mixed precision: the network's forward and backward passes run in
+    # bfloat16 (weights cast per step), while the weights, optimizer state and
+    # loss stay float32 and gradients reach the weights as float32.
+    train_bf16: bool = False
     # Playout cap randomization (KataGo): each self-play step uses the full
     # num_simulations search with this probability, otherwise a cheap
     # fast_num_simulations search whose policy targets are excluded from the

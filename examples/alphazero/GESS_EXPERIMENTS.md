@@ -821,6 +821,17 @@ network. Since E27 matches E26 against negamax and E26's lead over E25 is about 
 continued 6-layer run gained early on (E25 v E24), most of E26's gain is probably the further
 training rather than the depth. Depth is not the lever here; width is untried.
 
+## E28. E26 continued ~24 h, with the faster pipeline
+
+**Question.** How far does E26 go with ~1.7x more training per hour, and does the faster
+pipeline (shift-based move generator, bfloat16 training) learn as well in practice?
+
+**Setup.** `resume_from` E26 it 279, `resume_as_new_run=true`; `train_bf16=true
+gf_remat=False train_micro_batches=4` (the move generator is the default since 52d5447).
+LR re-warmed to 2e-4 at the resumed optimizer step (71,003), cosine to 1e-5 at it 449
+(`learning_rate=6.0328e-4 lr_final_ratio=0.016576`): 170 iterations, ~24 h if an iteration
+takes ~8.5 min. Otherwise E26's settings. Hourly eval vs. E26 it 279.
+
 ---
 
 ## Infrastructure checks
