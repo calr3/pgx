@@ -56,6 +56,14 @@ conf_dict = OmegaConf.from_cli()
 config: Config = Config(**conf_dict)
 print(config)
 
+if config.gf_fused_attention:
+    # cuDNN's attention kernel requires every input to share one device mesh,
+    # but under JAX's newer pmap (jit over shard_map) each pmap's outputs carry
+    # their own, so self-play fed the training step's weights failed ("mesh
+    # should be the same across the entire program"). The older pmap has no
+    # such meshes. Only runs using the kernel switch, so others are unchanged.
+    jax.config.update("jax_pmap_shmap_merge", False)
+
 
 def _validate_config(config: Config, num_devices: int) -> None:
     # Each iteration produces selfplay_batch_size * max_num_steps samples. With
