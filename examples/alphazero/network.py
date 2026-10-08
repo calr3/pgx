@@ -330,7 +330,13 @@ class TransformerBlock(hk.Module):
         mask = jnp.asarray(_LINE_MASK)[None, None] if self.line_mask else None
         if self.fused:
             q, kk, v = (t.squeeze(2) for t in (q, kk, v))  # (b, n, h, k)
-            attn = jax.nn.dot_product_attention(q, kk, v, bias=bias, mask=mask).reshape(b, n, d)
+            # cuDNN's flash attention (no n x n scores in memory; ~3x faster at
+            # 400 tokens) runs only in 16-bit floats on the GPU, and JAX's
+            # automatic choice does not pick it, so ask for it there.
+            gpu16 = jax.default_backend() in ("gpu", "cuda") and q.dtype in (jnp.bfloat16, jnp.float16)
+            attn = jax.nn.dot_product_attention(
+                q, kk, v, bias=bias, mask=mask, implementation="cudnn" if gpu16 else None
+            ).reshape(b, n, d)
         else:
             q, kk, v = (t.squeeze(2).transpose(0, 2, 1, 3) for t in (q, kk, v))  # (b, h, n, k)
             logits = (q @ kk.transpose(0, 1, 3, 2)) / math.sqrt(k) + bias
@@ -548,6 +554,7 @@ class GessFormer(hk.Module):
         attn_bias: str = "gab",
         line_attention: bool = False,
         fused_attention: bool = False,
+        ray_attention: bool = False,
         name="gess_former",
     ):
         super().__init__(name=name)
@@ -578,6 +585,13 @@ class GessFormer(hk.Module):
             raise ValueError("attn_bias='rel' needs patch=1 (one token per grid cell)")
         if line_attention and patch != 1:
             raise ValueError("line_attention needs patch=1")
+        if ray_attention and patch != 1:
+            raise ValueError("ray_attention needs patch=1")
+        # ray_attention: the blocks attend along each cell's row, column and two
+        # diagonals as separate softmaxes over lines of <= 20 cells (RayFormer's
+        # RayBlock, with its per-line offset bias), ~80 scores a cell a head
+        # instead of 400; attn_bias and line_attention then do not apply.
+        self.ray_attention = ray_attention
         self.patch = patch
         self.attn_bias = attn_bias
         self.line_attention = line_attention
@@ -612,6 +626,13 @@ class GessFormer(hk.Module):
         # Transformer encoder.
         out_init = hk.initializers.TruncatedNormal(stddev=0.02 / math.sqrt(2.0 * self.num_layers))
         for i in range(self.num_layers):
+            if self.ray_attention:
+                ray = RayBlock(
+                    self.num_heads, self.ffn_mult, out_init, remat=False,
+                    attn_dtype=tok.dtype, symmetric=False, name=f"block_{i}",
+                )
+                tok = (hk.remat(ray) if self.remat else ray)(tok)
+                continue
             block = TransformerBlock(
                 self.num_heads,
                 self.ffn_mult,
@@ -1055,6 +1076,7 @@ def make_forward(num_actions: int, config, dtype=jnp.float32) -> hk.TransformedW
                 attn_bias=getattr(config, "gf_attn_bias", "gab"),
                 line_attention=bool(getattr(config, "gf_line_attention", False)),
                 fused_attention=bool(getattr(config, "gf_fused_attention", False)),
+                ray_attention=bool(getattr(config, "gf_ray_attention", False)),
             )
         else:
             net = AZNet(

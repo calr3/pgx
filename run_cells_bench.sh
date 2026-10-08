@@ -22,9 +22,11 @@ run() {  # label, overrides...
   done
   timeout 1800 python -u examples/alphazero/bench_gess_selfplay.py new $POS init $ARGS "$@" max_num_steps=16 playout_cap_prob=1.0 2>&1     | grep -E "a step at|RESOURCE_EXHAUSTED: Out"
 }
-run "patched (E26/E28), remat off" gf_remat=False
-run "cells, full attention, width 192" $CELLS gf_remat=True
-run "cells, line attention, width 192" $CELLS gf_line_attention=True gf_remat=True
-run "cells, full attention, width 128" $CELLS gf_embed_dim=128 gf_remat=True
-run "cells, line attention, width 128" $CELLS gf_line_attention=True gf_embed_dim=128 gf_remat=True
+# Variants: VARIANTS="label|overrides;label|overrides..." (default: the first comparison).
+VARIANTS=${VARIANTS:-"patched (E26/E28), remat off|gf_remat=False;cells, full attention, width 192|$CELLS gf_remat=True;cells, line attention, width 192|$CELLS gf_line_attention=True gf_remat=True;cells, full attention, width 128|$CELLS gf_embed_dim=128 gf_remat=True"}
+IFS=';' read -ra LIST <<< "$VARIANTS"
+for item in "${LIST[@]}"; do
+  # shellcheck disable=SC2086
+  run "${item%%|*}" ${item#*|}
+done
 echo "$(date) cells benchmark done"

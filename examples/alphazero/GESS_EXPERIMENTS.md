@@ -831,6 +831,31 @@ gf_remat=False train_micro_batches=4` (the move generator is the default since 5
 LR re-warmed to 2e-4 at the resumed optimizer step (71,003), cosine to 1e-5 at it 449
 (`learning_rate=6.0328e-4 lr_final_ratio=0.016576`): 170 iterations, ~24 h if an iteration
 takes ~8.5 min. Otherwise E26's settings. Hourly eval vs. E26 it 279.
+Run `kn8itm29`, `checkpoints/gess_joint_20261008042104`.
+
+**Result.** 170 iterations in ~23.6 h at **8.0-8.3 min each** (E26: 14.5): the faster pipeline
+holds in practice. No NaN in ~43,500 bfloat16 updates; policy loss 0.96 -> 0.917 (E26 ended at
+0.942). Hourly eval vs. E26: ~0.50 for the first ~50 iterations (the LR re-warm), then ~0.58-0.62.
+tdgauntlet, 128 sims, 60 openings x both colours (`results/gess_e28_negamax.json`): **E28 v E26
+73-4-43 (0.625; minimatches 75.9%)**, E28 v negamax v0 78-42 (0.650), E26 v v0 82-38 (0.683).
+
+**Conclusion.** The strongest network, by about E26's margin over E25; more training still pays
+and bfloat16 training learns fine. Against negamax no gain (0.65-0.72 for E25-E28 alike): head
+to head and against negamax are not measuring the same thing.
+
+## E29/E30. One token per cell against 2x2 patches, from scratch, equal time
+
+**Question.** Does a direct representation - one token per cell, no 2x2 patch merge - beat
+today's patched GessFormer at equal training time?
+
+**Setup.** Both from scratch on the current recipe (gess_joint, 64/8 simulations, symmetry
+augmentation, `train_bf16`, the shift-based move generator), LR warmup over 500 steps to 5e-4
+then cosine to 1e-5, each sized to ~24 h. E29: `gf_patch=1 gf_attn_bias=rel
+gf_fused_attention=True gf_num_heads=4 gf_embed_dim=128 gf_num_layers=6` (cuDNN attention),
+remat on, 4 micro-batches; 125 iterations at the benchmark's ~11.5 min. E30: the patched
+network of E26/E28 (8 layers, width 192, 8 heads), remat off, 4 micro-batches; 180 iterations
+at ~8 min. Hourly eval of both against the converted E23 (`gess_joint_e23`, 32 sims), so the
+curves share a scale. Then head to head and each against negamax v0 at 128 sims.
 
 ---
 

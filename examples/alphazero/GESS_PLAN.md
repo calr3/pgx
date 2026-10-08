@@ -105,6 +105,27 @@ C. The test: either a partial warm start from E26 (stem, layer weights at width 
    the 400-token network and a 100-token GessFormer on today's pipeline (E2-E7's method).
    Go ahead only if the benchmark puts a 400-token network within ~1.5x today's iteration.
 
+**Benchmark (8 Oct, GPU, `run_cells_bench.sh`; iteration = 256 self-play steps at 64 sims on a
+quarter, 8 otherwise, plus 256 updates of 4096, all bfloat16):**
+
+| network | forward (1024) | iteration | vs patched |
+|---|---|---|---|
+| patched (E26/E28), 8 layers, width 192 | 35.6 ms | ~8 min (measured 8.0) | 1x |
+| cells, full attention, 8 heads, width 192 (JAX's own attention choice) | 234 ms | ~43 min | 5.4x |
+| cells, line mask, 8 heads, width 192 | 232 ms | ~43 min | 5.4x |
+| cells, ray attention (RayFormer's per-line blocks), 8 heads | 216 ms | ~41 min | 5.1x |
+| cells, full attention, 8 heads, width 192, cuDNN | 120 ms | ~24 min | 3.0x |
+| cells, full attention, 4 heads, width 192, cuDNN | 89 ms | ~19 min | 2.35x |
+| cells, full attention, 4 heads, width 128, cuDNN | 67 ms | ~14.7 min | 1.8x |
+| **cells, full attention, 4 heads, width 128, 6 layers, cuDNN** | **50 ms** | **~11.5 min** | **~1.4x** |
+
+JAX's automatic attention never chose cuDNN's flash kernel; asked for explicitly it accepts the
+offset bias and the line mask, with matching gradients, and is ~3x faster (the network now
+asks for it in 16-bit floats on the GPU). A mask saves nothing; ray attention's per-line
+reshuffles cost more than the attention they save. Past cuDNN, the per-token work at 4x the
+tokens dominates, so width and depth are what bring the cost down. Chosen: the last row. The
+test: E29 (that network) and E30 (the patched network), each from scratch for ~24 h.
+
 ## pgx performance (self-play throughput)
 
 Self-play was ~95% of an iteration when last measured (E5). Most of it is believed to be the

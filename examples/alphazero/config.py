@@ -105,6 +105,12 @@ class Config(BaseModel):
     # Compute attention with jax.nn.dot_product_attention (cuDNN on GPU, no
     # explicit n x n score matrix) instead of an explicit softmax.
     gf_fused_attention: bool = False
+    # patch=1 only: attend along each cell's row, column and diagonals as four
+    # separate softmaxes over lines of <= 20 cells (RayFormer's RayBlock, with a
+    # learned per-head bias for the offset along the line): ~5x fewer attention
+    # scores than full attention over 400 tokens. Overrides gf_attn_bias and
+    # gf_line_attention for the blocks.
+    gf_ray_attention: bool = False
     # "rayformer" (network.RayFormer): full-resolution transformer for Gess
     # with attention along rows, columns and diagonals; configured by rf_*.
     # Defaults roughly match gessformer's inference cost (self-play dominates);
