@@ -194,6 +194,9 @@ class Config(BaseModel):
     # bfloat16 (weights cast per step), while the weights, optimizer state and
     # loss stay float32 and gradients reach the weights as float32.
     train_bf16: bool = False
+    # Use mctx_fast.backward_fast in place of mctx's backward pass: the same trees and
+    # actions exactly, without copying the whole tree on every step up a path.
+    mctx_fast_backward: bool = False
     # Playout cap randomization (KataGo): each self-play step uses the full
     # num_simulations search with this probability, otherwise a cheap
     # fast_num_simulations search whose policy targets are excluded from the

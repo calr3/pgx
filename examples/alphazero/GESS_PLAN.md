@@ -75,6 +75,53 @@ question; don't bundle them into one run.
   user's call (they ruled out tactical guards in play; input features are a different
   question, not yet decided).
 
+## pgx/mctx code review (9 Oct): optimizations to test on the GPU
+
+Where a self-play simulation's ~62 ms went (E26's network, batch 1024): network 36.5 ms, env
+11.8 ms, mctx's own work ~14 ms. Found by reading the code; tested for exactness on CPU.
+
+1. **mctx's backward pass copies the whole tree on every step up a path.** `search.backward`
+   walks leaf to root in a `while_loop` vmapped over the batch, carrying the tree; with a
+   batched predicate JAX runs the loop for the longest path and selects between old and new
+   carry each pass, so every pass copies the [B, N, A] arrays (children_values and
+   children_visits, ~200 MB each at 1024 x 65 x 768). `mctx_fast.py` walks the paths first
+   with a small carry, then scatters every update once. Bit-identical: search trees and actions
+   (`check_mctx_backward.py`), and 3 miniature training iterations (weights, optimizer state,
+   RNG). Search bookkeeping on CPU: 2.4x faster at batch 64, 8.4x at 256. Opt-in:
+   `mctx_fast_backward=true`. Likely most of mctx's ~14 ms a simulation; test with
+   `bench_gess_selfplay.py` on and off. Probably also why the tdgauntlet JAX client was so slow
+   at 2048 simulations (N = 2049 makes the copied arrays 30x larger).
+2. **gess_joint applied each move twice** (done; exact). Its step went through Game.step twice,
+   whose lax.cond on the stage evaluates both branches under vmap, so the stage-1 work (apply
+   the move, check both rings) ran twice. Now calls the two stage functions directly: identical
+   outputs and tests, ~3% faster env step on CPU (move generation and the observation dominate).
+3. **Self-play batch size.** Time a self-play step at 2048 against 1024 (and max_num_steps
+   halved, so samples per iteration stay equal): if the network or mctx underuse the GPU at
+   1024, positions per second rise. Memory: the tree doubles too.
+4. **Kernel launches and loop syncs.** Each simulation runs mctx's two vmapped while_loops (a
+   few to ~10 passes each), every pass a set of small kernels and a device-to-host check of the
+   loop condition. Try XLA flags for CUDA graphs / command buffers
+   (`--xla_gpu_enable_command_buffer=...`, `--xla_gpu_graph_min_graph_size`) and see whether
+   the gaps between kernels shrink in a profiler trace (`jax.profiler.trace` of one step).
+5. **Smaller tree nodes.** Each node stores the full pgx State as its embedding (~12 KB: the
+   float32 observation 7.8 KB, the move list as int32, the legal mask). Gathering and scattering
+   it per simulation is cheap (~25 MB at batch 1024), so low priority; storing board + move list
+   (int16) and computing the observation only for the network would cut tree memory ~3x,
+   which matters only for big searches (opening analysis, high-simulation matches).
+6. **Training-loop host work.** Each update gathers a 4096-sample minibatch on the host
+   (~57 MB: float32 observations, policy targets, move lists) and copies it to the GPU, then
+   syncs on `.item()`. Prefetch the next minibatch while the GPU trains, and store observations
+   as float16 (half the buffer and the copy). First log per-phase times (self-play, host
+   processing, training, eval) in train.py to see what this is worth: E28's 8.0 min an iteration
+   leaves ~0.5 min unexplained by self-play and update times.
+7. Already listed: the shorter move list (768 -> 576), and the network itself (GAB is ~25% of
+   the patched network's FLOPs: share it across layers or lower its rank - a model change, so
+   it needs a run).
+
+Suggested GPU session (~30 min, before the next run): (a) `bench_gess_selfplay.py` with
+mctx_fast_backward off/on at batch 1024 and 2048; (b) one profiler trace of a self-play step
+with the winners; (c) the XLA flag variants. Adopt whatever is exact and faster.
+
 ## Next experiment: no 2x2 patching (one token per cell)
 
 Asked for after E28 (user, 7 Oct). The 2x2 patch merge squeezes 4 cells into each of 100

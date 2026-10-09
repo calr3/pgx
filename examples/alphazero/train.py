@@ -56,6 +56,11 @@ conf_dict = OmegaConf.from_cli()
 config: Config = Config(**conf_dict)
 print(config)
 
+if config.mctx_fast_backward:
+    import mctx_fast
+
+    mctx_fast.install()
+
 if config.gf_fused_attention:
     # cuDNN's attention kernel requires every input to share one device mesh,
     # but under JAX's newer pmap (jit over shard_map) each pmap's outputs carry
