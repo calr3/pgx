@@ -30,7 +30,15 @@ import jax
 import jax.numpy as jnp
 
 import pgx.core as core
-from pgx._src.games.gess import Game, GameState, N, _legal_dest_mask, _legal_source_mask
+from pgx._src.games.gess import (
+    Game,
+    GameState,
+    N,
+    _legal_dest_mask,
+    _legal_source_mask,
+    _step_stage0,
+    _step_stage1,
+)
 from pgx._src.struct import dataclass
 from pgx._src.types import Array, PRNGKey
 
@@ -166,8 +174,10 @@ class GessJoint(core.Env):
         del key
         assert isinstance(state, State)
         move = state._moves[action]
-        x = self._game.step(state._x, move // N)  # choose the piece
-        x = self._game.step(x, move % N)  # and its destination
+        # The two stages directly: Game.step picks the stage with lax.cond, which
+        # under vmap evaluates both branches, so going through it twice applied
+        # the move (and checked both rings) twice per step.
+        x = _step_stage1(_step_stage0(state._x, move // N), move % N)
         terminated = self._game.is_terminal(x)
         rewards = jax.lax.select(terminated, self._game.rewards(x), jnp.zeros(2, jnp.float32))
         moves, overflow = legal_moves(x)
