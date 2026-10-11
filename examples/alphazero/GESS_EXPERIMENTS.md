@@ -857,6 +857,52 @@ network of E26/E28 (8 layers, width 192, 8 heads), remat off, 4 micro-batches; 1
 at ~8 min. Hourly eval of both against the converted E23 (`gess_joint_e23`, 32 sims), so the
 curves share a scale. Then head to head and each against negamax v0 at 128 sims.
 
+**Running it.** E29's first attempt crashed in its first self-play (cuDNN attention under JAX's
+newer pmap: see train.py, fixed by using the older pmap when gf_fused_attention is on), so E30
+ran first: run `486hgzs5`, `checkpoints/gess_joint_20261009075914`, 180 iterations in 24.45 h
+(8.2 min each). E29 then ran at ~13.4 min an iteration, not the benchmark's 11.5 (which left out
+host work and the hourly eval), so at 125 iterations it would have had ~28 h; it was
+interrupted at it 21 (4.47 h) and resumed with `max_num_iters=110` (buffer and games restored,
+the cosine re-stretched over 110). It sped up to ~12.5 min later and finished 110 iterations
+in 23.37 h, ~4% less time than E30. Run `kou9dccr`, `checkpoints/gess_joint_20261010091931`.
+
+**Result.** Hourly eval vs. the converted E23 at equal hours: E29 a step behind throughout and
+the gap widening to ~2.5 h - 0.26 v 0.48 at ~6.5 h, 0.56 v 0.85 at ~8.6 h, 0.79 v 0.96 at
+~12 h - before both saturated (E29 0.85-0.94 from ~14 h, E30 0.95-0.98 from ~10 h). tdgauntlet,
+128 sims, 60 openings x both colours (`results/gess_e29_e30.json`): **E29 v E30 30-1-89 (0.254;
+minimatches 0.8%)**; against negamax v0, E29 63-57 (0.525), E30 82-38 (0.683).
+
+**Conclusion.** One token per cell loses decisively at equal time: slower iterations (12.5 v
+8.2 min) and slower learning per hour, as E4's RayFormer. The 2x2 patches stay. Unexpected:
+E30, 24 h from scratch, matches E26 and E28 against negamax (0.683 v 0.65-0.68), so either the
+current recipe is much more efficient than the early lineage's or the negamax score has stopped
+measuring strength; E30 v E28 head to head decides which.
+
+**E30 v E28** (128 sims, 60 openings x both colours, `results/gess_e30_v_e28.json`): **E28
+102-0-18 (0.850; 43 of 44 counted minimatches)**. The lineage is far stronger, so the negamax
+score has stopped measuring strength: E25-E30 all score 0.65-0.72 against negamax v0, whatever
+their strength. From here, compare networks head to head (or against a stronger yardstick).
+
+## Opening analysis (E28, 11 Oct)
+
+`analyse_opening.py` with E28 (`results/gess_opening_e28.json`, ~2 h of GPU: the playouts ran
+over their 40 min, as games at 128 sims last ~75 plies and running games finish).
+
+- **Root search** from the start (deterministic Gumbel, 32 moves considered): the choice moves
+  away from the policy's favourite with more search: j6-h8 at 1k simulations, s6-p9 at 4k, 16k
+  and 64k; l6-l8 (44.6% of the prior) valued at -0.07 to -0.08 against +0.05 for s6-p9.
+- **Black's first moves played out** (E28 v itself, 128 sims, Gumbel noise; ~235 games each):
+  j6-g9 **0.655 +/- 0.031**, h6-j8 0.604, e3-e5 0.528, h6-k9 0.526, s6-p9 0.517, s6-r7 0.491,
+  h6-i7 0.474, l6-l9 0.460, l6-l7 0.453, s6-q8 0.438, j6-h8 0.426, j6-i7 0.389, **l6-l8 0.388**.
+  The three pushes the policy gives 94% to (l6-l7/l8/l9) all score under 0.5; the policy has
+  collapsed onto a weak opening that self-play never corrected. Black moving first is an edge
+  (~0.65) only with a good first move.
+- **White's replies** (E28's top 6 to each of j6-g9, h6-j8, e3-e5; ~65 games each, +/- 0.06):
+  e18-e16 is white's best answer to h6-j8 (black 0.285) and j6-g9 (0.400); e3-e5 holds black at
+  >= 0.516 against all six tested, the most robust first move.
+- Negamax (tdgauntlet `examples/opening.rs`, every first move to depths 5-8) settles on nothing:
+  its choice changes with depth and weights, and it ranks l6-l7/l8/l9 low too.
+
 ---
 
 ## Infrastructure checks

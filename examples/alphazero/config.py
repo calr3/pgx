@@ -195,8 +195,9 @@ class Config(BaseModel):
     # loss stay float32 and gradients reach the weights as float32.
     train_bf16: bool = False
     # Use mctx_fast.backward_fast in place of mctx's backward pass: the same trees and
-    # actions exactly, without copying the whole tree on every step up a path.
-    mctx_fast_backward: bool = False
+    # actions exactly (bit-identical training), without copying the whole tree on every
+    # step up a path. A 64-sim self-play step 20% faster on the GPU (11 Oct).
+    mctx_fast_backward: bool = True
     # Playout cap randomization (KataGo): each self-play step uses the full
     # num_simulations search with this probability, otherwise a cheap
     # fast_num_simulations search whose policy targets are excluded from the

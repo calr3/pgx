@@ -27,8 +27,22 @@ run_e30() {
     > gess_e30_run.log 2>&1
   echo "$(date) E30 exited with $?"
 }
+# E29 ran at ~13.4 min an iteration, not the benchmark's ~11.5, so at 125 iterations it would
+# have had ~28 h against E30's 24.45 h. It was interrupted at it 21 (4.47 h) and resumed with
+# max_num_iters=110 (data state restored; the cosine schedule re-stretches over 110):
+#   ./run_e29_e30.sh e29-resume checkpoints/<E29 run>/000021.ckpt 110
+resume_e29() {
+  echo "$(date) E29 resume from $1, max_num_iters=$2"
+  # shellcheck disable=SC2086
+  python -u examples/alphazero/train.py $COMMON resume_from="$1" max_num_iters="$2" gf_remat=True \
+    gf_patch=1 gf_attn_bias=rel gf_fused_attention=True gf_num_heads=4 gf_embed_dim=128 gf_num_layers=6 \
+    >> gess_e29_run.log 2>&1
+  echo "$(date) E29 exited with $?"
+}
 if [ "${1:-both}" = "e29" ]; then
   run_e29
+elif [ "${1:-both}" = "e29-resume" ]; then
+  resume_e29 "$2" "$3"
 else
   run_e29
   run_e30

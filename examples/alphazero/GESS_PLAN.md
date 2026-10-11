@@ -40,6 +40,15 @@ quiescence) also failed to beat v1; see `TUNING.md` there.
 - **Whole-move search and simulations: measured.** E25 it 183 against negamax v0 won 70% /
   75% / 79% of games at 128 / 512 / 2048 sims (the two-step E22: flat or worse), at 1.5 / 10 /
   201 s a move. A little gain, at a steep price; more self-play simulations are a weak lever.
+- **No 2x2 patching: E29/E30, done.** One token per cell (the cheapest variant that fit, 6
+  layers x 128, cuDNN attention) lost to the patched network at equal time 0.254 (minimatches
+  0.8%). Patches stay. E30 (24 h from scratch) scored 0.683 against negamax, as E26/E28, yet
+  E28 beat it 102-18: **negamax v0 no longer measures strength** at this level (E25-E30 all
+  0.65-0.72 against it). Judge networks head to head.
+- **Openings.** E28's policy puts 94% on l6-l7/l8/l9, which score worst in play-outs (0.39-0.46
+  for black) while j6-g9 scores 0.655 and e3-e5 is the most robust. Self-play does not explore
+  away from it. Candidates: more root noise or a sampled opening phase in self-play
+  (`selfplay_sample_plies`, Dirichlet-style noise), or starting games from a spread of openings.
 - **Capacity: E26 and E27, done.** Matched branches from E25 it 183 with two (E26) and four
   (E27) more transformer layers, starting as the identity. E26 beat E25 0.625 head to head;
   E27 did not beat E26 (0.458) and both scored 0.683 against negamax. Depth stops paying at 8
@@ -118,7 +127,26 @@ Where a self-play simulation's ~62 ms went (E26's network, batch 1024): network 
    the patched network's FLOPs: share it across layers or lower its rank - a model change, so
    it needs a run).
 
-Suggested GPU session (~30 min, before the next run): (a) `bench_gess_selfplay.py` with
+**GPU session (11 Oct; E28's network, batch 1024, a full self-play step):**
+
+| change | 64-sim step | 8-sim step |
+|---|---|---|
+| stock | 4178 ms | 475 ms |
+| mctx_fast_backward | **3356 ms (-20%)** | 476 ms |
+| batch 2048 (per 1024 positions) | 4164 / 3383 ms (stock / fast) | 488 / 487 ms |
+| XLA command buffers off | 3322 ms | 480 ms |
+| XLA while-loop double buffering | 3300 ms | 474 ms |
+
+Adopted: `mctx_fast_backward` (now the default): self-play ~6.0 -> ~5.1 min an iteration, an
+iteration ~8.0 -> ~7.1 min. Not worth it: a bigger batch (the GPU is saturated) and the XLA
+flags (~1-2%, noise). Trace (`trace_selfplay.py`): the GPU is busy 94-95% of the time, so launch
+gaps are not the problem; the stock run's `loop_select_fusion` (12% of GPU time) and most of its
+memcpys - the backward pass's whole-tree copies - are gone with the fix. **Next target:** one
+`input_scatter_fusion` kernel, ~once a simulation at ~7.8 ms, is now 17% of GPU time - likely
+an mctx scatter into a [B, N, ...] tree array (children arrays or the node embeddings) that XLA
+copies instead of updating in place; find which from the HLO's op metadata (CPU work).
+
+Suggested GPU session (~30 min, before the next run; done 11 Oct, above): (a) `bench_gess_selfplay.py` with
 mctx_fast_backward off/on at batch 1024 and 2048; (b) one profiler trace of a self-play step
 with the winners; (c) the XLA flag variants. Adopt whatever is exact and faster.
 

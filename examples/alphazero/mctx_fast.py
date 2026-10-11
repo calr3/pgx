@@ -6,7 +6,8 @@ selects between the old and new carry on every pass, so every pass copies every 
 array (children_values, children_visits: ~200 MB each at B=1024, N=65, A=768). This version
 walks the paths first with a small carry, then writes all updates with one scatter per array
 (a path never repeats a node, so the scatters cannot collide). Trees and actions are
-identical (check_mctx_backward.py); search bookkeeping was 8.4x faster at B=256 on CPU.
+identical (check_mctx_backward.py); search bookkeeping was 8.4x faster at B=256 on CPU, and a
+64-simulation self-play step (E28's network, batch 1024) 20% faster on the GPU.
 
 Use: `import mctx_fast; mctx_fast.install()` before any search is traced (train.py does
 so with mctx_fast_backward=true).

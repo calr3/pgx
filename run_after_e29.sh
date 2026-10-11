@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# After E29 (run_e29_after.sh, PID $1) has finished: E29 v E30 head to head and each against
+# After E29 (the process with PID $1; its last iteration $2, default 125) has finished: E29 v E30 head to head and each against
 # negamax v0 at 2 s (tdgauntlet examples/gess_e29_e30.toml, 128 sims), then the one-hour
 # opening analysis with E28 (analyse_opening.py -> results/gess_opening_e28.json).
 set -u
@@ -12,7 +12,7 @@ final() {  # log, iteration -> that iteration's checkpoint
   dir=$(grep -oE "Saving checkpoint: checkpoints/gess_joint_[0-9]+" "$1" | head -1 | sed 's/Saving checkpoint: //')
   printf '%s/%06d.ckpt' "$dir" "$2"
 }
-E29=$(final gess_e29_run.log 125)
+E29=$(final gess_e29_run.log "${2:-125}")  # 110 after the resize (see run_e29_e30.sh)
 E30=$(final gess_e30_run.log 180)
 echo "$(date) E29 $E29, E30 $E30"
 if [ -f "$E29" ] && [ -f "$E30" ]; then
