@@ -141,10 +141,25 @@ Adopted: `mctx_fast_backward` (now the default): self-play ~6.0 -> ~5.1 min an i
 iteration ~8.0 -> ~7.1 min. Not worth it: a bigger batch (the GPU is saturated) and the XLA
 flags (~1-2%, noise). Trace (`trace_selfplay.py`): the GPU is busy 94-95% of the time, so launch
 gaps are not the problem; the stock run's `loop_select_fusion` (12% of GPU time) and most of its
-memcpys - the backward pass's whole-tree copies - are gone with the fix. **Next target:** one
-`input_scatter_fusion` kernel, ~once a simulation at ~7.8 ms, is now 17% of GPU time - likely
-an mctx scatter into a [B, N, ...] tree array (children arrays or the node embeddings) that XLA
-copies instead of updating in place; find which from the HLO's op metadata (CPU work).
+memcpys - the backward pass's whole-tree copies - are gone with the fix.
+
+**The scatter kernel (17% of GPU time) was the move generator's compaction**, found from the
+dumped HLO (`--xla_dump_to`): `jnp.nonzero(size=768)` over 400 x 152 candidates compiles to a
+running count and a scatter-add of 62M updates (1024 x 60,800) into 768 slots a position, all
+atomics. Replaced by slot-wise search (each of the 768 slots finds its source, then its
+candidate, by binary search over running counts); a first version that gathered each slot's
+152-candidate row was as slow, as XLA fused it with building the table (768 x 152 scattered
+reads a position). Exact (the gess_joint tests, an overflow test against jnp.nonzero, 16,834
+real positions). A self-play step, E28's network, batch 1024:
+
+| | 64 sims | 8 sims |
+|---|---|---|
+| stock | 4178 ms | 475 ms |
+| + mctx_fast_backward | 3356 ms | 476 ms |
+| + slot-wise compaction | **2698 ms** | **364 ms** |
+
+Self-play ~35% faster at 64 sims, ~23% at 8; an iteration ~8.0 -> ~6.2 min expected. The top
+kernels are now the network's (`trace_selfplay.py`: GPU busy 10.5 s for 4 steps, from 15.5).
 
 Suggested GPU session (~30 min, before the next run; done 11 Oct, above): (a) `bench_gess_selfplay.py` with
 mctx_fast_backward off/on at batch 1024 and 2048; (b) one profiler trace of a self-play step

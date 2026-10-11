@@ -113,3 +113,25 @@ def test_shift_move_generator_equals_the_gather_version():
         assert np.array_equal(np.asarray(m), np.asarray(rm)), i
         checked += 64
     assert checked == 64 * 36
+
+
+def test_compaction_matches_nonzero_including_overflow():
+    """_compact (slot-wise search) against jnp.nonzero on candidate tables from empty to
+    far past MAX_MOVES legal entries: the same first MAX_MOVES moves and overflow flag."""
+    from pgx.gess_joint import _CANDIDATE_OFFSETS, _compact
+
+    def by_nonzero(table):
+        (idx,) = jnp.nonzero(table.reshape(-1), size=MAX_MOVES, fill_value=-1)
+        c = table.shape[1]
+        source = idx // c
+        moves = source * N + source + _CANDIDATE_OFFSETS[idx % c]
+        return jnp.where(idx >= 0, moves, -1).astype(jnp.int32), table.sum() > MAX_MOVES
+
+    both = jax.jit(jax.vmap(lambda t: (_compact(t), by_nonzero(t))))
+    shape = (N, _CANDIDATE_OFFSETS.shape[0])
+    for p in (0.0, 0.002, 0.01, 0.02, 0.1):  # ~0, ~120, ~610, ~1220, ~6080 legal entries
+        tables = jax.random.bernoulli(jax.random.PRNGKey(int(p * 1000)), p, (8, *shape))
+        (m, o), (rm, ro) = both(tables)
+        assert np.array_equal(np.asarray(m), np.asarray(rm)), p
+        assert np.array_equal(np.asarray(o), np.asarray(ro)), p
+    assert bool(o.all()) and not bool(both(jnp.zeros((1, *shape), bool))[0][1][0])

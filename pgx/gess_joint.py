@@ -115,12 +115,42 @@ def legal_moves(x: GameState) -> tuple[Array, Array]:
             blocked_before = blocked_before | hit
 
     table = jnp.stack([valid[(d, k)].reshape(-1) for _, d, k in _CANDIDATES], axis=1)  # (N, C)
-    flat = table.reshape(-1)
-    (idx,) = jnp.nonzero(flat, size=MAX_MOVES, fill_value=-1)
+    return _compact(table)
+
+
+def _compact(table: Array) -> tuple[Array, Array]:
+    """The legal moves of a (N, C) candidate table, source-major, as a padded list.
+
+    Each of the MAX_MOVES output slots finds the move it holds - its source by a binary search
+    over the running count of legal moves per source, then its candidate by a binary search
+    over that source's running count -
+    rather than each of the N * C candidates scattering itself into a slot: jnp.nonzero did
+    the latter, as a scatter-add of N * C updates into MAX_MOVES slots, which on the GPU was
+    ~7.8 ms a call at batch 1024 (17% of self-play's GPU time).
+    """
+    counts = table.sum(axis=1, dtype=jnp.int32)  # (N,) legal moves per source
+    ends = jnp.cumsum(counts)  # moves before the end of each source
+    total = ends[-1]
+    slot = jnp.arange(MAX_MOVES, dtype=jnp.int32)
+    source = jnp.minimum(jnp.searchsorted(ends, slot, side="right"), N - 1).astype(jnp.int32)
+    rank = slot - (ends[source] - counts[source])  # the slot's index among its source's moves
+    # The candidate: the first k with within[source, k] > rank, by binary search over each
+    # source's running count (computed once). Gathering each slot's whole row instead let XLA
+    # fuse it with building the table: 768 x 152 scattered reads a position, as slow as the
+    # scatter it replaced.
+    within = jnp.cumsum(table, axis=1, dtype=jnp.int32)  # (N, C)
     c = len(_CANDIDATES)
-    source = idx // c
-    moves = source * N + source + _CANDIDATE_OFFSETS[idx % c]
-    return jnp.where(idx >= 0, moves, -1).astype(jnp.int32), flat.sum() > MAX_MOVES
+    lo = jnp.zeros(MAX_MOVES, jnp.int32)
+    hi = jnp.full(MAX_MOVES, c, jnp.int32)
+    for _ in range(c.bit_length()):  # 2**8 > 152 + 1
+        mid = (lo + hi) // 2
+        searching = lo < hi
+        right = searching & (within[source, jnp.minimum(mid, c - 1)] <= rank)
+        lo = jnp.where(right, mid + 1, lo)
+        hi = jnp.where(searching & ~right, mid, hi)
+    candidate = jnp.minimum(lo, c - 1)
+    moves = source * N + source + _CANDIDATE_OFFSETS[candidate]
+    return jnp.where(slot < total, moves, -1).astype(jnp.int32), total > MAX_MOVES
 
 
 def legal_moves_reference(x: GameState) -> tuple[Array, Array]:
