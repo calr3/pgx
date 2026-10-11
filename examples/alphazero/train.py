@@ -142,6 +142,7 @@ qtransform = {
     "completed_unscaled": partial(mctx.qtransform_completed_by_mix_value, rescale_values=False),
     "by_min_max": partial(mctx.qtransform_by_min_max, min_value=-1.0, max_value=1.0),
 }[config.qtransform]
+_base_completed = qtransform  # before any per-stage or opening value_scale wrapping
 
 # The auxiliary immediate-win target (Config.aux_win_weight).
 AUX_WIN = config.aux_win_weight > 0
@@ -171,6 +172,19 @@ if config.value_scale_by_stage:
     def qtransform(tree, node_index):
         stage = jnp.clip(tree.embeddings._x.stage[node_index], 0, _stage_scales.shape[0] - 1)
         return _base_qtransform(tree, node_index, value_scale=_stage_scales[stage])
+
+
+if config.opening_value_scale_plies > 0:
+    # A different value_scale in the opening (see Config.opening_value_scale_plies), read
+    # off the node's embedding like the per-stage one; it takes precedence there.
+    if config.qtransform == "by_min_max":
+        raise ValueError("opening_value_scale_plies needs a completed_* qtransform")
+    _pre_opening_qtransform = qtransform
+
+    def qtransform(tree, node_index):
+        in_opening = tree.embeddings._step_count[node_index] < config.opening_value_scale_plies
+        opening = _base_completed(tree, node_index, value_scale=config.opening_value_scale)
+        return jnp.where(in_opening, opening, _pre_opening_qtransform(tree, node_index))
 
 
 def recurrent_fn(

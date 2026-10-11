@@ -883,6 +883,34 @@ measuring strength; E30 v E28 head to head decides which.
 score has stopped measuring strength: E25-E30 all score 0.65-0.72 against negamax v0, whatever
 their strength. From here, compare networks head to head (or against a stronger yardstick).
 
+## E31/E32. The opening collapse: a fix against a control, matched branches from E28
+
+**Question.** E28's policy puts 94% on three first moves (l6-l7/l8/l9) that score worst for
+black in play-outs (opening analysis below). Why, and does fixing it help?
+
+**Why.** (1) The training target is softmax(prior + sigma(completed Q)); at the default
+value_scale 0.1 a Q gap of ~0.1 moves it by < 1 logit, against a 3.6-logit prior gap between
+l6-l8 and j6-g9. (2) The root search considers only 16 of 478 moves, picked mostly by prior.
+(3) Every game starts from the same position and plays the search's choice, so self-play
+replays a few openings and their outcomes never teach the value head about others. A self-play
+step from the start with E28 (CPU, 64 sims, 16 games): the target puts 70% on the l6 pushes at
+value_scale 0.1, 45% at 0.15, 17% at 0.2 (s6-p9 0.71, j6-h8 and j6-g9 kept), 1% at 0.3 and 0% at
+0.5 (one-hot on s6-p9: too sharp for a 64-sim search's noisy Q).
+
+**Setup.** `resume_from` E28 it 449, `resume_as_new_run=true`, both to it 565 (~12 h at the
+pipeline's ~6.2 min an iteration, to be checked), LR re-warmed to 2e-4 at E28's last step
+(114,523) and cosine to 1e-5 (`learning_rate=1.8459e-3 lr_final_ratio=0.0054174`), hourly eval
+vs. E28. E31: `selfplay_sample_plies=6` (the first 6 plies play a move sampled from the
+improved policy) and `opening_value_scale_plies=6 opening_value_scale=0.2` (new: that
+value_scale for positions in the first 6 plies). E32: neither. `run_e31_e32.sh`, E31 first.
+Both run the faster pipeline (mctx_fast_backward, the slot-wise move compaction).
+
+**To judge it.** tdgauntlet's matches start from random 2-ply openings and its JAX client is
+deterministic, so no match so far has measured the opening. (1) The opening analysis for both:
+does E31's prior move off the l6 pushes, and does its favourite score better? (2) E31 v E32
+from the start position, with root Gumbel noise in the client (new `--gumbel-scale`) so games
+differ. (3) The usual random-opening match, for general strength.
+
 ## Opening analysis (E28, 11 Oct)
 
 `analyse_opening.py` with E28 (`results/gess_opening_e28.json`, ~2 h of GPU: the playouts ran

@@ -178,6 +178,13 @@ class Config(BaseModel):
     # default. A larger value_scale makes the improved policy follow Q more
     # strongly: at 0.1 a move can gain at most ~7 logits over its prior.
     value_scale_by_stage: str = ""
+    # Self-play only: a value_scale for positions in the first opening_value_scale_plies
+    # plies of a game (the node's env step count), in place of the default or per-stage
+    # one. The improved policy is softmax(prior + sigma(completed Q)), and at 0.1 a Q gap of
+    # 0.1 moves a target by < 1 logit, so a confident opening prior is never overturned
+    # (E28's put 94% on three pushes that score worst in play-outs). 0 plies = off.
+    opening_value_scale_plies: int = 0
+    opening_value_scale: float = 0.1
     # Gess only: weight of an auxiliary training target, "which actions win the
     # game at once (by breaking the opponent's last ring)", labelled exactly by
     # the rules (pgx gess.winning_actions) for every self-play position and
