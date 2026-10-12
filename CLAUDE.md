@@ -232,17 +232,10 @@ platform — the export is the network only.
 
 ## A.I. Wars (`ai_wars`)
 
-A port of the A.I. Wars web engine: Cybug scripts (CAICL) fight with no decisions in
-the battle, so the env's action space is a single action and `step` plays a tick. See
-`docs/ai_wars.md`.
-
-- The compiler (`_src/games/ai_wars_caicl.py`) and engine (`_src/games/ai_wars.py`)
-  reproduce the reference tick for tick, quirks included. **Check any rules change with
-  `tools/ai_wars/conformance.py`** (needs `tools/ai_wars/fetch.sh` once and Node; the
-  reference JS, maps and Cybugs are not in the repo).
-- Evaluate scripts with `run_battles` / `Engine.run_queue`, not by stepping the env or
-  `vmap(run)`: lanes of a plain vmap wait for the slowest turn and the longest battle.
-- Under vmap a `lax.cond` around a turn's while loop was 30x slower than running it and
-  masking the result, and a nested loop with a data-dependent trip count runs to the
-  batch's maximum every step; the interpreter therefore does a bounded amount of work per
-  iteration (`CONDS_PER_ITER`, `EXPR_PER_ITER`) and splits long lines over iterations.
+`pgx/ai_wars.py` is a thin env over the `aiwars_jax` package (~/calr3gh/aiwars_jax,
+github.com/calr3/aiwars_jax), which holds the CAICL compiler, the engine, maps,
+`run_battles` and the conformance tools; it is installed into ~/.venv with
+`pip install --no-deps -e` so pip cannot move JAX. Rule changes, and their tests and
+reference checks, belong in that repo. Cybug battles have no decisions, so the env's
+action space is a single action and `step` plays a tick; evaluate scripts with
+`aiwars_jax.run_battles(env.arena, ...)`, not by stepping the env.

@@ -1,5 +1,5 @@
 from pgx.ai_wars import State as AIWarsState
-from pgx._src.games import ai_wars as W
+from aiwars_jax import engine as W
 
 BUG_COLORS = ["#1f77d0", "#d03030", "#d0b000", "#20a050", "#c040c0", "#e08000", "#40c0c0",
               "#806040", "#808080", "#000000"]
