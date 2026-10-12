@@ -75,3 +75,11 @@ gess_*_match.log
 gess_*_followup.log
 gess_slide_*.json
 gess_slide_*.log
+# Chain launchers' own logs (after_e29.log, e29_after.log, e31_e32.log, e30_v_e28.log, ...),
+# a resized run's iteration count, and runs that crashed before training (kept for reference)
+after_e*.log
+e*_after.log
+e*_e*.log
+e*_v_e*.log
+*.maxit
+gess_*_crash_run.log
