@@ -40,6 +40,7 @@ FALSE = jnp.bool_(False)
 # Underscore - is used for the other cases.
 EnvId = Literal[
     "2048",
+    "ai_wars",
     "animal_shogi",
     "backgammon",
     "bridge_bidding",
@@ -394,6 +395,10 @@ def make(env_id: EnvId):  # noqa: C901
         from pgx.go import Go
 
         return Go(size=19, komi=7.5)
+    elif env_id == "ai_wars":
+        from pgx.ai_wars import AIWars
+
+        return AIWars()
     elif env_id == "epaminondas":
         from pgx.epaminondas import Epaminondas
 

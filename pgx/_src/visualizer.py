@@ -536,6 +536,19 @@ class Visualizer:
                     "black",
                     "black",
                 )
+        elif _state.env_id == "ai_wars":
+            from pgx._src.dwg.ai_wars import _make_ai_wars_dwg
+
+            self.config["GRID_SIZE"] = 12
+            self.config["BOARD_WIDTH"] = 45
+            self.config["BOARD_HEIGHT"] = 32
+            self._make_dwg_group = _make_ai_wars_dwg  # type:ignore
+            if (self.config["COLOR_THEME"] is None and self.config["COLOR_THEME"] == "dark") or self.config[
+                "COLOR_THEME"
+            ] == "dark":
+                self.config["COLOR_SET"] = ColorSet("gray", "black", "white", "white", "#1e1e1e", "silver", "")
+            else:
+                self.config["COLOR_SET"] = ColorSet("white", "black", "black", "black", "white", "gray", "")
         elif _state.env_id == "epaminondas":
             from pgx._src.dwg.epaminondas import _make_epaminondas_dwg
 
