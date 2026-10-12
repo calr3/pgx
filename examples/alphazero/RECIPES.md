@@ -51,15 +51,45 @@ Two things are **not** general defaults:
 
 ## Gess
 
+The current recipe (E24-E32): whole moves (`env_id=gess_joint`), an 8-layer GessFormer,
+mixed-precision training and the opening settings. From scratch:
+
 ```sh
-python3 -u examples/alphazero/train.py env_id=gess architecture=gessformer \
-  selfplay_bf16=true num_simulations=32 playout_cap_prob=0.25 \
-  fast_num_simulations=8 symmetry_augmentation=true continue_games=true \
+python3 -u examples/alphazero/train.py env_id=gess_joint architecture=gessformer \
+  gf_num_layers=8 selfplay_bf16=true train_bf16=true gf_remat=false train_micro_batches=4 \
+  num_simulations=64 playout_cap_prob=0.25 fast_num_simulations=8 \
+  selfplay_sample_plies=6 opening_value_scale_plies=6 opening_value_scale=0.2 \
+  symmetry_augmentation=true continue_games=true \
   selfplay_batch_size=1024 max_num_steps=256 training_batch_size=4096 \
   num_updates_per_iter=256 replay_buffer_iters=4 \
   learning_rate=5e-4 weight_decay=1e-4 warmup_steps=500 grad_clip_norm=1.0 \
-  lr_schedule=cosine save_data_state=true max_num_iters=72 eval_interval=4
+  lr_schedule=cosine lr_final_ratio=0.02 save_data_state=true max_num_iters=<~24 h> eval_interval=4
 ```
+
+To continue a run: `resume_from=<ckpt> resume_as_new_run=true` with the LR re-warmed to 2e-4 at
+the checkpoint's optimizer step and cosine to 1e-5 (solve `learning_rate`/`lr_final_ratio` for
+that; GESS_EXPERIMENTS.md E25-E32 show the arithmetic). An iteration takes ~6.2-6.8 min on the
+16 GB GPU with `mctx_fast_backward` (the default) and the slot-wise move compaction.
+
+**What the E24-E32 line established:**
+- **Whole moves** (E24) beat the two-step env, at a third of the think time.
+- **8 transformer layers** (E26: +~90 Elo over 6 with continued training); **10 did not
+  beat 8** (E27, matched branches). New layers can be added to a checkpoint as identities.
+- **Keep the 2x2 patches.** One token per cell lost 0.254 at equal time (E29 v E30), as
+  RayFormer did: slower iterations and slower learning per hour.
+- **`train_bf16`** (with remat off, 4 micro-batches): updates ~2x faster, learning unchanged.
+- **Opening settings (E31):** without them the policy collapses onto a few weak first moves
+  (E28 put 94% on three pushes that score worst in play-outs) and a further 12 h gained
+  nothing (E32 v E28 0.49); with them the continuation beat its control 0.56 over 240 games
+  and E28 0.585, and as black it played e3-e5, the most robust first move.
+- **Judge networks head to head, not against negamax.** From E25 on, every network scores
+  0.65-0.72 against the app's negamax whatever its strength (E30, 24 h from scratch, 0.683;
+  E28 0.650; E28 beat E30 102-18). Also play from the starting position with the JAX client's
+  `--gumbel-scale 1.0` (tdgauntlet `examples/openings/gess_start_x60.jsonl`): the usual
+  random 2-ply openings never test the opening.
+
+The notes below come from the earlier two-step line (`env_id=gess`, E1-E23; its recipe is in
+git history) and mostly still apply.
 
 **Architecture: `gessformer`** (+420 Elo over the ResNet). Gess needs both 3x3
 locality (a piece is a 3x3 footprint) and long-range interaction (pieces slide up
@@ -117,7 +147,8 @@ single gain since the full-size recipe: +250 Elo over E18 measured against the a
 negamax. Keep 0.1 at piece nodes: each candidate piece gets ~3 visits, and a large
 scale makes those targets near-one-hot on noise.
 
-**Measure against negamax, not just the previous model.** `tdgauntlet/clients/
+**Measure against negamax, not just the previous model** (two-step era; see above: from E25
+on negamax no longer separates networks). `tdgauntlet/clients/
 gess_negamax` plays the web app's negamax engine. Since E22, head-to-head wins within
 this line (79-1, 380-20, 0.74) have not shown up against negamax (E22 0.46, E23 0.43
 at 128 sims vs. 2 s): the line learns to beat its own habits. Also run the

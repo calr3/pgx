@@ -911,6 +911,19 @@ does E31's prior move off the l6 pushes, and does its favourite score better? (2
 from the start position, with root Gumbel noise in the client (new `--gumbel-scale`) so games
 differ. (3) The usual random-opening match, for general strength.
 
+**Result.** E31 to it 565 in 13.1 h, E32 in 12.9 h (~6.5 min an iteration). tdgauntlet, 128
+sims (`results/gess_e31_e32{,_start}.json`): from random 2-ply openings **E31 v E32 62-5-53
+(0.537)**, E31 v E28 0.592, E32 v E28 0.500; from the start (60 x both colours, root Gumbel
+1.0) **E31 v E32 69-3-48 (0.588)**, E31 v E28 0.579, E32 v E28 0.487. Together E31 v E32 0.56
+(240 games), E31 v E28 0.585, E32 v E28 0.49. As black from the start E31 played e3-e5 in 99 of
+120 games; E32 and E28 still played the l6 pushes in about a third. Opening analysis
+(`results/gess_opening_e31.json`, `_e32.json`): E31's search chooses e3-e5 at 1k-16k sims
+(value +0.16 to +0.25) and its play-outs score it **0.767** for black (next 0.561); its prior on
+the three pushes fell from 94% to 64%. E32's best play-out move is h6-i7 0.646; l6-l8 0.350.
+
+**Conclusion.** Adopted into the recipe (RECIPES.md). The control gained nothing in 12 h,
+while E31 gained ~+60 Elo over E28: the opening settings may also help by diversifying data.
+
 ## Opening analysis (E28, 11 Oct)
 
 `analyse_opening.py` with E28 (`results/gess_opening_e28.json`, ~2 h of GPU: the playouts ran
