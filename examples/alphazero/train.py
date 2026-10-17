@@ -32,6 +32,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from config import Config
+import mctx_patch  # noqa: F401  (faster mctx backward pass; bit-identical)
 from model_tournament import (
     TourneyConfig,
     build_round_runner,

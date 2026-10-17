@@ -176,6 +176,12 @@ JAX pitfalls hit while writing envs:
 Only LayerNorm, so `model_state` stays empty and checkpoints are just params.
 `selfplay_bf16=true` runs search inference in bfloat16 (training stays float32).
 
+`train.py` and `model_tournament.py` import `mctx_patch.py`, which swaps mctx's
+`search.backward` for a hand-batched version (bit-identical; stock `vmap(while_loop)`
+rewrites whole `[B, N, actions]` arrays every step, quadratic in simulations).
+If an mctx upgrade breaks it, `tests/test_mctx_patch.py` fails. Other mctx
+findings: `examples/alphazero/MCTX_PERF_REVIEW.md`.
+
 ## Getting a strong model
 
 Ranked by what actually helped (equal-time pilots, ~1.2 h each):

@@ -142,9 +142,14 @@ Smaller memory notes: `children_index`, `children_visits` and `parents` could be
 
 ## Recommended order
 
-1. Batched `backward` (exact, small, upstreamable). It can be applied here by
-   patching `mctx._src.search.backward` at import time; verify bit-identical on
-   CPU per CLAUDE.md.
+1. Batched `backward` (exact, small, upstreamable). **Done:** `mctx_patch.py`
+   replaces `mctx._src.search.backward` on import; `train.py` and
+   `model_tournament.py` import it. `tests/test_mctx_patch.py` checks the tree
+   against stock mctx (Gumbel and MuZero, with and without `max_depth`). Small
+   CPU training runs, 3 iterations each, were bit-identical with and without the
+   patch in params, optimizer state, RNG key and every logged metric: Pig with
+   `chance_samples=2`, and Dots and Boxes with `continue_games` and playout cap
+   randomization. No `game_version` bump is needed.
 2. Strip observations from stored embeddings (memory, enables bigger batches).
 3. On the TPU, tune per-device self-play batch size before anything else.
 4. Only if 3 runs out of memory or the chips stay underused: wave-parallel

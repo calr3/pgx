@@ -63,6 +63,7 @@ from omegaconf import OmegaConf
 from pydantic import BaseModel
 
 from config import Config
+import mctx_patch  # noqa: F401  (faster mctx backward pass; bit-identical)
 from network import make_forward
 
 # A Haiku model is a (params, state) pair, as returned by forward.init.
