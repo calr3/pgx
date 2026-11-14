@@ -200,6 +200,17 @@ Practicalities:
 
 - Self-play is ~95% of iteration time at full size, and network inference is
   essentially all of self-play. Optimise throughput there, not the optimiser.
+- Search runs on `examples/alphazero/mctx_fast`, a copy of mctx 0.0.71 with a
+  faster loop (root step outside the traversal, the backward pass's writes
+  applied once, slice updates for new nodes). It returns the **bit-identical**
+  tree, which `tests/test_mctx_fast.py` checks against the pip `mctx`; keep
+  that test passing after any edit. On CPU a Gess search (512 games, 32 sims)
+  took 540 ms vs 774 ms, with 20% less temp memory. Epaminondas, where
+  `env.step` dominates, gains ~11%. Not yet measured on the GPU.
+- Stripping observations out of the stored tree states saves nothing: XLA
+  already drops tree fields that nothing reads (temp memory was unchanged).
+  Check `jit(f).lower(...).compile().memory_analysis()` before optimising
+  memory that may not exist.
 - Size `max_num_iters` so the cosine schedule finishes inside the time budget;
   strength climbs steeply in the last third.
 - Rising `train/value_loss` is not necessarily bad: it tracked draws

@@ -29,7 +29,6 @@ sys.path.insert(
 )
 
 import mctx_fast  # noqa: E402
-from model_tournament import tree_embedding, untree_embedding  # noqa: E402
 
 NUM_ACTIONS = 9
 NUM_STATES = 997
@@ -63,7 +62,7 @@ def _toy_problem(seed: int, batch_size: int):
     return root, recurrent_fn, invalid
 
 
-def _assert_trees_equal(a, b, skip=""):
+def _assert_trees_equal(a, b):
     # The two packages define their own Tree classes, so compare the leaves by
     # path (field names) rather than the tree structures.
     leaves_a = jax.tree_util.tree_flatten_with_path(a)[0]
@@ -71,8 +70,6 @@ def _assert_trees_equal(a, b, skip=""):
     paths_a = [jax.tree_util.keystr(p) for p, _ in leaves_a]
     assert paths_a == [jax.tree_util.keystr(p) for p, _ in leaves_b]
     for path, (_, x), (_, y) in zip(paths_a, leaves_a, leaves_b):
-        if skip and skip in path:
-            continue
         assert x.dtype == y.dtype, path
         np.testing.assert_array_equal(np.asarray(x), np.asarray(y), err_msg=path)
 
@@ -124,7 +121,7 @@ def test_toy_search_matches_mctx(policy_name, kwargs, num_simulations):
         np.testing.assert_array_equal(ref.action_weights, new.action_weights)
 
 
-def _run_pgx(m, env_id, batch_size, num_simulations, num_moves, strip_observation=False):
+def _run_pgx(m, env_id, batch_size, num_simulations, num_moves):
     """Searches with real pgx states as embeddings and a random linear "network"
     on the observation, playing a few moves so the trees start from varied
     positions."""
@@ -137,8 +134,6 @@ def _run_pgx(m, env_id, batch_size, num_simulations, num_moves, strip_observatio
         return out[:, :-1], jnp.tanh(out[:, -1])
 
     def recurrent_fn(params, rng_key, action, state):
-        if strip_observation:
-            state = untree_embedding(env, state)
         current_player = state.current_player
         state = jax.vmap(env.step)(state, action, jax.random.split(rng_key, action.shape[0]))
         logits, value = evaluate(state)
@@ -152,7 +147,7 @@ def _run_pgx(m, env_id, batch_size, num_simulations, num_moves, strip_observatio
             prior_logits=logits,
             value=value,
         )
-        return out, (tree_embedding(state) if strip_observation else state)
+        return out, state
 
     @jax.jit
     def play(key):
@@ -164,11 +159,7 @@ def _run_pgx(m, env_id, batch_size, num_simulations, num_moves, strip_observatio
             out = m.gumbel_muzero_policy(
                 params=None,
                 rng_key=k1,
-                root=m.RootFnOutput(
-                    prior_logits=logits,
-                    value=value,
-                    embedding=tree_embedding(state) if strip_observation else state,
-                ),
+                root=m.RootFnOutput(prior_logits=logits, value=value, embedding=state),
                 recurrent_fn=recurrent_fn,
                 num_simulations=num_simulations,
                 invalid_actions=~state.legal_action_mask,
@@ -191,15 +182,3 @@ def test_pgx_search_matches_mctx(env_id):
         np.testing.assert_array_equal(r.action, n.action)
         np.testing.assert_array_equal(r.action_weights, n.action_weights)
 
-
-@pytest.mark.parametrize("env_id", ["gess", "epaminondas", "pig", "dots_and_boxes"])
-def test_observation_free_tree_embedding_matches(env_id):
-    """train.py stores states in the tree without their observation
-    (model_tournament.tree_embedding). The search must not change."""
-    ref = _run_pgx(mctx, env_id, batch_size=4, num_simulations=16, num_moves=3)
-    new = _run_pgx(mctx_fast, env_id, batch_size=4, num_simulations=16, num_moves=3, strip_observation=True)
-    for r, n in zip(ref, new):
-        assert n.search_tree.embeddings.observation.shape[-1] == 0
-        _assert_trees_equal(r.search_tree, n.search_tree, skip=".observation")
-        np.testing.assert_array_equal(r.action, n.action)
-        np.testing.assert_array_equal(r.action_weights, n.action_weights)
