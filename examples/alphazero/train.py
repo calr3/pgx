@@ -24,7 +24,7 @@ from typing import NamedTuple
 import haiku as hk
 import jax
 import jax.numpy as jnp
-import mctx
+import mctx_fast as mctx
 import numpy as np
 import optax
 import pgx
@@ -38,6 +38,8 @@ from model_tournament import (
     expected_obs_channels,
     load_from_checkpoint,
     narrow_observation,
+    tree_embedding,
+    untree_embedding,
 )
 from network import cast_floating, make_forward, make_optimizer
 from replay_buffer import ReplayBuffer
@@ -134,6 +136,7 @@ def recurrent_fn(
     # state: embedding
     model_params, model_state = model
 
+    state = untree_embedding(env, state)
     batch = action.shape[0]
     current_player = state.current_player
     # Stochastic envs (e.g. pig) consume the key to resolve chance events, so
@@ -196,7 +199,7 @@ def recurrent_fn(
         prior_logits=logits,
         value=value,
     )
-    return recurrent_fn_output, state
+    return recurrent_fn_output, tree_embedding(state)
 
 
 class SelfplayOutput(NamedTuple):
@@ -270,7 +273,7 @@ def selfplay(
         (logits, value), _ = selfplay_forward.apply(
             model_params, model_state, state.observation, is_eval=True
         )
-        root = mctx.RootFnOutput(prior_logits=logits, value=value, embedding=state)
+        root = mctx.RootFnOutput(prior_logits=logits, value=value, embedding=tree_embedding(state))
 
         def search(sims: int, key: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
             policy_output = mctx.gumbel_muzero_policy(

@@ -12,7 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Mctx: Monte Carlo tree search in JAX."""
+"""Mctx: Monte Carlo tree search in JAX.
+
+A copy of mctx 0.0.71 (https://github.com/google-deepmind/mctx, Apache 2.0)
+with a faster search loop, used by the AlphaZero examples as
+`import mctx_fast as mctx`. The API is unchanged and so are the results: the
+search tree, action and action weights are bit-identical to upstream
+(tests/test_mctx_fast.py). Only `_src/search.py` differs:
+
+- The root step of each simulation runs once, before the traversal loop.
+  Upstream chose the root or interior rule with `lax.cond`, which under `vmap`
+  becomes a select that evaluated both rules at every depth.
+- The backward pass reads the tree in its loop and applies the writes once at
+  the end. Upstream updated the tree inside a vmapped `while_loop`, which
+  selects over the whole carry on every iteration, i.e. copied every
+  `[B, N, num_actions]` array once per level of every simulation.
+- When `max_depth >= num_simulations` (the default) every simulation adds
+  node `sim + 1` in every batch element, so node writes are slice updates
+  rather than scatters.
+
+When upgrading, re-copy upstream and re-apply these changes to search.py;
+`git log -- examples/alphazero/mctx_fast` has the unmodified copy first.
+"""
 
 from mctx_fast._src.action_selection import gumbel_muzero_interior_action_selection
 from mctx_fast._src.action_selection import gumbel_muzero_root_action_selection

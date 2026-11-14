@@ -56,7 +56,7 @@ from typing import NamedTuple
 import haiku as hk
 import jax
 import jax.numpy as jnp
-import mctx
+import mctx_fast as mctx
 import numpy as np
 import pgx
 from omegaconf import OmegaConf
@@ -197,12 +197,38 @@ def narrow_observation(forward: hk.TransformedWithState, channels: int | None):
     return hk.TransformedWithState(init=forward.init, apply=apply)
 
 
+def tree_embedding(state: pgx.State) -> pgx.State:
+    """The state as a search tree stores it: without its observation.
+
+    mctx keeps one embedding per node, `[batch, num_simulations + 1, ...]`, and
+    the observation is most of a pgx state (~90% for Gess). It is never read
+    back: expanding a node steps the env, which recomputes the observation. So
+    the tree stores a zero-width placeholder instead, saving that memory and
+    the write traffic of every expansion. Undo with `untree_embedding`.
+    """
+    obs = state.observation
+    return state.replace(observation=jnp.zeros(obs.shape[:1] + (0,), obs.dtype))
+
+
+def untree_embedding(env: pgx.Env, state: pgx.State) -> pgx.State:
+    """A batch of tree embeddings back as steppable states.
+
+    The observation is zeros: no env's step reads the incoming observation, and
+    `env.step` overwrites it, so the result of stepping is unchanged
+    (tests/test_mctx_fast.py checks this). It only needs its real shape so the
+    branches inside `env.step` agree.
+    """
+    obs = state.observation
+    return state.replace(observation=jnp.zeros(obs.shape[:1] + env.observation_shape, obs.dtype))
+
+
 def make_recurrent_fn(env: pgx.Env, forward: hk.TransformedWithState) -> mctx.RecurrentFn:
     def recurrent_fn(
         model: Model, rng_key: jnp.ndarray, action: jnp.ndarray, state: pgx.State
     ) -> tuple[mctx.RecurrentFnOutput, pgx.State]:
         model_params, model_state = model
 
+        state = untree_embedding(env, state)
         current_player = state.current_player
         # Keys let stochastic envs resolve chance events inside the search tree.
         state = jax.vmap(env.step)(state, action, jax.random.split(rng_key, action.shape[0]))
@@ -221,7 +247,7 @@ def make_recurrent_fn(env: pgx.Env, forward: hk.TransformedWithState) -> mctx.Re
             discount=discount,
             prior_logits=logits,
             value=value,
-        ), state
+        ), tree_embedding(state)
 
     return recurrent_fn
 
@@ -297,7 +323,7 @@ def build_round_runner(
         """One model's full-batch search; returns the chosen action per game."""
         model_params, model_state = model
         (logits, value), _ = forward.apply(model_params, model_state, state.observation, is_eval=True)
-        root = mctx.RootFnOutput(prior_logits=logits, value=value, embedding=state)
+        root = mctx.RootFnOutput(prior_logits=logits, value=value, embedding=tree_embedding(state))
         policy_output = mctx.gumbel_muzero_policy(
             params=model,
             rng_key=key,
