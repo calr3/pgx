@@ -24,7 +24,7 @@ from typing import NamedTuple
 import haiku as hk
 import jax
 import jax.numpy as jnp
-import mctx_fast as mctx
+import mctx
 import numpy as np
 import optax
 import pgx
@@ -40,6 +40,7 @@ from model_tournament import (
     narrow_observation,
 )
 from network import cast_floating, make_forward, make_optimizer
+import search_impl
 from replay_buffer import ReplayBuffer
 from symmetry import augment_dots_and_boxes, augment_epaminondas, augment_gess
 from trajectories import PendingTrajectories, Sample
@@ -105,6 +106,11 @@ def _validate_config(config: Config, num_devices: int) -> None:
 
 
 _validate_config(config, num_devices)
+
+# The search implementation (see search_impl.py). Rebinding the module name
+# keeps every mctx.* use below on the chosen implementation.
+mctx = search_impl.load(config.mctx_impl)  # noqa: F811
+search_kwargs = search_impl.policy_kwargs(config.search_tree_bf16)
 
 env = pgx.make(config.env_id)
 baseline = pgx.make_baseline_model(config.env_id + "_v0")
@@ -282,6 +288,7 @@ def selfplay(
                 invalid_actions=~state.legal_action_mask,
                 qtransform=qtransform,
                 gumbel_scale=1.0,  # 0.0 for perfect information games
+                **search_kwargs,
             )
             return policy_output.action, policy_output.action_weights
 
@@ -839,6 +846,8 @@ if __name__ == "__main__":
         games_drawn = (data.terminated & (data.reward == 0)).sum().item()
         games_clock_ended = data.clock_end.sum().item()
         full_search_fraction = data.policy_mask.mean().item()
+        # The .item() calls above wait for self-play to finish.
+        selfplay_seconds = time.time() - st
 
         # Compute value targets and fill the replay buffer on the host, so only
         # one minibatch at a time occupies device memory during training.
@@ -910,6 +919,10 @@ if __name__ == "__main__":
                 "selfplay/steps_per_game": data_steps / max(games_finished, 1),
                 "hours": hours,
                 "frames": frames,
+                # Wall-clock split of the iteration, for comparing hardware and
+                # search implementations (mctx_impl, search_tree_bf16).
+                "perf/selfplay_seconds": selfplay_seconds,
+                "perf/iteration_seconds": et - st,
             }
         )
 

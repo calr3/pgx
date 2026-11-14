@@ -1,6 +1,7 @@
 pgx>=2.0.0
 dm-haiku>=0.0.16
-mctx
+# The calr3/mctx fork: faster search, same results (see search_impl.py).
+mctx @ git+https://github.com/calr3/mctx.git@ccr-7d0dcbe7-3rlfby
 optax
 wandb
 omegaconf

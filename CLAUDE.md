@@ -200,13 +200,16 @@ Practicalities:
 
 - Self-play is ~95% of iteration time at full size, and network inference is
   essentially all of self-play. Optimise throughput there, not the optimiser.
-- Search runs on `examples/alphazero/mctx_fast`, a copy of mctx 0.0.71 with a
-  faster loop (root step outside the traversal, the backward pass's writes
-  applied once, slice updates for new nodes). It returns the **bit-identical**
-  tree, which `tests/test_mctx_fast.py` checks against the pip `mctx`; keep
-  that test passing after any edit. On CPU a Gess search (512 games, 32 sims)
-  took 540 ms vs 774 ms, with 20% less temp memory. Epaminondas, where
-  `env.step` dominates, gains ~11%. Not yet measured on the GPU.
+- Search runs on the **calr3/mctx fork** (`requirements.txt`; details and the
+  GPU test plan in `examples/alphazero/MCTX_FORK.md`): faster loop and a
+  compact tree, with **bit-identical** results to upstream, which the fork
+  carries as `mctx._src.tests.reference`. `tests/test_mctx_fork.py` checks
+  this on pgx games; keep it passing (CPU) after any change to either side.
+  `mctx_impl=reference` runs training on the upstream code for A/B timing
+  (`perf/selfplay_seconds`), and `bench_search.py` times one search per
+  implementation. On CPU (Gess, 256 positions, 32 sims, small ResNet) the fork
+  is 1.28x faster with half the XLA temp memory. Not yet measured on the GPU.
+  `search_tree_bf16` (bfloat16 tree logits) changes results: tournament first.
 - Stripping observations out of the stored tree states saves nothing: XLA
   already drops tree fields that nothing reads (temp memory was unchanged).
   Check `jit(f).lower(...).compile().memory_analysis()` before optimising

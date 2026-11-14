@@ -56,7 +56,7 @@ from typing import NamedTuple
 import haiku as hk
 import jax
 import jax.numpy as jnp
-import mctx_fast as mctx
+import mctx
 import numpy as np
 import pgx
 from omegaconf import OmegaConf

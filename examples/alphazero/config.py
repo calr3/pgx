@@ -143,6 +143,16 @@ class Config(BaseModel):
     # Run the self-play network in bfloat16 (weights cast per call; training and
     # evaluation stay float32). ~2x faster inference for gessformer.
     selfplay_bf16: bool = False
+    # Search implementation. "fork" is the calr3/mctx fork (faster search loop,
+    # compact tree); "reference" is the original upstream mctx that the fork
+    # carries for comparison. Both search bit-identically, so this only changes
+    # speed and memory: use it to A/B the fork on new hardware.
+    mctx_impl: Literal["fork", "reference"] = "fork"
+    # Store the search tree's prior logits in bfloat16 (fork only), halving its
+    # largest array. Selection still computes in float32, but the stored logits
+    # lose precision, so searches differ slightly: needs a head-to-head before
+    # adoption. Independent of selfplay_bf16 (which is about the network).
+    search_tree_bf16: bool = False
     # Playout cap randomization (KataGo): each self-play step uses the full
     # num_simulations search with this probability, otherwise a cheap
     # fast_num_simulations search whose policy targets are excluded from the
@@ -253,6 +263,8 @@ class Config(BaseModel):
             raise ValueError(
                 f"selfplay_sample_plies must be >= 0, got {self.selfplay_sample_plies}."
             )
+        if self.search_tree_bf16 and self.mctx_impl != "fork":
+            raise ValueError("search_tree_bf16 needs mctx_impl=fork.")
         if self.fast_num_simulations < 1:
             raise ValueError(f"fast_num_simulations must be >= 1, got {self.fast_num_simulations}.")
         if self.mcts_eval_opponent:
